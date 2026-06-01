@@ -2325,7 +2325,8 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   await page.getByRole("button", { name: /new note/i }).click();
   // Switch to raw mode for deterministic typing in the textarea.
   await page.getByRole("button", { name: /switch to raw/i }).click();
-  await page.getByRole("textbox").fill("a new note pointing at [[ideas]]");
+  // `locator("textarea")` (not getByRole("textbox")) — the Search input is also a textbox.
+  await page.locator("textarea").fill("a new note pointing at [[ideas]]");
 
   // Autosave fires after the debounce; status returns to Saved.
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 5000 });
