@@ -1,4 +1,9 @@
 export type { Command } from "./Command";
 export type { Query } from "./Query";
 export type { Event } from "./Event";
+export type { CommandResponse } from "./CommandResponse";
+export type { QueryResponse } from "./QueryResponse";
+export type { ContractError } from "./ContractError";
+export type { NoteSummary } from "./NoteSummary";
+export type { GraphEdge } from "./GraphEdge";
 export { CONTRACT_SOURCE_COMMIT } from "./source";

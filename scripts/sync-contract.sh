@@ -7,7 +7,9 @@ BINDINGS="$SRC/crates/cairn-contract/bindings"
 DEST="web/src/contract"
 
 [ -d "$BINDINGS" ] || { echo "bindings not found at $BINDINGS"; exit 1; }
-cp "$BINDINGS/Command.ts" "$BINDINGS/Query.ts" "$BINDINGS/Event.ts" "$DEST/"
+mkdir -p "$DEST"
+# Copy every generated binding (the set grows as the contract evolves).
+cp "$BINDINGS"/*.ts "$DEST/"
 
 COMMIT="$(git -C "$SRC" rev-parse HEAD)"
 cat > "$DEST/source.ts" <<EOF
