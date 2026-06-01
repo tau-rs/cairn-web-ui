@@ -157,4 +157,17 @@ describe("buildLivePreviewDecorations", () => {
     const ds = decos(doc, at + 2);
     expect(ds.some((d) => d.widget && d.from === at)).toBe(false);
   });
+  it("does not emit inline marks inside an image's alt text (no overlap with the widget)", () => {
+    const doc = "see ![*a*](x.png) end";
+    const ds = decos(doc, 0); // off-cursor: image is a widget
+    const at = doc.indexOf("![");
+    // the image renders as a single widget...
+    expect(ds.some((d) => d.widget && d.from === at)).toBe(true);
+    // ...and NO emphasis mark or hide decoration lands inside the image range
+    const imgEnd = at + "![*a*](x.png)".length;
+    const inside = ds.filter(
+      (d) => d.from >= at && d.to <= imgEnd && !d.widget,
+    );
+    expect(inside.length).toBe(0);
+  });
 });

@@ -63,6 +63,15 @@ function isInsideCode(state: EditorState, pos: number): boolean {
   return false;
 }
 
+type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
+
+function isInsideImage(node: { node: SyntaxNode }): boolean {
+  for (let n: SyntaxNode | null = node.node.parent; n; n = n.parent) {
+    if (n.name === "Image") return true;
+  }
+  return false;
+}
+
 /** PURE: build the live-preview decoration set for a given editor state. */
 export function buildLivePreviewDecorations(
   state: EditorState,
@@ -87,6 +96,7 @@ export function buildLivePreviewDecorations(
           }
         }
       } else if (INLINE_CLASS[name]) {
+        if (isInsideImage(node)) return;
         decos.push(
           Decoration.mark({ class: INLINE_CLASS[name] }).range(from, to),
         );
@@ -96,6 +106,7 @@ export function buildLivePreviewDecorations(
           }
         }
       } else if (name === "Link") {
+        if (isInsideImage(node)) return;
         // A `[[wikilink]]` parses its inner `[wikilink]` as a Link node; skip it
         // so the wikilink widget (below) owns that range — otherwise we'd emit a
         // stray cm-lp-link class and overlapping replace decorations.
@@ -238,6 +249,8 @@ export function buildLivePreviewDecorations(
 
   // Images: scan the text (like wikilinks) so nesting/aliases don't trip up a
   // single-token tree lookup. Skip images inside code, reveal raw on cursor.
+  // Intentionally does NOT handle spaces-in-path, `"title"` suffixes, or
+  // bracketed alt text — those forms stay raw.
   const IMAGE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
   IMAGE.lastIndex = 0;
   let im: RegExpExecArray | null;
