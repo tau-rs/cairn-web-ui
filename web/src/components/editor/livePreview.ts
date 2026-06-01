@@ -10,10 +10,12 @@ import { type EditorState, type Range } from "@codemirror/state";
 import { WikilinkWidget } from "./wikilinkWidget";
 import { BulletWidget } from "./widgets/bulletWidget";
 import { HrWidget } from "./widgets/hrWidget";
+import { TaskCheckboxWidget } from "./widgets/taskCheckboxWidget";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
   onOpenNote: (path: string) => void;
+  onToggleCheckbox: (bracketOpen: number) => void;
 }
 
 const HEADING_CLASS: Record<string, string> = {
@@ -134,6 +136,24 @@ export function buildLivePreviewDecorations(
                 mark.from,
                 end,
               ),
+            );
+          }
+        }
+        const liLine = state.doc.lineAt(from);
+        const taskMatch = /^(\s*[-*+]\s+)(\[[ xX]\])/.exec(liLine.text);
+        if (taskMatch) {
+          const open = liLine.from + taskMatch[1].length; // index of "["
+          const close = open + 3; // covers "[ ]"
+          if (!selectionTouches(state, open, close)) {
+            const checked = /[xX]/.test(liLine.text[open - liLine.from + 1]);
+            decos.push(
+              Decoration.replace({
+                widget: new TaskCheckboxWidget(
+                  checked,
+                  open,
+                  opts.onToggleCheckbox,
+                ),
+              }).range(open, close),
             );
           }
         }

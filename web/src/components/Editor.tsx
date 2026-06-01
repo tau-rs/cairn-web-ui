@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { livePreview } from "./editor/livePreview";
+import { toggleCheckboxChange } from "./editor/checkboxToggle";
 import {
   docTheme,
   docHighlightStyle,
@@ -20,6 +21,8 @@ export function Editor(props: {
   onOpenNote: (path: string) => void;
   onToggleMode: () => void;
 }) {
+  const viewRef = useRef<EditorView | null>(null);
+
   const resolve = useMemo(() => {
     const byStem = new Map<string, string>();
     for (const p of props.notePaths) byStem.set(stem(p), p);
@@ -33,9 +36,20 @@ export function Editor(props: {
       codeLanguages: markdownCodeLanguages,
     });
     const common = [base, docTheme, docHighlightStyle, EditorView.lineWrapping];
-    return props.mode === "livepreview"
-      ? [...common, livePreview({ resolve, onOpenNote })]
-      : common;
+    const lp = livePreview({
+      resolve,
+      onOpenNote,
+      onToggleCheckbox: (bracketOpen: number) => {
+        const view = viewRef.current;
+        if (!view) return;
+        const change = toggleCheckboxChange(
+          view.state.doc.toString(),
+          bracketOpen,
+        );
+        view.dispatch({ changes: change });
+      },
+    });
+    return props.mode === "livepreview" ? [...common, lp] : common;
   }, [props.mode, resolve, onOpenNote]);
 
   if (!props.path) {
@@ -72,6 +86,9 @@ export function Editor(props: {
             highlightActiveLineGutter: false,
           }}
           onChange={props.onChange}
+          onCreateEditor={(view) => {
+            viewRef.current = view;
+          }}
         />
       </div>
     </div>

@@ -93,3 +93,17 @@
   padding-left: 13px;
   padding-right: 13px;
 }
+.cm-lp-task {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid #6b6c77;
+  border-radius: 3px;
+  vertical-align: -2px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+.cm-lp-task.checked {
+  background: #6366f1;
+  border-color: #6366f1;
+}

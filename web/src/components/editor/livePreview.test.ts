@@ -7,6 +7,7 @@ import { buildLivePreviewDecorations } from "./livePreview";
 const opts = {
   resolve: (t: string) => (t === "ideas" ? "ideas.md" : null),
   onOpenNote: vi.fn(),
+  onToggleCheckbox: vi.fn(),
 };
 
 interface Deco {
@@ -120,5 +121,17 @@ describe("buildLivePreviewDecorations", () => {
     expect(ds.some((d) => d.hidden && d.from === fence)).toBe(false);
     const closingFence = doc.lastIndexOf("```");
     expect(ds.some((d) => d.hidden && d.from === closingFence)).toBe(false);
+  });
+  it("renders a task checkbox as a widget off-cursor", () => {
+    const doc = "- [ ] todo item";
+    const ds = decos(doc, doc.length); // cursor at end, off the marker
+    const open = doc.indexOf("[");
+    expect(ds.some((d) => d.widget && d.from === open)).toBe(true);
+  });
+  it("reveals the raw [ ] marker when the cursor is on the task", () => {
+    const doc = "- [ ] todo item";
+    const open = doc.indexOf("[");
+    const ds = decos(doc, open + 1);
+    expect(ds.some((d) => d.widget && d.from === open)).toBe(false);
   });
 });
