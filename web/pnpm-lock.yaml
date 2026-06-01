@@ -11,6 +11,15 @@ importers:
       '@codemirror/lang-markdown':
         specifier: ^6
         version: 6.5.0
+      '@codemirror/language':
+        specifier: ^6.12.3
+        version: 6.12.3
+      '@codemirror/state':
+        specifier: ^6.6.0
+        version: 6.6.0
+      '@codemirror/view':
+        specifier: ^6.43.0
+        version: 6.43.0
       '@tauri-apps/api':
         specifier: ^2.11.0
         version: 2.11.0
