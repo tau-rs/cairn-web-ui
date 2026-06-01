@@ -17,14 +17,15 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   // Create a new note that links to ideas.
   page.once("dialog", (d) => d.accept("fresh.md"));
   await page.getByRole("button", { name: /new note/i }).click();
-  // New note opens in the rendered view; toggle to source (CodeMirror) to type.
-  await page.getByRole("button", { name: /edit source/i }).click();
+  // New note opens editable in live preview — type directly into CodeMirror.
   const cm = page.locator(".cm-content");
   await cm.click();
-  await cm.fill("a new note pointing at [[ideas]]");
-  // Back to the rendered view; the wikilink renders as a clickable link.
-  await page.getByRole("button", { name: /^done$/i }).click();
-  await expect(page.getByRole("link", { name: "ideas" })).toBeVisible();
+  await page.keyboard.type("a new note pointing at [[ideas]]");
+  // Move cursor to start of line so the cursor no longer touches the wikilink;
+  // live preview then renders the [[ideas]] as a widget.
+  await page.keyboard.press("Home");
+  // In live preview the wikilink renders as a clickable widget (not raw [[…]]).
+  await expect(page.locator(".cm-lp-wikilink", { hasText: "ideas" }).first()).toBeVisible();
 
   // Autosave fires after the debounce; status returns to Saved.
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 5000 });
@@ -61,7 +62,25 @@ test("graph view: toggle, see nodes, click to open a note", async ({
   const flow = page.locator(".react-flow");
   await expect(flow.getByText("ideas", { exact: true }).first()).toBeVisible();
 
-  // Clicking the "index" node opens index.md and returns to the editor (rendered).
+  // Clicking the "index" node opens index.md and returns to the editor (live preview).
   await flow.getByText("index", { exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Index" })).toBeVisible();
+  await expect(page.locator(".cm-lp-h1")).toBeVisible();
+});
+
+test("live preview: heading styled, wikilink opens note, source toggle shows raw", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "index.md" }).click();
+
+  // Heading is styled in live preview (the "# " marker is hidden).
+  await expect(page.locator(".cm-lp-h1")).toBeVisible();
+
+  // [[ideas]] is a clickable widget; clicking opens ideas.md.
+  await page.locator(".cm-lp-wikilink", { hasText: "ideas" }).first().click();
+  await expect(page.locator(".cm-content")).toContainText("Ideas");
+
+  // Toggle to Source → raw markdown ("# Ideas") visible.
+  await page.getByRole("button", { name: /^source$/i }).click();
+  await expect(page.locator(".cm-content")).toContainText("# Ideas");
 });
