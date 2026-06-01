@@ -2136,6 +2136,7 @@ Expected: FAIL — cannot find module `./Settings`.
 
 `web/src/components/Settings.tsx`:
 ```tsx
+import { useState } from "react";
 import type { Settings as SettingsType } from "../store/store";
 
 export function Settings(props: {
@@ -2143,6 +2144,9 @@ export function Settings(props: {
   onChange: (patch: Partial<SettingsType>) => void;
 }) {
   const s = props.settings;
+  // Local state for the number input so clear+type behaves; onChange still
+  // pushes valid values to the store.
+  const [intervalStr, setIntervalStr] = useState(String(s.intervalAutoCommitMin));
   return (
     <div className="flex flex-col gap-2 text-sm text-neutral-300">
       <span className="text-xs uppercase tracking-wide text-neutral-500">Auto-commit</span>
@@ -2168,8 +2172,12 @@ export function Settings(props: {
           type="number"
           min={1}
           className="w-16 rounded bg-neutral-800 px-1"
-          value={s.intervalAutoCommitMin}
-          onChange={(e) => props.onChange({ intervalAutoCommitMin: Number(e.target.value) })}
+          value={intervalStr}
+          onChange={(e) => {
+            setIntervalStr(e.target.value);
+            const n = Number(e.target.value);
+            if (!isNaN(n) && n > 0) props.onChange({ intervalAutoCommitMin: n });
+          }}
         />
       </label>
     </div>
