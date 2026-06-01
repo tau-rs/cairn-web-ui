@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CommitBar } from "./CommitBar";
 
@@ -32,20 +32,22 @@ describe("CommitBar", () => {
     expect(screen.getByText(/c0007/)).toBeInTheDocument();
   });
 
-  it("commits with the entered message", async () => {
+  it("opens the commit dialog and commits the message", async () => {
     const onCommit = vi.fn();
-    vi.spyOn(window, "prompt").mockReturnValue("snapshot");
     render(
       <CommitBar
         saving={false}
         dirty={false}
         uncommitted
-        onCommit={onCommit}
         lastCommit={null}
         committing={false}
+        onCommit={onCommit}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /commit/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Commit" })); // trigger
+    await userEvent.type(screen.getByPlaceholderText("Describe this change"), "snapshot");
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Commit" }));
     expect(onCommit).toHaveBeenCalledWith("snapshot");
   });
 });

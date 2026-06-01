@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Button } from "./ui/Button";
 import { SectionLabel } from "./ui/SectionLabel";
+import { NewNoteDialog } from "./NewNoteDialog";
 
 export function NoteList(props: {
   paths: string[];
@@ -8,16 +10,14 @@ export function NoteList(props: {
   onNew: (path: string) => void;
   onDelete: (path: string) => void;
 }) {
+  const [newOpen, setNewOpen] = useState(false);
   return (
     <div className="flex flex-col gap-1 text-sm">
       <div className="mb-1 flex items-center justify-between">
         <SectionLabel>Notes</SectionLabel>
         <Button
           variant="ghost"
-          onClick={() => {
-            const path = window.prompt("New note path (e.g. notes/idea.md)");
-            if (path) props.onNew(path);
-          }}
+          onClick={() => setNewOpen(true)}
         >
           + New note
         </Button>
@@ -46,6 +46,7 @@ export function NoteList(props: {
           </button>
         </div>
       ))}
+      <NewNoteDialog open={newOpen} onOpenChange={setNewOpen} onCreate={props.onNew} />
     </div>
   );
 }

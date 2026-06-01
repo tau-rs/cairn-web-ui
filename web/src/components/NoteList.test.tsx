@@ -19,19 +19,14 @@ describe("NoteList", () => {
     expect(onOpen).toHaveBeenCalledWith("b.md");
   });
 
-  it("calls onNew with a path from the prompt", async () => {
+  it("opens the new-note dialog and creates a note", async () => {
     const onNew = vi.fn();
-    vi.spyOn(window, "prompt").mockReturnValue("new.md");
     render(
-      <NoteList
-        paths={[]}
-        activePath={null}
-        onOpen={vi.fn()}
-        onNew={onNew}
-        onDelete={vi.fn()}
-      />,
+      <NoteList paths={[]} activePath={null} onOpen={vi.fn()} onNew={onNew} onDelete={vi.fn()} />,
     );
     await userEvent.click(screen.getByRole("button", { name: /new note/i }));
+    await userEvent.type(screen.getByPlaceholderText("notes/idea.md"), "new.md");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(onNew).toHaveBeenCalledWith("new.md");
   });
 
