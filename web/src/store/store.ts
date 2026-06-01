@@ -35,6 +35,7 @@ export interface CairnState {
   query: string;
   searchResults: string[] | null;
   backlinks: string[];
+  graph: { nodes: string[]; edges: { from: string; to: string }[] } | null;
   settings: Settings;
   error: string | null;
 
@@ -50,6 +51,7 @@ export interface CairnState {
   setQuery(query: string): void;
   closeSearch(): void;
   refreshBacklinks(): Promise<void>;
+  loadGraph(): Promise<void>;
   commitManual(message: string): Promise<void>;
   autoCommit(): Promise<void>;
   rearmInterval(): void;
@@ -79,6 +81,7 @@ export function createCairnStore(
     query: "",
     searchResults: null,
     backlinks: [],
+    graph: null,
     settings: DEFAULT_SETTINGS,
     error: null,
 
@@ -95,6 +98,7 @@ export function createCairnStore(
           void get().refreshNotePaths();
           if (get().searchResults !== null) void get().runSearch(get().query);
           if (get().activePath) void get().refreshBacklinks();
+          if (get().graph !== null) void get().loadGraph();
         } else if (e.type === "committed") {
           set({ lastCommit: e.commit, uncommitted: false });
         }
@@ -235,6 +239,15 @@ export function createCairnStore(
       try {
         const res = await client.runQuery({ type: "get_backlinks", path });
         if (res.type === "paths") set({ backlinks: res.paths });
+      } catch (err) {
+        set({ error: errMsg(err) });
+      }
+    },
+
+    async loadGraph() {
+      try {
+        const res = await client.runQuery({ type: "get_graph" });
+        if (res.type === "graph") set({ graph: { nodes: res.nodes, edges: res.edges } });
       } catch (err) {
         set({ error: errMsg(err) });
       }

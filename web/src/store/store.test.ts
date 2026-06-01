@@ -148,6 +148,25 @@ describe("cairn store", () => {
     expect(listCalls).toBe(1);
   });
 
+  it("loadGraph populates the graph from get_graph", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    await store.getState().loadGraph();
+    const g = store.getState().graph;
+    expect(g).not.toBeNull();
+    expect([...g!.nodes].sort()).toEqual(["a.md", "b.md"]);
+    expect(g!.edges).toEqual([{ from: "a.md", to: "b.md" }]);
+  });
+
+  it("refreshes the graph on a note event when it is loaded", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    await store.getState().loadGraph();
+    await client.sendCommand({ type: "write_note", path: "c.md", contents: "x" });
+    await vi.waitFor(() => expect(store.getState().graph!.nodes).toContain("c.md"));
+  });
+
   it("defaults the editor to the rendered view", () => {
     expect(DEFAULT_SETTINGS.editorMode).toBe("rendered");
   });
