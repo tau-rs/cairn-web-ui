@@ -7,6 +7,7 @@ import { SearchBar } from "../components/SearchBar";
 import { SearchResults } from "../components/SearchResults";
 import { CommitBar } from "../components/CommitBar";
 import { Settings } from "../components/Settings";
+import { ErrorToast } from "../components/ErrorToast";
 import { cairnStore, useCairn } from "./cairnStore";
 
 export default function App() {
@@ -27,9 +28,11 @@ export default function App() {
   const uncommitted = useCairn((s) => s.uncommitted);
   const lastCommit = useCairn((s) => s.lastCommit);
   const committing = useCairn((s) => s.committing);
+  const error = useCairn((s) => s.error);
   const actions = cairnStore.getState();
 
   return (
+    <>
     <Shell
       topBar={
         <div className="flex w-full items-center justify-between">
@@ -84,5 +87,7 @@ export default function App() {
         </div>
       }
     />
+    <ErrorToast message={error} onDismiss={actions.dismissError} />
+    </>
   );
 }
