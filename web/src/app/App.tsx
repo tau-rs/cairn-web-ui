@@ -5,6 +5,7 @@ import { Editor } from "../components/Editor";
 import { Backlinks } from "../components/Backlinks";
 import { SearchBar } from "../components/SearchBar";
 import { SearchResults } from "../components/SearchResults";
+import { CommitBar } from "../components/CommitBar";
 import { cairnStore, useCairn } from "./cairnStore";
 
 export default function App() {
@@ -19,14 +20,29 @@ export default function App() {
   const backlinks = useCairn((s) => s.backlinks);
   const query = useCairn((s) => s.query);
   const searchResults = useCairn((s) => s.searchResults);
+  const saving = useCairn((s) => s.saving);
+  const dirty = useCairn((s) => s.dirty);
+  const uncommitted = useCairn((s) => s.uncommitted);
+  const lastCommit = useCairn((s) => s.lastCommit);
+  const committing = useCairn((s) => s.committing);
   const actions = cairnStore.getState();
 
   return (
     <Shell
       topBar={
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-neutral-400">Cairn</span>
-          <SearchBar value={query} onChange={actions.setQuery} onSearch={actions.runSearch} />
+        <div className="flex w-full items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-neutral-400">Cairn</span>
+            <SearchBar value={query} onChange={actions.setQuery} onSearch={actions.runSearch} />
+          </div>
+          <CommitBar
+            saving={saving}
+            dirty={dirty}
+            uncommitted={uncommitted}
+            lastCommit={lastCommit}
+            committing={committing}
+            onCommit={actions.commitManual}
+          />
         </div>
       }
       list={
