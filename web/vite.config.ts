@@ -9,5 +9,11 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/vitest.setup.ts"],
     exclude: ["e2e/**", "node_modules/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "lcov"],
+      reportsDirectory: "./coverage",
+      exclude: ["e2e/**", "**/*.config.*", "**/vitest.setup.ts", "dist/**"],
+    },
   },
 });

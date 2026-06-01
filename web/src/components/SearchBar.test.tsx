@@ -12,7 +12,10 @@ describe("SearchBar", () => {
       return <SearchBar value={v} onChange={setV} onSearch={onSearch} />;
     }
     render(<Harness />);
-    await userEvent.type(screen.getByPlaceholderText(/search/i), "target{enter}");
+    await userEvent.type(
+      screen.getByPlaceholderText(/search/i),
+      "target{enter}",
+    );
     expect(onSearch).toHaveBeenCalledWith("target");
   });
 });

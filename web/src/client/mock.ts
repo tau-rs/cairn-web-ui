@@ -13,7 +13,10 @@ import { extractLinks, stem } from "./wikilink";
 
 /** Split a leading `---\n...\n---\n` frontmatter block. Mirrors cairn-domain
  *  Note::parse (frontmatter is the YAML between fences; body is the rest). */
-function splitFrontmatter(raw: string): { frontmatter: string | null; body: string } {
+function splitFrontmatter(raw: string): {
+  frontmatter: string | null;
+  body: string;
+} {
   if (!raw.startsWith("---\n")) return { frontmatter: null, body: raw };
   const rest = raw.slice(4);
   if (rest.startsWith("---\n")) return { frontmatter: "", body: rest.slice(4) };
@@ -31,7 +34,12 @@ function displayTitle(path: string, raw: string): string {
       const t = line.trimStart();
       if (t.startsWith("title:")) {
         // Two-pass quote strip mirrors Rust's trim_matches('"').trim_matches('\'').
-        const v = t.slice("title:".length).trim().replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "").trim();
+        const v = t
+          .slice("title:".length)
+          .trim()
+          .replace(/^"+|"+$/g, "")
+          .replace(/^'+|'+$/g, "")
+          .trim();
         if (v) return v;
       }
     }
@@ -128,7 +136,9 @@ export class MockClient implements CairnClient {
           ...new Set(
             [...this.notes.entries()]
               .filter(([, raw]) =>
-                extractLinks(splitFrontmatter(raw).body).some((t) => byStem.get(t) === q.path),
+                extractLinks(splitFrontmatter(raw).body).some(
+                  (t) => byStem.get(t) === q.path,
+                ),
               )
               .map(([path]) => path),
           ),
@@ -156,7 +166,15 @@ export class MockClient implements CairnClient {
           }
         }
         edges.sort((a, b) =>
-          a.from === b.from ? (a.to < b.to ? -1 : a.to > b.to ? 1 : 0) : a.from < b.from ? -1 : 1,
+          a.from === b.from
+            ? a.to < b.to
+              ? -1
+              : a.to > b.to
+                ? 1
+                : 0
+            : a.from < b.from
+              ? -1
+              : 1,
         );
         return { type: "graph", nodes, edges };
       }

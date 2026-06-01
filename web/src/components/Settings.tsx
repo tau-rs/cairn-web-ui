@@ -6,10 +6,14 @@ export function Settings(props: {
   onChange: (patch: Partial<SettingsType>) => void;
 }) {
   const s = props.settings;
-  const [intervalStr, setIntervalStr] = useState(String(s.intervalAutoCommitMin));
+  const [intervalStr, setIntervalStr] = useState(
+    String(s.intervalAutoCommitMin),
+  );
   return (
     <div className="flex flex-col gap-2 text-sm text-neutral-300">
-      <span className="text-xs uppercase tracking-wide text-neutral-500">Auto-commit</span>
+      <span className="text-xs uppercase tracking-wide text-neutral-500">
+        Auto-commit
+      </span>
       <label className="flex items-center gap-2">
         <input
           type="checkbox"
@@ -22,7 +26,9 @@ export function Settings(props: {
         <input
           type="checkbox"
           checked={s.intervalAutoCommit}
-          onChange={(e) => props.onChange({ intervalAutoCommit: e.target.checked })}
+          onChange={(e) =>
+            props.onChange({ intervalAutoCommit: e.target.checked })
+          }
         />
         Interval auto-commit
       </label>
@@ -36,7 +42,8 @@ export function Settings(props: {
           onChange={(e) => {
             setIntervalStr(e.target.value);
             const n = Number(e.target.value);
-            if (!isNaN(n) && n > 0) props.onChange({ intervalAutoCommitMin: n });
+            if (!isNaN(n) && n > 0)
+              props.onChange({ intervalAutoCommitMin: n });
           }}
         />
       </label>

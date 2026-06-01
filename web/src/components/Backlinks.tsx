@@ -1,7 +1,12 @@
-export function Backlinks(props: { paths: string[]; onOpen: (path: string) => void }) {
+export function Backlinks(props: {
+  paths: string[];
+  onOpen: (path: string) => void;
+}) {
   return (
     <div className="flex flex-col gap-1 text-sm">
-      <span className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Backlinks</span>
+      <span className="mb-1 text-xs uppercase tracking-wide text-neutral-500">
+        Backlinks
+      </span>
       {props.paths.length === 0 ? (
         <span className="text-neutral-600">No backlinks</span>
       ) : (

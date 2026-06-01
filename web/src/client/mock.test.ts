@@ -17,14 +17,19 @@ describe("MockClient", () => {
 
   it("get_note rejects with not_found for a missing note", async () => {
     const c = new MockClient(freshNotes());
-    await expect(c.runQuery({ type: "get_note", path: "missing.md" })).rejects.toEqual({
+    await expect(
+      c.runQuery({ type: "get_note", path: "missing.md" }),
+    ).rejects.toEqual({
       type: "not_found",
       what: "missing.md",
     });
   });
 
   it("search matches body and path, case-insensitive, sorted by path", async () => {
-    const c = new MockClient({ "zeta.md": "alpha note", "alpha.md": "zeta body" });
+    const c = new MockClient({
+      "zeta.md": "alpha note",
+      "alpha.md": "zeta body",
+    });
     expect(await c.runQuery({ type: "search", query: "ALPHA" })).toEqual({
       type: "paths",
       paths: ["alpha.md", "zeta.md"],
@@ -68,7 +73,11 @@ describe("MockClient", () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];
     c.subscribe((e) => events.push(e));
-    const res = await c.sendCommand({ type: "write_note", path: "c.md", contents: "new [[a]]" });
+    const res = await c.sendCommand({
+      type: "write_note",
+      path: "c.md",
+      contents: "new [[a]]",
+    });
     expect(res).toEqual({ type: "done" });
     await vi.waitFor(() =>
       expect(events).toEqual([
@@ -98,7 +107,9 @@ describe("MockClient", () => {
 
   it("delete_note rejects with not_found for a missing note", async () => {
     const c = new MockClient(freshNotes());
-    await expect(c.sendCommand({ type: "delete_note", path: "ghost.md" })).rejects.toEqual({
+    await expect(
+      c.sendCommand({ type: "delete_note", path: "ghost.md" }),
+    ).rejects.toEqual({
       type: "not_found",
       what: "ghost.md",
     });
@@ -110,6 +121,8 @@ describe("MockClient", () => {
     c.subscribe((e) => events.push(e));
     const res = await c.sendCommand({ type: "commit", message: "first" });
     expect(res).toEqual({ type: "committed", commit: "c0001" });
-    await vi.waitFor(() => expect(events).toContainEqual({ type: "committed", commit: "c0001" }));
+    await vi.waitFor(() =>
+      expect(events).toContainEqual({ type: "committed", commit: "c0001" }),
+    );
   });
 });

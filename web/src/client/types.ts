@@ -1,4 +1,10 @@
-import type { Command, Query, Event, CommandResponse, QueryResponse } from "../contract";
+import type {
+  Command,
+  Query,
+  Event,
+  CommandResponse,
+  QueryResponse,
+} from "../contract";
 
 export type Unsubscribe = () => void;
 
