@@ -1,0 +1,15 @@
+# Node / web
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+test-results/
+playwright-report/
+
+# Rust (gateway crate, if/when added)
+target/
+
+# Env / local
+.env
+.env.local
+.DS_Store
