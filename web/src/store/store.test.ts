@@ -148,6 +148,10 @@ describe("cairn store", () => {
     expect(listCalls).toBe(1);
   });
 
+  it("defaults the editor to the rendered view", () => {
+    expect(DEFAULT_SETTINGS.editorMode).toBe("rendered");
+  });
+
   it("defaults to an always-open cairn (mock) and sets cairnPath on init", async () => {
     const { store } = setup();
     await store.getState().init();

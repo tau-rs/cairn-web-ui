@@ -10,7 +10,7 @@ export interface Settings {
   idleAutoCommitMs: number;
   intervalAutoCommit: boolean;
   intervalAutoCommitMin: number;
-  editorMode: "rich" | "raw";
+  editorMode: "rendered" | "source";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   idleAutoCommitMs: 5000,
   intervalAutoCommit: true,
   intervalAutoCommitMin: 5,
-  editorMode: "rich",
+  editorMode: "rendered",
 };
 
 export interface CairnState {
