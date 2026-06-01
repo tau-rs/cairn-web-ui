@@ -1078,9 +1078,11 @@ export interface CairnState {
 }
 
 export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
+  let started = false;
   let autosave: Debounced | null = null;
   let idleCommit: Debounced | null = null;
-  let intervalHandle: ReturnType<typeof setInterval> | null = null;
+  // The interval auto-commit timer runs for the app's lifetime; the store has
+  // no teardown, so we don't retain the handle (avoids an unused-local error).
 
   const store = createStore<CairnState>()((set, get) => ({
     notePaths: [],
@@ -1098,6 +1100,8 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     error: null,
 
     async init() {
+      if (started) return; // idempotent: StrictMode double-mounts effects
+      started = true;
       client.subscribe((e) => {
         if (e.type === "note_changed" || e.type === "note_deleted") {
           void get().refreshNotePaths();
@@ -1110,16 +1114,17 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
       await get().refreshNotePaths();
       const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
       if (intervalAutoCommit) {
-        intervalHandle = setInterval(
-          () => void get().autoCommit(),
-          intervalAutoCommitMin * 60_000,
-        );
+        setInterval(() => void get().autoCommit(), intervalAutoCommitMin * 60_000);
       }
     },
 
     async refreshNotePaths() {
-      const res = await client.runQuery({ type: "list_notes" });
-      if (res.type === "notes") set({ notePaths: res.notes.map((n) => n.path) });
+      try {
+        const res = await client.runQuery({ type: "list_notes" });
+        if (res.type === "notes") set({ notePaths: res.notes.map((n) => n.path) });
+      } catch (err) {
+        set({ error: errMsg(err) });
+      }
     },
 
     async openNote(path) {
@@ -1150,10 +1155,17 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     async saveActive() {
       const path = get().activePath;
       if (!path || !get().dirty) return;
+      const snapshot = get().activeContents;
       set({ saving: true });
       try {
-        await client.sendCommand({ type: "write_note", path, contents: get().activeContents });
-        set({ dirty: false, saving: false, uncommitted: true });
+        await client.sendCommand({ type: "write_note", path, contents: snapshot });
+        set((s) => ({
+          saving: false,
+          uncommitted: true,
+          // Stay dirty if the note changed during the write (the pending debounce
+          // will save it); don't touch dirty if the user navigated to another note.
+          dirty: s.activePath === path ? s.activeContents !== snapshot : s.dirty,
+        }));
       } catch (err) {
         set({ saving: false, error: errMsg(err) });
       }
@@ -1171,7 +1183,8 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     async deleteNote(path) {
       try {
         await client.sendCommand({ type: "delete_note", path });
-        if (get().activePath === path) set({ activePath: null, activeContents: "", backlinks: [] });
+        if (get().activePath === path)
+          set({ activePath: null, activeContents: "", backlinks: [], dirty: false, saving: false });
       } catch (err) {
         set({ error: errMsg(err) });
       }
