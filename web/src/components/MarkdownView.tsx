@@ -39,6 +39,7 @@ export function MarkdownView(props: {
               }
               return (
                 <a
+                  href="#"
                   className="cursor-pointer text-sky-400 no-underline hover:underline"
                   onClick={(e) => {
                     e.preventDefault();

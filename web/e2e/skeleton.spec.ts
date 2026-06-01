@@ -17,9 +17,14 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   // Create a new note that links to ideas.
   page.once("dialog", (d) => d.accept("fresh.md"));
   await page.getByRole("button", { name: /new note/i }).click();
-  // Switch to raw mode for deterministic typing in the textarea.
-  await page.getByRole("button", { name: /switch to raw/i }).click();
-  await page.locator("textarea").fill("a new note pointing at [[ideas]]");
+  // New note opens in the rendered view; toggle to source (CodeMirror) to type.
+  await page.getByRole("button", { name: /edit source/i }).click();
+  const cm = page.locator(".cm-content");
+  await cm.click();
+  await cm.fill("a new note pointing at [[ideas]]");
+  // Back to the rendered view; the wikilink renders as a clickable link.
+  await page.getByRole("button", { name: /^done$/i }).click();
+  await expect(page.getByRole("link", { name: "ideas" })).toBeVisible();
 
   // Autosave fires after the debounce; status returns to Saved.
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 5000 });
