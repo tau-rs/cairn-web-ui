@@ -1,0 +1,54 @@
+.cm-lp-h1 {
+  font-size: 1.6em;
+  font-weight: 700;
+}
+.cm-lp-h2 {
+  font-size: 1.4em;
+  font-weight: 700;
+}
+.cm-lp-h3 {
+  font-size: 1.2em;
+  font-weight: 600;
+}
+.cm-lp-h4 {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+.cm-lp-h5 {
+  font-size: 1em;
+  font-weight: 600;
+}
+.cm-lp-h6 {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #9aa0b4;
+}
+.cm-lp-strong {
+  font-weight: 700;
+}
+.cm-lp-em {
+  font-style: italic;
+}
+.cm-lp-strike {
+  text-decoration: line-through;
+}
+.cm-lp-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #2a2a36;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.cm-lp-link {
+  color: #7aa2ff;
+}
+.cm-lp-wikilink.resolved {
+  color: #7aa2ff;
+  cursor: pointer;
+}
+.cm-lp-wikilink.resolved:hover {
+  text-decoration: underline;
+}
+.cm-lp-wikilink.unresolved {
+  color: #8b90a0;
+  text-decoration: underline dotted;
+}
