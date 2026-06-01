@@ -4,6 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { livePreview } from "./editor/livePreview";
 import { toggleCheckboxChange } from "./editor/checkboxToggle";
+import { makeImageResolver } from "./editor/imageResolver";
 import {
   docTheme,
   docHighlightStyle,
@@ -17,6 +18,7 @@ export function Editor(props: {
   value: string;
   mode: "livepreview" | "source";
   notePaths: string[];
+  assetUrl: (relPath: string) => string;
   onChange: (value: string) => void;
   onOpenNote: (path: string) => void;
   onToggleMode: () => void;
@@ -30,6 +32,10 @@ export function Editor(props: {
   }, [props.notePaths]);
 
   const onOpenNote = props.onOpenNote;
+  const resolveImage = useMemo(
+    () => makeImageResolver(props.assetUrl),
+    [props.assetUrl],
+  );
   const extensions = useMemo(() => {
     const base = markdown({
       base: markdownLanguage,
@@ -48,9 +54,10 @@ export function Editor(props: {
         );
         view.dispatch({ changes: change });
       },
+      resolveImage,
     });
     return props.mode === "livepreview" ? [...common, lp] : common;
-  }, [props.mode, resolve, onOpenNote]);
+  }, [props.mode, resolve, onOpenNote, resolveImage]);
 
   if (!props.path) {
     return (

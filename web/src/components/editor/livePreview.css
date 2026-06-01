@@ -107,3 +107,12 @@
   background: #6366f1;
   border-color: #6366f1;
 }
+.cm-lp-img {
+  max-width: 100%;
+  vertical-align: middle;
+  border-radius: 6px;
+}
+.cm-lp-img.block {
+  display: block;
+  margin: 0.6em 0;
+}

@@ -15,3 +15,10 @@ describe("MockHost", () => {
     expect(await h.openCairn()).toBe("(fixture)");
   });
 });
+
+describe("MockHost.assetUrl", () => {
+  it("returns an inline data image for any local path", () => {
+    const url = new MockHost().assetUrl("img/logo.png");
+    expect(url.startsWith("data:image/")).toBe(true);
+  });
+});

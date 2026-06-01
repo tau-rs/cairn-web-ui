@@ -129,6 +129,7 @@ export default function App() {
                 value={activeContents}
                 mode={editorMode}
                 notePaths={notePaths}
+                assetUrl={actions.assetUrl}
                 onChange={actions.editBuffer}
                 onOpenNote={actions.openNote}
                 onToggleMode={() =>

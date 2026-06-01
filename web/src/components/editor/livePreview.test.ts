@@ -8,6 +8,7 @@ const opts = {
   resolve: (t: string) => (t === "ideas" ? "ideas.md" : null),
   onOpenNote: vi.fn(),
   onToggleCheckbox: vi.fn(),
+  resolveImage: (src: string) => "resolved:" + src,
 };
 
 interface Deco {
@@ -143,5 +144,17 @@ describe("buildLivePreviewDecorations", () => {
     // the checkbox widget renders at the "[" position
     const open = doc.indexOf("[");
     expect(ds.some((d) => d.widget && d.from === open)).toBe(true);
+  });
+  it("replaces an image with a widget off-cursor", () => {
+    const doc = "see ![logo](img/logo.png) here";
+    const at = doc.indexOf("![");
+    const ds = decos(doc, 0);
+    expect(ds.some((d) => d.widget && d.from === at)).toBe(true);
+  });
+  it("reveals the raw image markdown when the cursor is on it", () => {
+    const doc = "see ![logo](img/logo.png) here";
+    const at = doc.indexOf("![");
+    const ds = decos(doc, at + 2);
+    expect(ds.some((d) => d.widget && d.from === at)).toBe(false);
   });
 });

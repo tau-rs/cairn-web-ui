@@ -190,6 +190,7 @@ describe("cairn store", () => {
     const host = {
       currentCairn: () => Promise.resolve<string | null>(null),
       openCairn: () => Promise.resolve<string | null>("/tmp/mycairn"),
+      assetUrl: (p: string) => p,
     };
     const store = createCairnStore(client, host);
     await store.getState().init();

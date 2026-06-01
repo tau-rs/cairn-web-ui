@@ -11,11 +11,13 @@ import { WikilinkWidget } from "./wikilinkWidget";
 import { BulletWidget } from "./widgets/bulletWidget";
 import { HrWidget } from "./widgets/hrWidget";
 import { TaskCheckboxWidget } from "./widgets/taskCheckboxWidget";
+import { ImageWidget } from "./widgets/imageWidget";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
   onOpenNote: (path: string) => void;
   onToggleCheckbox: (bracketOpen: number) => void;
+  resolveImage: (src: string) => string;
 }
 
 const HEADING_CLASS: Record<string, string> = {
@@ -230,6 +232,27 @@ export function buildLivePreviewDecorations(
     decos.push(
       Decoration.replace({
         widget: new WikilinkWidget(alias, path, opts.onOpenNote),
+      }).range(from, to),
+    );
+  }
+
+  // Images: scan the text (like wikilinks) so nesting/aliases don't trip up a
+  // single-token tree lookup. Skip images inside code, reveal raw on cursor.
+  const IMAGE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+  IMAGE.lastIndex = 0;
+  let im: RegExpExecArray | null;
+  while ((im = IMAGE.exec(text)) !== null) {
+    const from = im.index;
+    const to = from + im[0].length;
+    if (isInsideCode(state, from)) continue;
+    if (selectionTouches(state, from, to)) continue;
+    const alt = im[1];
+    const src = opts.resolveImage(im[2]);
+    const line = state.doc.lineAt(from);
+    const block = line.text.trim() === im[0];
+    decos.push(
+      Decoration.replace({
+        widget: new ImageWidget(src, alt, block),
       }).range(from, to),
     );
   }

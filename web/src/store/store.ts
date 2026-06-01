@@ -57,6 +57,7 @@ export interface CairnState {
   rearmInterval(): void;
   setSettings(patch: Partial<Settings>): void;
   dismissError(): void;
+  assetUrl(relPath: string): string;
 }
 
 export function createCairnStore(
@@ -296,6 +297,10 @@ export function createCairnStore(
 
     dismissError() {
       set({ error: null });
+    },
+
+    assetUrl(relPath: string) {
+      return host.assetUrl(relPath);
     },
   }));
 
