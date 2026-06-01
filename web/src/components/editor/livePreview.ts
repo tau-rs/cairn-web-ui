@@ -37,7 +37,11 @@ const MARK_CHILD: Record<string, string> = {
 
 const WIKILINK = /\[\[([^\]]+?)\]\]/g;
 
-function selectionTouches(state: EditorState, from: number, to: number): boolean {
+function selectionTouches(
+  state: EditorState,
+  from: number,
+  to: number,
+): boolean {
   return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 }
 
@@ -61,7 +65,9 @@ export function buildLivePreviewDecorations(
     enter: (node) => {
       const { name, from, to } = node;
       if (HEADING_CLASS[name]) {
-        decos.push(Decoration.mark({ class: HEADING_CLASS[name] }).range(from, to));
+        decos.push(
+          Decoration.mark({ class: HEADING_CLASS[name] }).range(from, to),
+        );
         if (!selectionTouches(state, from, to)) {
           const mark = node.node.getChild("HeaderMark");
           if (mark) {
@@ -71,25 +77,34 @@ export function buildLivePreviewDecorations(
           }
         }
       } else if (INLINE_CLASS[name]) {
-        decos.push(Decoration.mark({ class: INLINE_CLASS[name] }).range(from, to));
+        decos.push(
+          Decoration.mark({ class: INLINE_CLASS[name] }).range(from, to),
+        );
         if (!selectionTouches(state, from, to)) {
           for (const m of node.node.getChildren(MARK_CHILD[name])) {
             decos.push(Decoration.replace({}).range(m.from, m.to));
           }
         }
       } else if (name === "Link") {
+        // A `[[wikilink]]` parses its inner `[wikilink]` as a Link node; skip it
+        // so the wikilink widget (below) owns that range — otherwise we'd emit a
+        // stray cm-lp-link class and overlapping replace decorations.
+        if (state.doc.sliceString(from - 1, from) === "[") return;
         decos.push(Decoration.mark({ class: "cm-lp-link" }).range(from, to));
         if (!selectionTouches(state, from, to)) {
-          // hide everything except the link text between the first [ and ]
+          // hide the leading `[` and the trailing `](url)`, keep the link text
           const openBracket = node.node.getChild("LinkMark"); // first [
-          const url = node.node.getChild("URL");
-          if (openBracket) decos.push(Decoration.replace({}).range(openBracket.from, openBracket.to));
-          // hide from the closing ] through the end of the link (] + (url))
-          const textEnd = url ? url.from : to;
-          // closing bracket starts right after link text; hide ]...end
-          const closeStart = findCloseBracket(state, openBracket ? openBracket.to : from, to);
-          if (closeStart != null) decos.push(Decoration.replace({}).range(closeStart, to));
-          void textEnd;
+          if (openBracket)
+            decos.push(
+              Decoration.replace({}).range(openBracket.from, openBracket.to),
+            );
+          const closeStart = findCloseBracket(
+            state,
+            openBracket ? openBracket.to : from,
+            to,
+          );
+          if (closeStart != null)
+            decos.push(Decoration.replace({}).range(closeStart, to));
         }
       }
     },
@@ -107,7 +122,9 @@ export function buildLivePreviewDecorations(
     const target = inner.split("|")[0].trim();
     if (!target) continue;
     if (selectionTouches(state, from, to)) continue; // reveal raw
-    const alias = inner.includes("|") ? inner.slice(inner.indexOf("|") + 1).trim() : target;
+    const alias = inner.includes("|")
+      ? inner.slice(inner.indexOf("|") + 1).trim()
+      : target;
     const path = opts.resolve(target);
     decos.push(
       Decoration.replace({
@@ -120,7 +137,11 @@ export function buildLivePreviewDecorations(
 }
 
 /** Find the closing `]` position of a link, between `searchFrom` and `to`. */
-function findCloseBracket(state: EditorState, searchFrom: number, to: number): number | null {
+function findCloseBracket(
+  state: EditorState,
+  searchFrom: number,
+  to: number,
+): number | null {
   const slice = state.doc.sliceString(searchFrom, to);
   const idx = slice.indexOf("]");
   return idx === -1 ? null : searchFrom + idx;
@@ -143,7 +164,9 @@ export function livePreview(opts: LivePreviewOptions) {
     {
       decorations: (v) => v.decorations,
       provide: (plugin) =>
-        EditorView.atomicRanges.of((view) => view.plugin(plugin)?.decorations ?? Decoration.none),
+        EditorView.atomicRanges.of(
+          (view) => view.plugin(plugin)?.decorations ?? Decoration.none,
+        ),
     },
   );
 }

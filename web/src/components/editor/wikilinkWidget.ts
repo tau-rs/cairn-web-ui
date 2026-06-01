@@ -13,7 +13,8 @@ export class WikilinkWidget extends WidgetType {
   }
   toDOM(): HTMLElement {
     const el = document.createElement("span");
-    el.className = "cm-lp-wikilink " + (this.target ? "resolved" : "unresolved");
+    el.className =
+      "cm-lp-wikilink " + (this.target ? "resolved" : "unresolved");
     el.textContent = this.label;
     if (this.target) {
       el.style.cursor = "pointer";

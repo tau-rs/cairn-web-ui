@@ -9,7 +9,13 @@ const opts = {
   onOpenNote: vi.fn(),
 };
 
-interface Deco { from: number; to: number; class?: string; hidden: boolean; widget: boolean }
+interface Deco {
+  from: number;
+  to: number;
+  class?: string;
+  hidden: boolean;
+  widget: boolean;
+}
 
 function decos(doc: string, cursor: number): Deco[] {
   const state = EditorState.create({
@@ -21,7 +27,13 @@ function decos(doc: string, cursor: number): Deco[] {
   const out: Deco[] = [];
   set.between(0, doc.length, (from, to, value) => {
     const spec = value.spec as { class?: string; widget?: unknown };
-    out.push({ from, to, class: spec.class, widget: spec.widget != null, hidden: spec.class == null && spec.widget == null });
+    out.push({
+      from,
+      to,
+      class: spec.class,
+      widget: spec.widget != null,
+      hidden: spec.class == null && spec.widget == null,
+    });
   });
   return out;
 }
