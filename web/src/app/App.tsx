@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Shell } from "../components/Shell";
 import { NoteList } from "../components/NoteList";
+import { Editor } from "../components/Editor";
 import { cairnStore, useCairn } from "./cairnStore";
 
 export default function App() {
@@ -10,6 +11,8 @@ export default function App() {
 
   const notePaths = useCairn((s) => s.notePaths);
   const activePath = useCairn((s) => s.activePath);
+  const activeContents = useCairn((s) => s.activeContents);
+  const editorMode = useCairn((s) => s.settings.editorMode);
   const actions = cairnStore.getState();
 
   return (
@@ -24,7 +27,17 @@ export default function App() {
           onDelete={actions.deleteNote}
         />
       }
-      editor={<div>editor</div>}
+      editor={
+        <Editor
+          path={activePath}
+          value={activeContents}
+          mode={editorMode}
+          onChange={actions.editBuffer}
+          onToggleMode={() =>
+            actions.setSettings({ editorMode: editorMode === "rich" ? "raw" : "rich" })
+          }
+        />
+      }
       backlinks={<div>backlinks</div>}
     />
   );
