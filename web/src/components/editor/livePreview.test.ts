@@ -103,4 +103,18 @@ describe("buildLivePreviewDecorations", () => {
     const ds = decos(doc, hrPos + 1);
     expect(ds.some((d) => d.widget && d.from === hrPos)).toBe(false);
   });
+  it("styles fenced-code lines and hides the fence lines off-cursor", () => {
+    const doc = "text\n\n```js\nconst x = 1;\n```\n\nmore";
+    const fence = doc.indexOf("```");
+    const ds = decos(doc, 0);
+    expect(ds.some((d) => d.class === "cm-lp-codeblock")).toBe(true);
+    // opening fence line is hidden
+    expect(ds.some((d) => d.hidden && d.from === fence)).toBe(true);
+  });
+  it("reveals the fences when the cursor is inside the code block", () => {
+    const doc = "text\n\n```js\nconst x = 1;\n```\n\nmore";
+    const fence = doc.indexOf("```");
+    const ds = decos(doc, doc.indexOf("const"));
+    expect(ds.some((d) => d.hidden && d.from === fence)).toBe(false);
+  });
 });

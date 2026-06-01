@@ -166,6 +166,24 @@ export function buildLivePreviewDecorations(
             Decoration.replace({ widget: new HrWidget() }).range(from, to),
           );
         }
+      } else if (name === "FencedCode") {
+        const touched = selectionTouches(
+          state,
+          lineRange(state, from, to).start,
+          lineRange(state, from, to).end,
+        );
+        const firstLine = state.doc.lineAt(from).number;
+        const lastLine = state.doc.lineAt(to).number;
+        for (let n = firstLine; n <= lastLine; n++) {
+          const line = state.doc.line(n);
+          decos.push(
+            Decoration.line({ class: "cm-lp-codeblock" }).range(line.from),
+          );
+          const isFence = /^\s*```/.test(line.text);
+          if (isFence && !touched && line.length > 0) {
+            decos.push(Decoration.replace({}).range(line.from, line.to));
+          }
+        }
       }
     },
   });

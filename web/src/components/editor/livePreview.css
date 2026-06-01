@@ -84,3 +84,13 @@
   border-top: 1px solid #26262e;
   margin: 0.4em 0;
 }
+.cm-lp-codeblock {
+  background: #16161c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+}
+.cm-lp-codeblock:first-of-type,
+.cm-doc-livepreview .cm-line.cm-lp-codeblock {
+  padding-left: 13px;
+  padding-right: 13px;
+}
