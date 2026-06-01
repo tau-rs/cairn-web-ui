@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use cairn_app::{Engine, Event as AppEvent, EventSink};
 use cairn_contract::{Command, CommandResponse, ContractError, Query, QueryResponse};
@@ -10,11 +10,11 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 /// The concrete engine the desktop app runs.
 type CairnEngine = Engine<LocalFsStore, InMemoryIndex, GitVcs>;
 
-/// Shared app state: the engine (None until a cairn is opened) + its path.
-#[derive(Default)]
+/// Shared app state: the engine + its path behind a single mutex (None until a
+/// cairn is opened).  `Clone` lets us move the `Arc` into `spawn_blocking`.
+#[derive(Clone, Default)]
 struct CairnState {
-    engine: Mutex<Option<CairnEngine>>,
-    path: Mutex<Option<PathBuf>>,
+    inner: Arc<Mutex<Option<(CairnEngine, PathBuf)>>>,
 }
 
 /// An `EventSink` that forwards engine events to the webview as wire events.
@@ -33,24 +33,21 @@ fn open_engine(dir: &Path) -> Result<CairnEngine, ServiceError> {
 }
 
 fn run_command_blocking<R: Runtime>(
-    state: &State<CairnState>,
+    state: &CairnState,
     app: &AppHandle<R>,
     command: &Command,
 ) -> Result<CommandResponse, ServiceError> {
-    let mut guard = state.engine.lock().expect("engine mutex poisoned");
-    let engine = guard
+    let mut guard = state.inner.lock().expect("engine mutex poisoned");
+    let (engine, _path) = guard
         .as_mut()
         .ok_or_else(|| ServiceError::InvalidRequest("no cairn open".into()))?;
     let mut sink = TauriSink(app.clone());
     dispatch_command(engine, command, &mut sink)
 }
 
-fn run_query_blocking(
-    state: &State<CairnState>,
-    query: &Query,
-) -> Result<QueryResponse, ServiceError> {
-    let guard = state.engine.lock().expect("engine mutex poisoned");
-    let engine = guard
+fn run_query_blocking(state: &CairnState, query: &Query) -> Result<QueryResponse, ServiceError> {
+    let guard = state.inner.lock().expect("engine mutex poisoned");
+    let (engine, _path) = guard
         .as_ref()
         .ok_or_else(|| ServiceError::InvalidRequest("no cairn open".into()))?;
     dispatch_query(engine, query)
@@ -62,30 +59,42 @@ async fn send_command<R: Runtime>(
     app: AppHandle<R>,
     command: Command,
 ) -> Result<CommandResponse, ContractError> {
-    run_command_blocking(&state, &app, &command).map_err(ContractError::from)
+    let state = (*state).clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        run_command_blocking(&state, &app, &command).map_err(ContractError::from)
+    })
+    .await
+    .map_err(|e| ContractError::Internal { message: e.to_string() })?
 }
 
+// No R: Runtime generic — queries are read-only and never emit events.
 #[tauri::command]
 async fn run_query(
     state: State<'_, CairnState>,
     query: Query,
 ) -> Result<QueryResponse, ContractError> {
-    run_query_blocking(&state, &query).map_err(ContractError::from)
+    let state = (*state).clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        run_query_blocking(&state, &query).map_err(ContractError::from)
+    })
+    .await
+    .map_err(|e| ContractError::Internal { message: e.to_string() })?
 }
 
 /// Open a cairn at `dir`: build the engine, reindex (emitting events), record
-/// it in state, and persist the path for next launch.
+/// engine+path atomically in state, and persist the path for next launch.
 fn open_at<R: Runtime>(
-    state: &State<CairnState>,
+    state: &CairnState,
     app: &AppHandle<R>,
     dir: &Path,
 ) -> Result<(), ServiceError> {
     let mut engine = open_engine(dir)?;
     let mut sink = TauriSink(app.clone());
     engine.reindex(&mut sink).map_err(|e| ServiceError::Internal(e.to_string()))?;
-    *state.engine.lock().expect("poisoned") = Some(engine);
-    *state.path.lock().expect("poisoned") = Some(dir.to_path_buf());
-    let _ = persist_path(app, dir); // persistence failure is non-fatal
+    *state.inner.lock().expect("engine mutex poisoned") = Some((engine, dir.to_path_buf()));
+    if let Err(e) = persist_path(app, dir) {
+        eprintln!("cairn: failed to persist cairn path: {e}"); // non-fatal
+    }
     Ok(())
 }
 
@@ -94,13 +103,14 @@ fn config_file<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
 }
 
 fn persist_path<R: Runtime>(app: &AppHandle<R>, dir: &Path) -> std::io::Result<()> {
-    if let Some(f) = config_file(app) {
-        if let Some(parent) = f.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::write(f, dir.to_string_lossy().as_bytes())?;
+    let Some(f) = config_file(app) else { return Ok(()) };
+    if let Some(parent) = f.parent() {
+        std::fs::create_dir_all(parent)?;
     }
-    Ok(())
+    let s = dir
+        .to_str()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "path is not valid UTF-8"))?;
+    std::fs::write(f, s.as_bytes())
 }
 
 fn last_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
@@ -116,18 +126,29 @@ async fn pick_and_open_cairn<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Option<String>, ContractError> {
     use tauri_plugin_dialog::DialogExt;
-    let picked = app.dialog().file().blocking_pick_folder();
-    let Some(folder) = picked else { return Ok(None) };
+    let Some(folder) = app.dialog().file().blocking_pick_folder() else { return Ok(None) };
     let dir = folder
         .into_path()
         .map_err(|e| ContractError::Internal { message: e.to_string() })?;
-    open_at(&state, &app, &dir).map_err(ContractError::from)?;
+    let state = (*state).clone();
+    let app2 = app.clone();
+    let dir2 = dir.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        open_at(&state, &app2, &dir2).map_err(ContractError::from)
+    })
+    .await
+    .map_err(|e| ContractError::Internal { message: e.to_string() })??;
     Ok(Some(dir.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
 fn current_cairn(state: State<'_, CairnState>) -> Option<String> {
-    state.path.lock().expect("poisoned").as_ref().map(|p| p.to_string_lossy().into_owned())
+    state
+        .inner
+        .lock()
+        .expect("engine mutex poisoned")
+        .as_ref()
+        .map(|(_, p)| p.to_string_lossy().into_owned())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -185,9 +206,12 @@ mod tests {
     #[test]
     fn command_without_open_cairn_errors() {
         let app = test_app();
-        let state: tauri::State<CairnState> = app.state();
-        let res = run_command_blocking(&state, &app.handle().clone(),
-            &Command::Commit { message: "x".into() });
+        let state = (*app.state::<CairnState>()).clone();
+        let res = run_command_blocking(
+            &state,
+            &app.handle().clone(),
+            &Command::Commit { message: "x".into() },
+        );
         assert!(matches!(res, Err(ServiceError::InvalidRequest(_))));
     }
 
@@ -195,10 +219,14 @@ mod tests {
     fn query_after_open_succeeds() {
         let tmp = tempfile::tempdir().unwrap();
         let app = test_app();
-        let state: tauri::State<CairnState> = app.state();
-        *state.engine.lock().unwrap() = Some(open_engine(tmp.path()).unwrap());
-        run_command_blocking(&state, &app.handle().clone(),
-            &Command::WriteNote { path: "n.md".into(), contents: "body".into() }).unwrap();
+        let state = (*app.state::<CairnState>()).clone();
+        *state.inner.lock().unwrap() = Some((open_engine(tmp.path()).unwrap(), tmp.path().to_path_buf()));
+        run_command_blocking(
+            &state,
+            &app.handle().clone(),
+            &Command::WriteNote { path: "n.md".into(), contents: "body".into() },
+        )
+        .unwrap();
         let r = run_query_blocking(&state, &Query::Search { query: "body".into() }).unwrap();
         assert_eq!(r, QueryResponse::Paths { paths: vec!["n.md".into()] });
     }
@@ -207,9 +235,12 @@ mod tests {
     fn open_at_sets_state_and_path() {
         let tmp = tempfile::tempdir().unwrap();
         let app = test_app();
-        let state: tauri::State<CairnState> = app.state();
+        let state = (*app.state::<CairnState>()).clone();
         open_at(&state, &app.handle().clone(), tmp.path()).expect("open_at");
-        assert!(state.engine.lock().unwrap().is_some());
-        assert_eq!(state.path.lock().unwrap().as_deref(), Some(tmp.path()));
+        assert!(state.inner.lock().unwrap().is_some());
+        assert_eq!(
+            state.inner.lock().unwrap().as_ref().map(|(_, p)| p.clone()),
+            Some(tmp.path().to_path_buf())
+        );
     }
 }
