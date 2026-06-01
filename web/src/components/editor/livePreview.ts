@@ -8,6 +8,7 @@ import {
 } from "@codemirror/view";
 import { type EditorState, type Range } from "@codemirror/state";
 import { WikilinkWidget } from "./wikilinkWidget";
+import { BulletWidget } from "./widgets/bulletWidget";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
@@ -43,6 +44,10 @@ function selectionTouches(
   to: number,
 ): boolean {
   return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+}
+
+function lineRange(state: EditorState, from: number, to: number) {
+  return { start: state.doc.lineAt(from).from, end: state.doc.lineAt(to).to };
 }
 
 function isInsideCode(state: EditorState, pos: number): boolean {
@@ -105,6 +110,27 @@ export function buildLivePreviewDecorations(
           );
           if (closeStart != null)
             decos.push(Decoration.replace({}).range(closeStart, to));
+        }
+      } else if (name === "ListItem") {
+        // Style each line of the item; replace a bullet marker with a • widget.
+        const lr = lineRange(state, from, from); // single-item first line
+        const line = state.doc.lineAt(from);
+        decos.push(Decoration.line({ class: "cm-lp-li" }).range(line.from));
+        const mark = node.node.getChild("ListMark");
+        if (mark) {
+          const markText = state.doc.sliceString(mark.from, mark.to);
+          const isBullet = /^[-*+]$/.test(markText);
+          const touched = selectionTouches(state, lr.start, lr.end);
+          if (isBullet && !touched) {
+            // replace "- " (marker + following space) with the bullet widget
+            const end = Math.min(mark.to + 1, line.to);
+            decos.push(
+              Decoration.replace({ widget: new BulletWidget() }).range(
+                mark.from,
+                end,
+              ),
+            );
+          }
         }
       }
     },

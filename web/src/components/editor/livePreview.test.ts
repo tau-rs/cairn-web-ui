@@ -62,4 +62,23 @@ describe("buildLivePreviewDecorations", () => {
     const ds = decos("see [[ideas]] end", 7);
     expect(ds.some((d) => d.widget)).toBe(false);
   });
+  it("marks bullet list lines and replaces the bullet marker off-cursor", () => {
+    const doc = "- alpha\n- beta";
+    const ds = decos(doc, doc.length); // cursor on 2nd line end
+    // first line's marker (positions 0..1 = "- ") is replaced by a bullet widget
+    expect(ds.some((d) => d.widget && d.from === 0)).toBe(true);
+    // a list-item line class is applied
+    expect(ds.some((d) => d.class === "cm-lp-li")).toBe(true);
+  });
+  it("reveals the raw bullet marker when the cursor is on that item", () => {
+    const ds = decos("- alpha\n- beta", 2); // cursor inside first item
+    expect(ds.some((d) => d.widget && d.from === 0)).toBe(false);
+  });
+  it("keeps the number marker on ordered lists (no bullet widget)", () => {
+    const doc = "1. one\n2. two";
+    const ds = decos(doc, doc.length);
+    // ordered markers are not replaced with a bullet widget
+    expect(ds.some((d) => d.widget && d.from === 0)).toBe(false);
+    expect(ds.some((d) => d.class === "cm-lp-li")).toBe(true);
+  });
 });

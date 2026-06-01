@@ -65,3 +65,13 @@
   color: #9a9ba6;
   text-decoration: underline dotted;
 }
+.cm-lp-li {
+  padding-left: 1.4em;
+}
+.cm-lp-bullet {
+  color: #6b6c77;
+  display: inline-block;
+  width: 1.2em;
+  margin-left: -1.2em;
+  text-align: center;
+}
