@@ -29,6 +29,8 @@ export default function App() {
   const lastCommit = useCairn((s) => s.lastCommit);
   const committing = useCairn((s) => s.committing);
   const error = useCairn((s) => s.error);
+  // Store action functions are stable for the store's lifetime (Zustand never
+  // replaces them; they read fresh state via get()), so capturing them once is safe.
   const actions = cairnStore.getState();
 
   return (

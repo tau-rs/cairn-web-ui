@@ -49,6 +49,7 @@ export interface CairnState {
   refreshBacklinks(): Promise<void>;
   commitManual(message: string): Promise<void>;
   autoCommit(): Promise<void>;
+  rearmInterval(): void;
   setSettings(patch: Partial<Settings>): void;
   dismissError(): void;
 }
@@ -57,6 +58,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
   let autosave: Debounced | null = null;
   let idleCommit: Debounced | null = null;
   let started = false;
+  let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
   const store = createStore<CairnState>()((set, get) => ({
     notePaths: [],
@@ -86,13 +88,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
         }
       });
       await get().refreshNotePaths();
-      const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
-      if (intervalAutoCommit) {
-        setInterval(
-          () => void get().autoCommit(),
-          intervalAutoCommitMin * 60_000,
-        );
-      }
+      get().rearmInterval();
     },
 
     async refreshNotePaths() {
@@ -196,6 +192,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     },
 
     async commitManual(message) {
+      if (get().committing) return;
       set({ committing: true });
       try {
         const res = await client.sendCommand({ type: "commit", message });
@@ -214,8 +211,20 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
       await get().commitManual(message);
     },
 
+    rearmInterval() {
+      if (intervalHandle) clearInterval(intervalHandle);
+      intervalHandle = null;
+      const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
+      if (intervalAutoCommit) {
+        intervalHandle = setInterval(() => void get().autoCommit(), intervalAutoCommitMin * 60_000);
+      }
+    },
+
     setSettings(patch) {
       set({ settings: { ...get().settings, ...patch } });
+      if ("intervalAutoCommit" in patch || "intervalAutoCommitMin" in patch) {
+        get().rearmInterval();
+      }
     },
 
     dismissError() {

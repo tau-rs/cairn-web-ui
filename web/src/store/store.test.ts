@@ -101,6 +101,18 @@ describe("cairn store", () => {
     expect(store.getState().dirty).toBe(true); // v2 is not yet persisted
   });
 
+  it("interval auto-commit fires when enabled (idle disabled to isolate it)", async () => {
+    const { client, store } = setup();
+    const spy = vi.spyOn(client, "sendCommand");
+    await store.getState().init();
+    store.getState().setSettings({ idleAutoCommit: false }); // isolate the interval trigger
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("changed body [[b]]");
+    await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs); // autosave -> uncommitted
+    await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.intervalAutoCommitMin * 60_000); // interval fires
+    expect(spy.mock.calls.some(([c]) => c.type === "commit")).toBe(true);
+  });
+
   it("init is idempotent — a single event triggers one note-list refresh", async () => {
     vi.useRealTimers();
     const client = new MockClient({});
