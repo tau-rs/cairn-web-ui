@@ -1,8 +1,9 @@
 import { useStore } from "zustand";
 import { createCairnStore, type CairnState } from "../store/store";
-import { makeClient } from "./makeClient";
+import { makeBackend } from "./makeBackend";
 
-export const cairnStore = createCairnStore(makeClient());
+const { client, host } = makeBackend();
+export const cairnStore = createCairnStore(client, host);
 
 export function useCairn<T>(selector: (s: CairnState) => T): T {
   return useStore(cairnStore, selector);
