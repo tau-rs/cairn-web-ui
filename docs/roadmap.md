@@ -15,13 +15,15 @@ Cairn's Rust engine is a transport-blind hexagon exposing one async contract:
 The generated TypeScript bindings at `tau-rs/cairn/crates/cairn-contract/bindings/`
 are the source of truth this UI imports.
 
-**The engine "gap":** nothing currently *serves* the contract — the CLI calls
-`Engine` methods directly. A real transport needs (1) a `dispatch(Command)` /
-`query(Query)` over the engine, (2) `From<cairn_app::Event> for
-cairn_contract::Event`, and (3) query-response DTOs (`get_note` → contents,
-`search` → list, `backlinks` → list), which don't exist yet. This is engine-repo
-work. It does **not** block UI development because Phases 0–1 build against a
-mock client.
+**The engine "gap" — now closed (update 2026-06-01):** the engine session
+shipped ADR-0002 (`tau-rs/cairn` @ `079f9f9`): `cairn-service` (a transport-blind
+dispatcher — `dispatch_command` / `dispatch_query` / `app_event_to_wire`) and
+`cairn-daemon` (HTTP transport). The contract now includes the response DTOs
+(`CommandResponse`, `QueryResponse`, `ContractError`, `NoteSummary`, `GraphEdge`)
+and `list_notes` / `get_graph` queries. ADR-0002 explicitly assigns Tauri to the
+UI session ("the UI session wires Tauri by calling `cairn-service` in-process"),
+validating this roadmap. Phases 0–1 still build against a `MockClient` (no
+running engine needed); Phase 2 is now pure UI-side wiring, no engine work.
 
 ## Locked decisions
 
@@ -34,8 +36,8 @@ mock client.
   (`MockClient`, `TauriClient`, `DaemonClient`). The React app never knows which
   transport it is on; transport is a single composition-root choice. Supporting
   both Tauri and daemon is therefore a design property, not extra work.
-- **Engine-gap ownership: decided at Phase 2.** Deferred; does not block
-  Phases 0–1.
+- **Engine-gap ownership: resolved — the engine already closed it** (ADR-0002:
+  `cairn-service` + `cairn-daemon`). No UI-side engine work remains for Phase 2.
 
 ## Proposed stack (mirrors `tau-rs`/tau-web-ui)
 
@@ -47,11 +49,14 @@ tests, Playwright for e2e. pnpm. Tauri v2 added at Phase 2.
 
 ```ts
 interface CairnClient {
-  sendCommand(c: Command): Promise<CommandResult>;
-  runQuery(q: Query): Promise<QueryResult>;
+  sendCommand(c: Command): Promise<CommandResponse>;  // rejects with ContractError
+  runQuery(q: Query): Promise<QueryResponse>;         // rejects with ContractError
   subscribe(cb: (e: Event) => void): Unsubscribe;
 }
 ```
+
+(`CommandResponse` / `QueryResponse` / `ContractError` are the real vendored
+contract DTOs from `tau-rs/cairn`, not invented here.)
 
 Implementations:
 - `MockClient` — in-browser fake over a fixture cairn (Phases 0–1, dev/test).
@@ -64,9 +69,9 @@ Implementations:
 |---|---|---|---|
 | **0 — Scaffold** | Vite + React + TS + Tailwind + Zustand app. Vendor the contract TS types. Define the `CairnClient` interface + `MockClient` + a fixture cairn. CI. | — | this repo |
 | **1 — Walking-skeleton UI** | Vertical slice on the mock: open a cairn, note list, open/edit a markdown note, search, backlinks panel, commit button, live refresh from the event stream. | 0 | this repo |
-| **2 — Real transport** | Close the engine gap (dispatcher + `From<app::Event>` + response DTOs) and add the `TauriClient` + Tauri v2 shell. Swap the mock for real notes. | 1 + engine gap | this repo + `tau-rs/cairn` |
+| **2 — Real transport** | Add the `TauriClient` (wraps `cairn-service` in-process) + Tauri v2 shell + open-a-cairn picker; swap the mock for real notes. Engine gap already closed (ADR-0002), so this is UI-side only. | 1 | this repo |
 | **3 — Editor depth** | CodeMirror 6: live `[[wikilink]]` autocomplete, preview, frontmatter. | 1 | this repo |
-| **4 — Graph view** | `@xyflow/react` graph of notes / links / backlinks. | 1 | this repo |
+| **4 — Graph view** | `@xyflow/react` graph of notes / links / backlinks (engine `get_graph` already available). | 1 | this repo |
 | **5 — Shell polish** | Command palette, panes/tabs, themes, settings. | 1 | this repo |
 | **6 — UI-plugin host** | Host the JS/TS UI-plugin API surface defined in engine spec §7. | 3–5 | this repo |
 | **7 — Tau actions** | Surface `AgentRuntime` actions (summarize, find-related, …) once tau firms up. | 2 | this repo + engine |
@@ -76,8 +81,9 @@ reorder freely.
 
 ## Deferred decisions
 
-- Engine-gap ownership (revisit at Phase 2).
-- Daemon transport + `AuthPolicy` defaults (its own later sub-project).
+- ~~Engine-gap ownership~~ — resolved: the engine closed it (ADR-0002).
+- Daemon transport + `AuthPolicy` defaults (`cairn-daemon` exists; wiring a
+  `DaemonClient` + auth is its own later sub-project).
 - Whether mobile (Tauri v2) is in scope and when.
 - Codegen tooling for the real transport (`ts-rs` as-is vs `tauri-specta`/`rspc`
   to generate command wiring too).

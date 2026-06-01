@@ -317,10 +317,16 @@ git add web/ && git commit -m "chore: scaffold Vite + React + TS + Tailwind web 
 
 ## Task 2: Vendor the engine contract types
 
-**Files:**
-- Create: `scripts/sync-contract.sh`, `web/src/contract/Command.ts`, `web/src/contract/Query.ts`, `web/src/contract/Event.ts`, `web/src/contract/source.ts`, `web/src/contract/index.ts`
+> **Revised (re-pin):** the engine advanced to `079f9f9` and now ships the full
+> contract — `CommandResponse`, `QueryResponse`, `ContractError`, `NoteSummary`,
+> `GraphEdge`, plus `list_notes`/`get_graph` queries. Vendor ALL binding files,
+> pinned at `079f9f9`. A prior commit on this branch vendored the stale
+> `166b0eae` 3-file contract; this task overwrites it.
 
-- [ ] **Step 1: Create the sync script**
+**Files:**
+- Create/overwrite: `scripts/sync-contract.sh`, all of `web/src/contract/*.ts` (`Command.ts`, `Query.ts`, `Event.ts`, `CommandResponse.ts`, `QueryResponse.ts`, `ContractError.ts`, `NoteSummary.ts`, `GraphEdge.ts`, `source.ts`), `web/src/contract/index.ts`
+
+- [ ] **Step 1: Create the sync script (copies ALL bindings)**
 
 `scripts/sync-contract.sh`:
 ```bash
@@ -333,7 +339,9 @@ BINDINGS="$SRC/crates/cairn-contract/bindings"
 DEST="web/src/contract"
 
 [ -d "$BINDINGS" ] || { echo "bindings not found at $BINDINGS"; exit 1; }
-cp "$BINDINGS/Command.ts" "$BINDINGS/Query.ts" "$BINDINGS/Event.ts" "$DEST/"
+mkdir -p "$DEST"
+# Copy every generated binding (the set grows as the contract evolves).
+cp "$BINDINGS"/*.ts "$DEST/"
 
 COMMIT="$(git -C "$SRC" rev-parse HEAD)"
 cat > "$DEST/source.ts" <<EOF
@@ -347,10 +355,10 @@ Run: `chmod +x scripts/sync-contract.sh`
 
 - [ ] **Step 2: Run the sync script**
 
-Run (from repo root): `scripts/sync-contract.sh ../cairn`
-Expected: prints "synced contract from ../cairn @ 166b0eae…"; `web/src/contract/` now holds `Command.ts`, `Query.ts`, `Event.ts`, `source.ts`.
+Run (from repo root `/Users/titouanlebocq/code/cairn-ui`): `scripts/sync-contract.sh ../cairn`
+Expected: prints "synced contract from ../cairn @ 079f9f9…". `web/src/contract/` now holds: `Command.ts`, `Query.ts`, `Event.ts`, `CommandResponse.ts`, `QueryResponse.ts`, `ContractError.ts`, `NoteSummary.ts`, `GraphEdge.ts`, `source.ts`.
 
-If `../cairn` is unavailable, manually create the three files with the contents from the spec §3 and set `source.ts`'s commit to `166b0eae622ee219b11b23046b85f369da1cb316`.
+Verify the vendored types: `Query` includes `list_notes` and `get_graph`; `QueryResponse` has `note`/`paths`/`notes`/`graph`; `CommandResponse` has `done`/`committed`; `ContractError` has `not_found`/`invalid_request`/`internal`. If `../cairn` is unavailable, STOP and report BLOCKED (do not hand-fabricate).
 
 - [ ] **Step 3: Create the barrel re-export**
 
@@ -359,69 +367,65 @@ If `../cairn` is unavailable, manually create the three files with the contents 
 export type { Command } from "./Command";
 export type { Query } from "./Query";
 export type { Event } from "./Event";
+export type { CommandResponse } from "./CommandResponse";
+export type { QueryResponse } from "./QueryResponse";
+export type { ContractError } from "./ContractError";
+export type { NoteSummary } from "./NoteSummary";
+export type { GraphEdge } from "./GraphEdge";
 export { CONTRACT_SOURCE_COMMIT } from "./source";
 ```
 
 - [ ] **Step 4: Verify typecheck**
 
-Run: `pnpm typecheck`
+Run (from `web/`): `pnpm typecheck`
 Expected: PASS (the vendored files are valid TS).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/ web/src/contract/ && git commit -m "feat: vendor engine contract TS types with sync script"
+git add scripts/ web/src/contract/ && git commit -m "feat: vendor full engine contract (079f9f9) incl. response DTOs"
 ```
 
 ---
 
 ## Task 3: Define the CairnClient interface
 
+> **Revised:** uses the real vendored DTOs (`CommandResponse`, `QueryResponse`,
+> `ContractError`) instead of invented result types. Methods reject with a
+> `ContractError`.
+
 **Files:**
 - Create: `web/src/client/types.ts`
 
-- [ ] **Step 1: Write the interface and result types**
+- [ ] **Step 1: Write the interface**
 
 `web/src/client/types.ts`:
 ```ts
-import type { Command, Query, Event } from "../contract";
+import type { Command, Query, Event, CommandResponse, QueryResponse } from "../contract";
 
 export type Unsubscribe = () => void;
 
-/** Loaded note as returned by get_note. */
-export interface NoteData {
-  path: string;
-  contents: string;
-}
-
-/** Response DTOs the UI needs; become the engine-gap contract at Phase 2. */
-export type QueryResult =
-  | { query: "get_note"; note: NoteData | null }
-  | { query: "search"; hits: string[] }
-  | { query: "get_backlinks"; paths: string[] };
-
-export type CommandResult =
-  | { command: "write_note"; ok: true }
-  | { command: "delete_note"; ok: true }
-  | { command: "commit"; commit: string };
-
-/** The single transport-abstracted contract the whole UI is written against. */
+/**
+ * The single transport-abstracted contract the whole UI is written against.
+ * `sendCommand`/`runQuery` reject with a `ContractError` (from "../contract")
+ * on failure — the same typed error the daemon and cairn-service produce.
+ */
 export interface CairnClient {
-  sendCommand(c: Command): Promise<CommandResult>;
-  runQuery(q: Query): Promise<QueryResult>;
+  sendCommand(c: Command): Promise<CommandResponse>;
+  runQuery(q: Query): Promise<QueryResponse>;
   subscribe(cb: (e: Event) => void): Unsubscribe;
 }
 ```
 
 - [ ] **Step 2: Verify typecheck**
 
-Run: `pnpm typecheck`
+Run (from `web/`): `pnpm typecheck`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add web/src/client/types.ts && git commit -m "feat: define transport-abstracted CairnClient interface"
+git add web/src/client/types.ts && git commit -m "feat: define CairnClient over the real contract DTOs"
 ```
 
 ---
@@ -541,40 +545,69 @@ function freshNotes() {
 }
 
 describe("MockClient", () => {
-  it("get_note returns contents or null", async () => {
+  it("get_note returns the note variant", async () => {
     const c = new MockClient(freshNotes());
     expect(await c.runQuery({ type: "get_note", path: "a.md" })).toEqual({
-      query: "get_note",
-      note: { path: "a.md", contents: "links to [[b]]" },
+      type: "note",
+      contents: "links to [[b]]",
     });
-    expect(await c.runQuery({ type: "get_note", path: "missing.md" })).toEqual({
-      query: "get_note",
-      note: null,
+  });
+
+  it("get_note rejects with not_found for a missing note", async () => {
+    const c = new MockClient(freshNotes());
+    await expect(c.runQuery({ type: "get_note", path: "missing.md" })).rejects.toEqual({
+      type: "not_found",
+      what: "missing.md",
     });
   });
 
   it("search matches body and path, case-insensitive, sorted by path", async () => {
     const c = new MockClient({ "zeta.md": "alpha note", "alpha.md": "zeta body" });
     expect(await c.runQuery({ type: "search", query: "ALPHA" })).toEqual({
-      query: "search",
-      hits: ["alpha.md", "zeta.md"],
+      type: "paths",
+      paths: ["alpha.md", "zeta.md"],
     });
   });
 
   it("get_backlinks resolves by stem, sorted and deduped", async () => {
     const c = new MockClient(freshNotes());
     expect(await c.runQuery({ type: "get_backlinks", path: "b.md" })).toEqual({
-      query: "get_backlinks",
+      type: "paths",
       paths: ["a.md"],
     });
   });
 
-  it("write_note upserts and emits note_changed then reindexed", async () => {
+  it("list_notes returns a NoteSummary per note with display titles, sorted by path", async () => {
+    const c = new MockClient({
+      "a.md": "---\ntitle: Alpha\n---\nbody",
+      "b.md": "# Heading B\ntext",
+      "c.md": "no title here",
+    });
+    expect(await c.runQuery({ type: "list_notes" })).toEqual({
+      type: "notes",
+      notes: [
+        { path: "a.md", title: "Alpha" },
+        { path: "b.md", title: "Heading B" },
+        { path: "c.md", title: "c" },
+      ],
+    });
+  });
+
+  it("get_graph returns sorted nodes and resolved directed edges", async () => {
+    const c = new MockClient(freshNotes());
+    expect(await c.runQuery({ type: "get_graph" })).toEqual({
+      type: "graph",
+      nodes: ["a.md", "b.md"],
+      edges: [{ from: "a.md", to: "b.md" }],
+    });
+  });
+
+  it("write_note upserts and emits note_changed then reindexed; returns done", async () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];
     c.subscribe((e) => events.push(e));
     const res = await c.sendCommand({ type: "write_note", path: "c.md", contents: "new [[a]]" });
-    expect(res).toEqual({ command: "write_note", ok: true });
+    expect(res).toEqual({ type: "done" });
     await vi.waitFor(() =>
       expect(events).toEqual([
         { type: "note_changed", path: "c.md" },
@@ -583,11 +616,12 @@ describe("MockClient", () => {
     );
   });
 
-  it("delete_note removes and emits note_deleted then reindexed", async () => {
+  it("delete_note removes and emits note_deleted then reindexed; returns done", async () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];
     c.subscribe((e) => events.push(e));
-    await c.sendCommand({ type: "delete_note", path: "b.md" });
+    const res = await c.sendCommand({ type: "delete_note", path: "b.md" });
+    expect(res).toEqual({ type: "done" });
     await vi.waitFor(() =>
       expect(events).toEqual([
         { type: "note_deleted", path: "b.md" },
@@ -595,17 +629,17 @@ describe("MockClient", () => {
       ]),
     );
     expect(await c.runQuery({ type: "search", query: "target" })).toEqual({
-      query: "search",
-      hits: [],
+      type: "paths",
+      paths: [],
     });
   });
 
-  it("commit returns a short id and emits committed", async () => {
+  it("commit returns committed with a short id and emits committed", async () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];
     c.subscribe((e) => events.push(e));
     const res = await c.sendCommand({ type: "commit", message: "first" });
-    expect(res).toEqual({ command: "commit", commit: "c0001" });
+    expect(res).toEqual({ type: "committed", commit: "c0001" });
     await vi.waitFor(() => expect(events).toContainEqual({ type: "committed", commit: "c0001" }));
   });
 });
@@ -620,21 +654,54 @@ Expected: FAIL — cannot find module `./mock`.
 
 `web/src/client/mock.ts`:
 ```ts
-import type { Command, Query, Event } from "../contract";
-import type { CairnClient, CommandResult, QueryResult, Unsubscribe } from "./types";
+import type {
+  Command,
+  Query,
+  Event,
+  CommandResponse,
+  QueryResponse,
+  ContractError,
+  NoteSummary,
+  GraphEdge,
+} from "../contract";
+import type { CairnClient, Unsubscribe } from "./types";
 import { extractLinks, stem } from "./wikilink";
 
-/** Strip a leading `---\n...\n---\n` frontmatter block, returning the body.
- *  Mirrors cairn-domain Note::parse (body is everything after frontmatter). */
-function body(raw: string): string {
-  if (!raw.startsWith("---\n")) return raw;
+/** Split a leading `---\n...\n---\n` frontmatter block. Mirrors cairn-domain
+ *  Note::parse (frontmatter is the YAML between fences; body is the rest). */
+function splitFrontmatter(raw: string): { frontmatter: string | null; body: string } {
+  if (!raw.startsWith("---\n")) return { frontmatter: null, body: raw };
   const rest = raw.slice(4);
-  if (rest.startsWith("---\n")) return rest.slice(4);
+  if (rest.startsWith("---\n")) return { frontmatter: "", body: rest.slice(4) };
   const end = rest.indexOf("\n---\n");
-  return end === -1 ? raw : rest.slice(end + 5);
+  if (end === -1) return { frontmatter: null, body: raw };
+  return { frontmatter: rest.slice(0, end), body: rest.slice(end + 5) };
 }
 
-/** In-memory faithful mock of the cairn engine. */
+/** display_title: frontmatter `title:`, else first `# ` heading, else stem.
+ *  Mirrors cairn-domain Note::display_title. */
+function displayTitle(path: string, raw: string): string {
+  const { frontmatter, body } = splitFrontmatter(raw);
+  if (frontmatter !== null) {
+    for (const line of frontmatter.split("\n")) {
+      const t = line.trimStart();
+      if (t.startsWith("title:")) {
+        const v = t.slice("title:".length).trim().replace(/^["']+|["']+$/g, "").trim();
+        if (v) return v;
+      }
+    }
+  }
+  for (const line of body.split("\n")) {
+    const t = line.trimStart();
+    if (t.startsWith("# ")) {
+      const v = t.slice(2).trim();
+      if (v) return v;
+    }
+  }
+  return stem(path);
+}
+
+/** In-memory faithful mock of the cairn engine + cairn-service dispatch. */
 export class MockClient implements CairnClient {
   private notes: Map<string, string>;
   private subscribers = new Set<(e: Event) => void>();
@@ -654,58 +721,92 @@ export class MockClient implements CairnClient {
     queueMicrotask(() => this.subscribers.forEach((cb) => cb(e)));
   }
 
-  async sendCommand(c: Command): Promise<CommandResult> {
+  private stemIndex(): Map<string, string> {
+    const byStem = new Map<string, string>();
+    for (const path of this.notes.keys()) byStem.set(stem(path), path);
+    return byStem;
+  }
+
+  async sendCommand(c: Command): Promise<CommandResponse> {
     switch (c.type) {
       case "write_note":
         this.notes.set(c.path, c.contents);
         this.emit({ type: "note_changed", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
-        return { command: "write_note", ok: true };
+        return { type: "done" };
       case "delete_note":
         this.notes.delete(c.path);
         this.emit({ type: "note_deleted", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
-        return { command: "delete_note", ok: true };
+        return { type: "done" };
       case "commit": {
         this.commitSeq += 1;
         const commit = `c${String(this.commitSeq).padStart(4, "0")}`;
         this.emit({ type: "committed", commit });
-        return { command: "commit", commit };
+        return { type: "committed", commit };
       }
     }
   }
 
-  async runQuery(q: Query): Promise<QueryResult> {
+  async runQuery(q: Query): Promise<QueryResponse> {
     switch (q.type) {
       case "get_note": {
         const contents = this.notes.get(q.path);
-        return {
-          query: "get_note",
-          note: contents === undefined ? null : { path: q.path, contents },
-        };
+        if (contents === undefined) {
+          const err: ContractError = { type: "not_found", what: q.path };
+          throw err;
+        }
+        return { type: "note", contents };
       }
       case "search": {
         const needle = q.query.toLowerCase();
-        const hits = [...this.notes.entries()]
+        const paths = [...this.notes.entries()]
           .filter(
             ([path, raw]) =>
-              body(raw).toLowerCase().includes(needle) || path.toLowerCase().includes(needle),
+              splitFrontmatter(raw).body.toLowerCase().includes(needle) ||
+              path.toLowerCase().includes(needle),
           )
           .map(([path]) => path)
           .sort();
-        return { query: "search", hits };
+        return { type: "paths", paths };
       }
       case "get_backlinks": {
-        const targetStem = stem(q.path);
-        const byStem = new Map<string, string>();
-        for (const path of this.notes.keys()) byStem.set(stem(path), path);
-        const paths = [...this.notes.entries()]
-          .filter(([, raw]) =>
-            extractLinks(body(raw)).some((t) => byStem.get(t) === q.path && t === targetStem),
-          )
-          .map(([path]) => path)
-          .sort();
-        return { query: "get_backlinks", paths: [...new Set(paths)] };
+        const byStem = this.stemIndex();
+        const paths = [
+          ...new Set(
+            [...this.notes.entries()]
+              .filter(([, raw]) =>
+                extractLinks(splitFrontmatter(raw).body).some((t) => byStem.get(t) === q.path),
+              )
+              .map(([path]) => path),
+          ),
+        ].sort();
+        return { type: "paths", paths };
+      }
+      case "list_notes": {
+        const notes: NoteSummary[] = [...this.notes.entries()]
+          .map(([path, raw]) => ({ path, title: displayTitle(path, raw) }))
+          .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+        return { type: "notes", notes };
+      }
+      case "get_graph": {
+        const byStem = this.stemIndex();
+        const nodes = [...this.notes.keys()].sort();
+        const seen = new Set<string>();
+        const edges: GraphEdge[] = [];
+        for (const [from, raw] of this.notes.entries()) {
+          for (const target of extractLinks(splitFrontmatter(raw).body)) {
+            const to = byStem.get(target);
+            if (to && !seen.has(`${from} ${to}`)) {
+              seen.add(`${from} ${to}`);
+              edges.push({ from, to });
+            }
+          }
+        }
+        edges.sort((a, b) =>
+          a.from === b.from ? (a.to < b.to ? -1 : a.to > b.to ? 1 : 0) : a.from < b.from ? -1 : 1,
+        );
+        return { type: "graph", nodes, edges };
       }
     }
   }
@@ -717,7 +818,10 @@ export class MockClient implements CairnClient {
 }
 ```
 
-Note on `get_backlinks`: a note backlinks `q.path` if it contains a `[[target]]` whose stem resolves to `q.path`. `byStem.get(t) === q.path` checks the target resolves to this exact note; `t === targetStem` is redundant but documents intent — keep the `byStem` check as the resolver.
+Note: `get_note` on a missing note **rejects** with a `ContractError`
+(`not_found`), exactly as `dispatch_query` does in `cairn-service`. `get_graph`
+is implemented for fidelity (the skeleton UI doesn't render it yet but the
+Phase-4 graph view will use it).
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -861,7 +965,7 @@ describe("cairn store", () => {
     expect(store.getState().dirty).toBe(true);
     await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs);
     const res = await client.runQuery({ type: "get_note", path: "a.md" });
-    expect(res).toEqual({ query: "get_note", note: { path: "a.md", contents: "edited body [[b]]" } });
+    expect(res).toEqual({ type: "note", contents: "edited body [[b]]" });
     expect(store.getState().dirty).toBe(false);
   });
 
@@ -912,6 +1016,7 @@ Expected: FAIL — cannot find module `./store`.
 ```ts
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { CairnClient } from "../client/types";
+import type { ContractError } from "../contract";
 import { debounce, type Debounced } from "../util/timer";
 
 export interface Settings {
@@ -1005,20 +1110,15 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     },
 
     async refreshNotePaths() {
-      // No list query in the contract; derive from search("") which matches all.
-      const res = await client.runQuery({ type: "search", query: "" });
-      if (res.query === "search") set({ notePaths: res.hits });
+      const res = await client.runQuery({ type: "list_notes" });
+      if (res.type === "notes") set({ notePaths: res.notes.map((n) => n.path) });
     },
 
     async openNote(path) {
       try {
         const res = await client.runQuery({ type: "get_note", path });
-        if (res.query === "get_note") {
-          set({
-            activePath: path,
-            activeContents: res.note?.contents ?? "",
-            dirty: false,
-          });
+        if (res.type === "note") {
+          set({ activePath: path, activeContents: res.contents, dirty: false });
           await get().refreshBacklinks();
         }
       } catch (err) {
@@ -1072,7 +1172,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     async runSearch(query) {
       try {
         const res = await client.runQuery({ type: "search", query });
-        if (res.query === "search") set({ query, searchResults: res.hits });
+        if (res.type === "paths") set({ query, searchResults: res.paths });
       } catch (err) {
         set({ error: errMsg(err) });
       }
@@ -1091,7 +1191,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
       if (!path) return set({ backlinks: [] });
       try {
         const res = await client.runQuery({ type: "get_backlinks", path });
-        if (res.query === "get_backlinks") set({ backlinks: res.paths });
+        if (res.type === "paths") set({ backlinks: res.paths });
       } catch (err) {
         set({ error: errMsg(err) });
       }
@@ -1101,7 +1201,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
       set({ committing: true });
       try {
         const res = await client.sendCommand({ type: "commit", message });
-        if (res.command === "commit") set({ lastCommit: res.commit, uncommitted: false });
+        if (res.type === "committed") set({ lastCommit: res.commit, uncommitted: false });
       } catch (err) {
         set({ error: errMsg(err) });
       } finally {
@@ -1129,6 +1229,12 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
 }
 
 function errMsg(err: unknown): string {
+  // ContractError (rejected by the client) is a tagged object.
+  if (err && typeof err === "object" && "type" in err) {
+    const e = err as ContractError;
+    if (e.type === "not_found") return `Not found: ${e.what}`;
+    return e.message;
+  }
   return err instanceof Error ? err.message : String(err);
 }
 ```

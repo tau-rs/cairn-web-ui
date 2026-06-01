@@ -72,27 +72,65 @@ type Event =
   | { type: "reindexed";    count: number };
 ```
 
-### Query-response shapes — a known gap
+### Contract update (2026-06-01): the gap is closed
 
-The engine contract does **not yet define response DTOs** for queries (the
-engine handoff §4 calls this out). For the skeleton, the `CairnClient` interface
-defines the response shapes the UI needs; these become the contract that the
-Phase-2 engine work must satisfy:
+The "engine gap" this spec originally deferred — no dispatcher, no query
+response DTOs, no event mapper — was **closed by the engine session** (ADR-0002,
+`tau-rs/cairn` @ `079f9f9`). The engine now ships `cairn-service` (a
+transport-blind dispatcher: `dispatch_command` / `dispatch_query` /
+`app_event_to_wire`) and `cairn-daemon` (an HTTP transport). ADR-0002 explicitly
+assigns Tauri to the UI session ("the UI session wires Tauri by calling
+`cairn-service` in-process"), validating this project's roadmap.
+
+We therefore vendor and build against the **real** response DTOs rather than
+inventing our own. The full pinned surface (`079f9f9`):
 
 ```ts
-type QueryResult =
-  | { query: "get_note";      note: { path: string; contents: string } | null }
-  | { query: "search";        hits: string[] }   // note paths
-  | { query: "get_backlinks"; paths: string[] };
+// Command — mutations (unchanged)
+type Command =
+  | { type: "write_note"; path: string; contents: string }
+  | { type: "delete_note"; path: string }
+  | { type: "commit"; message: string };
 
-type CommandResult =
-  | { command: "write_note";  ok: true }
-  | { command: "delete_note"; ok: true }
-  | { command: "commit";      commit: string };  // short id
+// Query — reads (now includes list_notes + get_graph)
+type Query =
+  | { type: "get_note"; path: string }
+  | { type: "search"; query: string }
+  | { type: "get_backlinks"; path: string }
+  | { type: "list_notes" }
+  | { type: "get_graph" };
+
+// CommandResponse — success of a command
+type CommandResponse = { type: "done" } | { type: "committed"; commit: string };
+
+// QueryResponse — success of a query
+type QueryResponse =
+  | { type: "note"; contents: string }              // get_note
+  | { type: "paths"; paths: string[] }              // search, get_backlinks
+  | { type: "notes"; notes: NoteSummary[] }         // list_notes
+  | { type: "graph"; nodes: string[]; edges: GraphEdge[] };  // get_graph
+
+type NoteSummary = { path: string; title: string };
+type GraphEdge = { from: string; to: string };
+
+// ContractError — failure of any command/query (rejection)
+type ContractError =
+  | { type: "not_found"; what: string }
+  | { type: "invalid_request"; message: string }
+  | { type: "internal"; message: string };
 ```
 
-These response shapes are the UI's input to closing the engine gap at Phase 2,
-and may be promoted into `cairn-contract` then.
+**Behavioral notes from the real dispatcher (`cairn-service`):**
+- `get_note` on a **missing** note rejects with `not_found` (it does *not* return
+  a null note). The UI/mock must treat a missing note as an error.
+- `search` and `get_backlinks` both return the `paths` variant.
+- `list_notes` returns `notes` (one `NoteSummary` each); `title` =
+  `display_title` (frontmatter `title:`, else first `# ` heading, else path
+  stem). This replaces the earlier `search("")` note-list hack.
+- `get_graph` returns `graph` (note paths + directed link edges). Available for
+  the Phase-4 graph view; the skeleton does not render it yet.
+- Invalid note paths reject with `invalid_request`; adapter failures with
+  `internal`.
 
 ---
 
@@ -104,11 +142,15 @@ root.
 
 ```ts
 interface CairnClient {
-  sendCommand(c: Command): Promise<CommandResult>;
-  runQuery(q: Query): Promise<QueryResult>;
-  subscribe(cb: (e: Event) => void): Unsubscribe;  // () => void
+  sendCommand(c: Command): Promise<CommandResponse>;  // rejects with ContractError
+  runQuery(q: Query): Promise<QueryResponse>;         // rejects with ContractError
+  subscribe(cb: (e: Event) => void): Unsubscribe;     // () => void
 }
 ```
+
+`sendCommand`/`runQuery` reject with a `ContractError` on failure (the same
+typed error the daemon and `cairn-service` produce), so the store's error
+handling is identical across mock and real transports.
 
 Implementations:
 
@@ -144,12 +186,21 @@ interlinked markdown notes, e.g. `index.md`, `ideas.md`, `todo.md` with
 - `delete_note` → remove; **emit `note_deleted`** then **`reindexed`**.
 - `commit` → return a fake short id (e.g. monotonic `c0001`); **emit
   `committed`**. No real git in the mock.
-- `get_note` → `{ path, contents } | null`.
-- `search` → substring match over contents → list of paths (matches
-  `InMemoryIndex`).
-- `get_backlinks` → parse every note's `[[wikilinks]]`, return paths whose notes
-  link to the target (matches `Graph::backlinks`); links to nonexistent notes
-  resolve to nothing.
+- `get_note` → `{ type: "note", contents }`; a **missing** note **rejects** with
+  `{ type: "not_found", what: path }` (mirrors `dispatch_query`).
+- `search` → `{ type: "paths", paths }`: case-insensitive substring over **body
+  OR path**, sorted by path (matches `InMemoryIndex`).
+- `get_backlinks` → `{ type: "paths", paths }`: parse every note's
+  `[[wikilinks]]`, return paths whose notes link to the target, resolved by
+  **stem**, sorted + deduped (matches `Graph::backlinks`); links to nonexistent
+  notes resolve to nothing.
+- `list_notes` → `{ type: "notes", notes }`: one `NoteSummary` per note, sorted
+  by path; `title` = `display_title` (frontmatter `title:`, else first `# `
+  heading, else stem).
+- `get_graph` → `{ type: "graph", nodes, edges }`: all note paths + resolved
+  directed link edges. (Implemented for fidelity; the skeleton UI does not render
+  it.)
+- An invalid note path rejects with `{ type: "invalid_request", message }`.
 
 **`[[wikilink]]` parsing** must match the engine's extraction rules; the parser
 is its own small, unit-tested module so it can be reused by the editor
@@ -165,8 +216,8 @@ observe the same "push after the fact" timing a real transport gives.
 A single store (sliced) holds UI-facing state; the `CairnClient` is the only
 way it talks to the engine.
 
-- **notes slice** — known note paths, the active note path + its loaded
-  contents, dirty/saving status.
+- **notes slice** — known note paths (from `list_notes`, mapping `NoteSummary`
+  → path), the active note path + its loaded contents, dirty/saving status.
 - **search slice** — current query, results, open/closed.
 - **backlinks slice** — backlinks for the active note.
 - **commit slice** — last commit id, autosave/auto-commit status, pending state.
@@ -223,11 +274,12 @@ auto-commit and is unit-tested with fake timers.
 
 ## 9. Error handling
 
-`sendCommand`/`runQuery` may reject. The store catches, surfaces a non-blocking
-`ErrorToast`, and **preserves the editor buffer on write failure** (never lose
-the user's text). Failed autosave retries on the next edit/idle; failed commit
-leaves state uncommitted and is reported. The mock can be told to inject
-failures for tests.
+`sendCommand`/`runQuery` reject with a `ContractError`. The store catches,
+formats it to a human string (`not_found` → "Not found: …"; `invalid_request` /
+`internal` → their message), surfaces a non-blocking `ErrorToast`, and
+**preserves the editor buffer on write failure** (never lose the user's text).
+Failed autosave retries on the next edit/idle; failed commit leaves state
+uncommitted and is reported. The mock can be told to inject failures for tests.
 
 ---
 
@@ -252,9 +304,11 @@ build.
 
 **Phase 0 — Scaffold**
 1. Vite + React + TS + Tailwind + Zustand + router; pnpm; eslint/prettier; CI.
-2. Vendor contract types into `web/src/contract/` + sync script + recorded
-   source commit.
-3. Define `CairnClient` + `QueryResult`/`CommandResult` types.
+2. Vendor contract types (incl. `CommandResponse`/`QueryResponse`/
+   `ContractError`/`NoteSummary`/`GraphEdge`) into `web/src/contract/` + sync
+   script + recorded source commit (`079f9f9`).
+3. Define `CairnClient` over the real `CommandResponse`/`QueryResponse`/
+   `ContractError` types.
 4. Wikilink parser (TDD).
 5. `MockClient` + fixture cairn (TDD against engine semantics).
 6. Composition root selecting `MockClient`; startup event subscription.
@@ -276,8 +330,12 @@ build.
 
 ## 12. Phase-2 handshake (what this spec hands forward)
 
-- The `QueryResult`/`CommandResult` shapes in §3 are the response DTOs the
-  engine gap work must produce.
-- Swapping `MockClient` → `TauriClient` is the only intended UI change; the
-  faithful mock's behavior is the conformance target for the real transport.
+- The engine gap is already closed: `cairn-service` (`dispatch_command` /
+  `dispatch_query` / `app_event_to_wire`) and `cairn-daemon` exist. Phase 2 is
+  pure UI-side wiring, no engine work required.
+- `TauriClient` wraps `cairn-service` in-process via Tauri IPC + an event
+  channel; `DaemonClient` (later) wraps `cairn-daemon` over HTTP/WS. Both
+  satisfy the same `CairnClient` interface the mock implements, so swapping the
+  composition root is the only intended UI change.
+- The faithful mock's behavior is the conformance target for both real clients.
 - Open-a-cairn picker + Tauri file dialog land here.
