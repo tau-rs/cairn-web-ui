@@ -87,6 +87,9 @@ export function createCairnStore(
       started = true;
       const path = await host.currentCairn();
       set({ cairnPath: path });
+      // Subscribe once, for the store's lifetime — NOT inside the `path !== null`
+      // gate below. The event channel is global (not per-cairn), and openCairn()
+      // relies on this subscription already being live. Don't move it.
       client.subscribe((e) => {
         if (e.type === "note_changed" || e.type === "note_deleted") {
           void get().refreshNotePaths();
