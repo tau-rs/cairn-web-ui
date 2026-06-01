@@ -1,18 +1,19 @@
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
+import { MarkdownView } from "./MarkdownView";
 
 export function Editor(props: {
   path: string | null;
   value: string;
-  mode: "rich" | "raw";
+  mode: "rendered" | "source";
+  notePaths: string[];
   onChange: (value: string) => void;
+  onOpenNote: (path: string) => void;
   onToggleMode: () => void;
 }) {
   if (!props.path) {
     return (
-      <div className="text-sm text-neutral-500">
-        No note open. Pick one from the list.
-      </div>
+      <div className="text-sm text-neutral-500">No note open. Pick one from the list.</div>
     );
   }
   return (
@@ -23,22 +24,24 @@ export function Editor(props: {
           className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:bg-neutral-800"
           onClick={props.onToggleMode}
         >
-          {props.mode === "rich" ? "Switch to raw" : "Switch to rich"}
+          {props.mode === "rendered" ? "Edit source" : "Done"}
         </button>
       </div>
-      {props.mode === "rich" ? (
+      {props.mode === "rendered" ? (
+        <div className="h-full overflow-auto">
+          <MarkdownView
+            contents={props.value}
+            notePaths={props.notePaths}
+            onOpenNote={props.onOpenNote}
+          />
+        </div>
+      ) : (
         <CodeMirror
           value={props.value}
           height="100%"
           theme="dark"
           extensions={[markdown()]}
           onChange={props.onChange}
-        />
-      ) : (
-        <textarea
-          className="h-full w-full resize-none bg-neutral-950 p-2 font-mono text-sm text-neutral-100 outline-none"
-          value={props.value}
-          onChange={(e) => props.onChange(e.target.value)}
         />
       )}
     </div>

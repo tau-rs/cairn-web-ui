@@ -3,48 +3,36 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor } from "./Editor";
 
+const base = {
+  path: "a.md" as string | null,
+  value: "# Hi\n\nlink [[ideas]]",
+  notePaths: ["ideas.md"],
+  mode: "rendered" as "rendered" | "source",
+  onChange: vi.fn(),
+  onOpenNote: vi.fn(),
+  onToggleMode: vi.fn(),
+};
+
 describe("Editor", () => {
   it("shows a placeholder when no note is open", () => {
-    render(
-      <Editor
-        path={null}
-        value=""
-        mode="raw"
-        onChange={vi.fn()}
-        onToggleMode={vi.fn()}
-      />,
-    );
+    render(<Editor {...base} path={null} />);
     expect(screen.getByText(/no note open/i)).toBeInTheDocument();
   });
 
-  it("raw mode edits call onChange", async () => {
-    const onChange = vi.fn();
-    render(
-      <Editor
-        path="a.md"
-        value="hi"
-        mode="raw"
-        onChange={onChange}
-        onToggleMode={vi.fn()}
-      />,
-    );
-    const area = screen.getByRole("textbox");
-    await userEvent.type(area, "!");
-    expect(onChange).toHaveBeenCalled();
+  it("rendered mode shows the rendered markdown (a heading), not a source editor", () => {
+    render(<Editor {...base} mode="rendered" />);
+    expect(screen.getByRole("heading", { name: "Hi" })).toBeInTheDocument();
   });
 
-  it("toggle button switches mode", async () => {
+  it("the toggle button flips the mode", async () => {
     const onToggleMode = vi.fn();
-    render(
-      <Editor
-        path="a.md"
-        value="hi"
-        mode="raw"
-        onChange={vi.fn()}
-        onToggleMode={onToggleMode}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: /rich|raw/i }));
+    render(<Editor {...base} mode="rendered" onToggleMode={onToggleMode} />);
+    await userEvent.click(screen.getByRole("button", { name: /edit source/i }));
     expect(onToggleMode).toHaveBeenCalled();
+  });
+
+  it("source mode renders the CodeMirror editor", () => {
+    const { container } = render(<Editor {...base} mode="source" />);
+    expect(container.querySelector(".cm-editor")).not.toBeNull();
   });
 });
