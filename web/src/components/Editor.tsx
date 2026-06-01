@@ -55,7 +55,10 @@ export function Editor(props: {
       </div>
       <div
         className={
-          props.mode === "livepreview" ? "cm-doc-livepreview" : "cm-doc-source"
+          "flex-1 min-h-0 " +
+          (props.mode === "livepreview"
+            ? "cm-doc-livepreview"
+            : "cm-doc-source")
         }
       >
         <CodeMirror
