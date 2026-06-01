@@ -134,4 +134,14 @@ describe("buildLivePreviewDecorations", () => {
     const ds = decos(doc, open + 1);
     expect(ds.some((d) => d.widget && d.from === open)).toBe(false);
   });
+  it("hides the list bullet for a task item (checkbox only, no bullet)", () => {
+    const doc = "- [ ] todo item";
+    const ds = decos(doc, doc.length); // off the marker
+    // the "- " marker is hidden (a plain replace, not a widget) at the line start
+    expect(ds.some((d) => d.from === 0 && d.hidden)).toBe(true);
+    expect(ds.some((d) => d.from === 0 && d.widget)).toBe(false);
+    // the checkbox widget renders at the "[" position
+    const open = doc.indexOf("[");
+    expect(ds.some((d) => d.widget && d.from === open)).toBe(true);
+  });
 });

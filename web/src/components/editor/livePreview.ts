@@ -117,35 +117,25 @@ export function buildLivePreviewDecorations(
       } else if (name === "ListItem") {
         // Style each line of the item; replace a bullet marker with a • widget.
         const firstLine = state.doc.lineAt(from);
-        const touched = selectionTouches(state, firstLine.from, firstLine.to);
         // indent every line of the item (continuation lines included)
         for (let pos = from; pos <= to; pos = state.doc.lineAt(pos).to + 1) {
           const ln = state.doc.lineAt(pos);
           decos.push(Decoration.line({ class: "cm-lp-li" }).range(ln.from));
           if (ln.to >= to) break;
         }
+        const taskMatch = /^(\s*[-*+]\s+)(\[[ xX]\])/.exec(firstLine.text);
         const mark = node.node.getChild("ListMark");
-        if (mark) {
-          const markText = state.doc.sliceString(mark.from, mark.to);
-          const isBullet = /^[-*+]$/.test(markText);
-          if (isBullet && !touched) {
-            // replace "- " (marker + following space) with the bullet widget
-            const end = Math.min(mark.to + 1, firstLine.to);
-            decos.push(
-              Decoration.replace({ widget: new BulletWidget() }).range(
-                mark.from,
-                end,
-              ),
-            );
-          }
-        }
-        const liLine = state.doc.lineAt(from);
-        const taskMatch = /^(\s*[-*+]\s+)(\[[ xX]\])/.exec(liLine.text);
-        if (taskMatch) {
-          const open = liLine.from + taskMatch[1].length; // index of "["
+
+        if (taskMatch && mark) {
+          // Task item: hide the list marker entirely and render only the checkbox.
+          const open = firstLine.from + taskMatch[1].length; // index of "["
           const close = open + 3; // covers "[ ]"
           if (!selectionTouches(state, open, close)) {
-            const checked = /[xX]/.test(liLine.text[open - liLine.from + 1]);
+            // hide the "- " marker (keep any leading indent before mark.from)
+            decos.push(Decoration.replace({}).range(mark.from, open));
+            const checked = /[xX]/.test(
+              firstLine.text[open - firstLine.from + 1],
+            );
             decos.push(
               Decoration.replace({
                 widget: new TaskCheckboxWidget(
@@ -154,6 +144,22 @@ export function buildLivePreviewDecorations(
                   opts.onToggleCheckbox,
                 ),
               }).range(open, close),
+            );
+          }
+        } else if (mark) {
+          // Non-task list item: bullet marker handling (unordered only).
+          const markText = state.doc.sliceString(mark.from, mark.to);
+          const isBullet = /^[-*+]$/.test(markText);
+          if (
+            isBullet &&
+            !selectionTouches(state, firstLine.from, firstLine.to)
+          ) {
+            const end = Math.min(mark.to + 1, firstLine.to);
+            decos.push(
+              Decoration.replace({ widget: new BulletWidget() }).range(
+                mark.from,
+                end,
+              ),
             );
           }
         }
