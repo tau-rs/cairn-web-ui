@@ -72,4 +72,45 @@ describe("cairn store", () => {
     await store.getState().commitManual("x");
     expect(store.getState().error).toBe("boom");
   });
+
+  it("surfaces an error if loading the note list fails", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "runQuery").mockRejectedValueOnce({ type: "internal", message: "boom" });
+    await store.getState().init();
+    expect(store.getState().error).toBe("boom");
+  });
+
+  it("keeps the buffer dirty if edited while a slow save is in flight", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "v0" });
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const orig = client.sendCommand.bind(client);
+    vi.spyOn(client, "sendCommand").mockImplementation(async (c) => {
+      await gate;
+      return orig(c);
+    });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("v1");
+    const saving = store.getState().saveActive();
+    store.getState().editBuffer("v2"); // user types while the save is gated
+    release();
+    await saving;
+    expect(store.getState().dirty).toBe(true); // v2 is not yet persisted
+  });
+
+  it("init is idempotent — a single event triggers one note-list refresh", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({});
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().init(); // second call must be a no-op (no double subscription)
+    const spy = vi.spyOn(client, "runQuery");
+    await client.sendCommand({ type: "write_note", path: "a.md", contents: "x" });
+    await vi.waitFor(() => expect(store.getState().notePaths).toContain("a.md"));
+    const listCalls = spy.mock.calls.filter(([q]) => q.type === "list_notes").length;
+    expect(listCalls).toBe(1);
+  });
 });
