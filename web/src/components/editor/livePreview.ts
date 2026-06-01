@@ -9,6 +9,7 @@ import {
 import { type EditorState, type Range } from "@codemirror/state";
 import { WikilinkWidget } from "./wikilinkWidget";
 import { BulletWidget } from "./widgets/bulletWidget";
+import { HrWidget } from "./widgets/hrWidget";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
@@ -135,6 +136,35 @@ export function buildLivePreviewDecorations(
               ),
             );
           }
+        }
+      } else if (name === "Blockquote") {
+        // Class every line of the quote; hide each line's "> " mark off-cursor.
+        const touched = selectionTouches(state, from, to);
+        let pos = from;
+        while (pos <= to) {
+          const line = state.doc.lineAt(pos);
+          decos.push(
+            Decoration.line({ class: "cm-lp-quote" }).range(line.from),
+          );
+          if (!touched) {
+            const match = /^(\s*>\s?)/.exec(line.text);
+            if (match) {
+              decos.push(
+                Decoration.replace({}).range(
+                  line.from,
+                  line.from + match[1].length,
+                ),
+              );
+            }
+          }
+          if (line.to >= to) break;
+          pos = line.to + 1;
+        }
+      } else if (name === "HorizontalRule") {
+        if (!selectionTouches(state, from, to)) {
+          decos.push(
+            Decoration.replace({ widget: new HrWidget() }).range(from, to),
+          );
         }
       }
     },

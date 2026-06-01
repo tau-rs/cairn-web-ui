@@ -81,4 +81,26 @@ describe("buildLivePreviewDecorations", () => {
     expect(ds.some((d) => d.widget && d.from === 0)).toBe(false);
     expect(ds.some((d) => d.class === "cm-lp-li")).toBe(true);
   });
+  it("styles a blockquote line and hides the > marker off-cursor", () => {
+    const doc = "> quoted\n\nbody";
+    const ds = decos(doc, doc.indexOf("body"));
+    expect(ds.some((d) => d.class === "cm-lp-quote")).toBe(true);
+    expect(ds.some((d) => d.hidden && d.from === 0)).toBe(true);
+  });
+  it("reveals the > marker when the cursor is in the quote", () => {
+    const ds = decos("> quoted\n\nbody", 2);
+    expect(ds.some((d) => d.hidden && d.from === 0)).toBe(false);
+  });
+  it("replaces a horizontal rule with a widget off-cursor", () => {
+    const doc = "a\n\n---\n\nb";
+    const hrPos = doc.indexOf("---");
+    const ds = decos(doc, 0);
+    expect(ds.some((d) => d.widget && d.from === hrPos)).toBe(true);
+  });
+  it("reveals the raw rule when the cursor is on it", () => {
+    const doc = "a\n\n---\n\nb";
+    const hrPos = doc.indexOf("---");
+    const ds = decos(doc, hrPos + 1);
+    expect(ds.some((d) => d.widget && d.from === hrPos)).toBe(false);
+  });
 });

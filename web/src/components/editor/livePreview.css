@@ -75,3 +75,12 @@
   margin-left: -1.2em;
   text-align: center;
 }
+.cm-lp-quote {
+  border-left: 3px solid #2f2f3a;
+  padding-left: 12px;
+  color: #9a9ba6;
+}
+.cm-lp-hr {
+  border-top: 1px solid #26262e;
+  margin: 0.4em 0;
+}
