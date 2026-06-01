@@ -12,6 +12,15 @@ in-process (Tauri) or networked (daemon) transport.
 
 Greenfield. Roadmap and architecture are being defined; see `docs/`.
 
+## Platforms
+
+Desktop (macOS / Linux / Windows) is the supported target, built with Tauri v2.
+The mobile targets (iOS / Android) are scaffolded so the shell builds and
+launches, but **opening a cairn on mobile is not yet wired** — it needs a
+mobile-specific file-access story (iOS document picker / security-scoped
+bookmarks, Android SAF) and `git2` cross-compilation, which is a follow-up
+phase. On mobile the app currently shows the "Open a cairn…" empty state only.
+
 ## License
 
 Dual-licensed under MIT OR Apache-2.0, matching the rest of `tau-rs`.

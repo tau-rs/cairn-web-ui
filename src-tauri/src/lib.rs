@@ -136,24 +136,33 @@ async fn pick_and_open_cairn<R: Runtime>(
     state: State<'_, CairnState>,
     app: AppHandle<R>,
 ) -> Result<Option<String>, ContractError> {
-    use tauri_plugin_dialog::DialogExt;
-    let Some(folder) = app.dialog().file().blocking_pick_folder() else {
-        return Ok(None);
-    };
-    let dir = folder.into_path().map_err(|e| ContractError::Internal {
-        message: e.to_string(),
-    })?;
-    let state = (*state).clone();
-    let app2 = app.clone();
-    let dir2 = dir.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        open_at(&state, &app2, &dir2).map_err(ContractError::from)
-    })
-    .await
-    .map_err(|e| ContractError::Internal {
-        message: e.to_string(),
-    })??;
-    Ok(Some(dir.to_string_lossy().into_owned()))
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let Some(folder) = app.dialog().file().blocking_pick_folder() else {
+            return Ok(None);
+        };
+        let dir = folder.into_path().map_err(|e| ContractError::Internal {
+            message: e.to_string(),
+        })?;
+        let state = (*state).clone();
+        let app2 = app.clone();
+        let dir2 = dir.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            open_at(&state, &app2, &dir2).map_err(ContractError::from)
+        })
+        .await
+        .map_err(|e| ContractError::Internal {
+            message: e.to_string(),
+        })??;
+        Ok(Some(dir.to_string_lossy().into_owned()))
+    }
+    #[cfg(mobile)]
+    {
+        // Mobile open-a-cairn (document picker / SAF + git-on-device) is deferred.
+        let _ = (&state, &app);
+        Ok(None)
+    }
 }
 
 #[tauri::command]
