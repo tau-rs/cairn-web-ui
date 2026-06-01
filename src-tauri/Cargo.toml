@@ -29,3 +29,6 @@ cairn-app      = { git = "https://github.com/tau-rs/cairn", rev = "079f9f9f5178d
 cairn-infra    = { git = "https://github.com/tau-rs/cairn", rev = "079f9f9f5178d357f3df743fc077ffd727cffe89" }
 cairn-contract = { git = "https://github.com/tau-rs/cairn", rev = "079f9f9f5178d357f3df743fc077ffd727cffe89" }
 cairn-service  = { git = "https://github.com/tau-rs/cairn", rev = "079f9f9f5178d357f3df743fc077ffd727cffe89" }
+
+[dev-dependencies]
+tempfile = "3"
