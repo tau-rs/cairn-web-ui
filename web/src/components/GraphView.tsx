@@ -17,7 +17,12 @@ export function GraphView(props: {
 }) {
   const elements = useMemo(() => {
     const positions = computeGraphLayout(props.nodes, props.edges);
-    return buildFlowElements(props.nodes, props.edges, positions, props.activePath);
+    return buildFlowElements(
+      props.nodes,
+      props.edges,
+      positions,
+      props.activePath,
+    );
   }, [props.nodes, props.edges, props.activePath]);
 
   return (

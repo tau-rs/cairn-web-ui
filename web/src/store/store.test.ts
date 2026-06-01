@@ -163,8 +163,14 @@ describe("cairn store", () => {
     const { client, store } = setup();
     await store.getState().init();
     await store.getState().loadGraph();
-    await client.sendCommand({ type: "write_note", path: "c.md", contents: "x" });
-    await vi.waitFor(() => expect(store.getState().graph!.nodes).toContain("c.md"));
+    await client.sendCommand({
+      type: "write_note",
+      path: "c.md",
+      contents: "x",
+    });
+    await vi.waitFor(() =>
+      expect(store.getState().graph!.nodes).toContain("c.md"),
+    );
   });
 
   it("defaults the editor to the rendered view", () => {

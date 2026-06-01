@@ -16,7 +16,10 @@ describe("computeGraphLayout", () => {
   });
 
   it("ignores edges whose endpoints are not in the node set", () => {
-    const pos = computeGraphLayout(["a.md"], [{ from: "a.md", to: "ghost.md" }]);
+    const pos = computeGraphLayout(
+      ["a.md"],
+      [{ from: "a.md", to: "ghost.md" }],
+    );
     expect(pos.size).toBe(1);
     expect(Number.isFinite(pos.get("a.md")!.x)).toBe(true);
   });

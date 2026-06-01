@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { GraphView } from "../components/GraphView";
 import { Shell } from "../components/Shell";
 import { NoteList } from "../components/NoteList";
 import { Editor } from "../components/Editor";
@@ -31,6 +32,8 @@ export default function App() {
   const committing = useCairn((s) => s.committing);
   const cairnPath = useCairn((s) => s.cairnPath);
   const error = useCairn((s) => s.error);
+  const graph = useCairn((s) => s.graph);
+  const [view, setView] = useState<"editor" | "graph">("editor");
   // Store action functions are stable for the store's lifetime (Zustand never
   // replaces them; they read fresh state via get()), so capturing them once is safe.
   const actions = cairnStore.getState();
@@ -51,6 +54,16 @@ export default function App() {
                 onChange={actions.setQuery}
                 onSearch={actions.runSearch}
               />
+              <button
+                className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:bg-neutral-800"
+                onClick={() => {
+                  const next = view === "graph" ? "editor" : "graph";
+                  setView(next);
+                  if (next === "graph") void actions.loadGraph();
+                }}
+              >
+                {view === "graph" ? "Editor" : "Graph"}
+              </button>
             </div>
             <CommitBar
               saving={saving}
@@ -81,19 +94,32 @@ export default function App() {
               }}
               onClose={actions.closeSearch}
             />
-            <Editor
-              path={activePath}
-              value={activeContents}
-              mode={editorMode}
-              notePaths={notePaths}
-              onChange={actions.editBuffer}
-              onOpenNote={actions.openNote}
-              onToggleMode={() =>
-                actions.setSettings({
-                  editorMode: editorMode === "rendered" ? "source" : "rendered",
-                })
-              }
-            />
+            {view === "graph" ? (
+              <GraphView
+                nodes={graph?.nodes ?? []}
+                edges={graph?.edges ?? []}
+                activePath={activePath}
+                onOpenNote={(p) => {
+                  void actions.openNote(p);
+                  setView("editor");
+                }}
+              />
+            ) : (
+              <Editor
+                path={activePath}
+                value={activeContents}
+                mode={editorMode}
+                notePaths={notePaths}
+                onChange={actions.editBuffer}
+                onOpenNote={actions.openNote}
+                onToggleMode={() =>
+                  actions.setSettings({
+                    editorMode:
+                      editorMode === "rendered" ? "source" : "rendered",
+                  })
+                }
+              />
+            )}
           </div>
         }
         backlinks={

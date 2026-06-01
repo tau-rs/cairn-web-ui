@@ -8,7 +8,12 @@ const positions = new Map([
 
 describe("buildFlowElements", () => {
   it("maps notes to nodes with stem labels and an active flag", () => {
-    const { nodes } = buildFlowElements(["a.md", "dir/b.md"], [], positions, "a.md");
+    const { nodes } = buildFlowElements(
+      ["a.md", "dir/b.md"],
+      [],
+      positions,
+      "a.md",
+    );
     expect(nodes).toHaveLength(2);
     const a = nodes.find((n) => n.id === "a.md")!;
     const b = nodes.find((n) => n.id === "dir/b.md")!;

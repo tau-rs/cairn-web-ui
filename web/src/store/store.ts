@@ -247,7 +247,8 @@ export function createCairnStore(
     async loadGraph() {
       try {
         const res = await client.runQuery({ type: "get_graph" });
-        if (res.type === "graph") set({ graph: { nodes: res.nodes, edges: res.edges } });
+        if (res.type === "graph")
+          set({ graph: { nodes: res.nodes, edges: res.edges } });
       } catch (err) {
         set({ error: errMsg(err) });
       }
