@@ -115,7 +115,7 @@ export default function App() {
                 onToggleMode={() =>
                   actions.setSettings({
                     editorMode:
-                      editorMode === "rendered" ? "source" : "rendered",
+                      editorMode === "livepreview" ? "source" : "livepreview",
                   })
                 }
               />
