@@ -11,6 +11,8 @@ import { Settings } from "../components/Settings";
 import { ErrorToast } from "../components/ErrorToast";
 import { OpenCairn } from "../components/OpenCairn";
 import { cairnStore, useCairn } from "./cairnStore";
+import { Logo } from "../components/ui/Logo";
+import { Button } from "../components/ui/Button";
 
 export default function App() {
   useEffect(() => {
@@ -46,25 +48,21 @@ export default function App() {
     <>
       <Shell
         topBar={
-          <div className="flex w-full items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-neutral-400">Cairn</span>
-              <SearchBar
-                value={query}
-                onChange={actions.setQuery}
-                onSearch={actions.runSearch}
-              />
-              <button
-                className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:bg-neutral-800"
-                onClick={() => {
-                  const next = view === "graph" ? "editor" : "graph";
-                  setView(next);
-                  if (next === "graph") void actions.loadGraph();
-                }}
-              >
-                {view === "graph" ? "Editor" : "Graph"}
-              </button>
-            </div>
+          <div className="flex w-full items-center gap-3">
+            <Logo />
+            <span className="text-sm font-semibold text-text">Cairn</span>
+            <SearchBar value={query} onChange={actions.setQuery} onSearch={actions.runSearch} />
+            <Button
+              variant="ghost"
+              onClick={() => {
+                const next = view === "graph" ? "editor" : "graph";
+                setView(next);
+                if (next === "graph") void actions.loadGraph();
+              }}
+            >
+              {view === "graph" ? "Editor" : "Graph"}
+            </Button>
+            <span className="grow" />
             <CommitBar
               saving={saving}
               dirty={dirty}
