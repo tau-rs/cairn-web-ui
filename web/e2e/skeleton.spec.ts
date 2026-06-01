@@ -49,7 +49,9 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   await expect(page.getByText(/@c\d{4}/)).toBeVisible();
 });
 
-test("graph view: toggle, see nodes, click to open a note", async ({ page }) => {
+test("graph view: toggle, see nodes, click to open a note", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByText("ideas.md")).toBeVisible(); // app loaded (mock fixture)
 

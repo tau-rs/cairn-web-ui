@@ -24,7 +24,8 @@ export function GraphView(props: {
     [props.nodes, props.edges],
   );
   const elements = useMemo(
-    () => buildFlowElements(props.nodes, props.edges, positions, props.activePath),
+    () =>
+      buildFlowElements(props.nodes, props.edges, positions, props.activePath),
     [props.nodes, props.edges, positions, props.activePath],
   );
 
