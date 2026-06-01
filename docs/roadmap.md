@@ -67,12 +67,12 @@ Implementations:
 
 | Phase | What | Depends on | Where |
 |---|---|---|---|
-| **0 — Scaffold** | Vite + React + TS + Tailwind + Zustand app. Vendor the contract TS types. Define the `CairnClient` interface + `MockClient` + a fixture cairn. CI. | — | this repo |
-| **1 — Walking-skeleton UI** | Vertical slice on the mock: open a cairn, note list, open/edit a markdown note, search, backlinks panel, commit button, live refresh from the event stream. | 0 | this repo |
+| **0 — Scaffold** ✅ done | Vite + React + TS + Tailwind + Zustand app. Vendored contract TS types. `CairnClient` interface + `MockClient` + fixture cairn. CI. | — | this repo |
+| **1 — Walking-skeleton UI** ✅ done | Vertical slice on the mock: open a cairn, note list, open/edit a markdown note, search, backlinks panel, commit button, live refresh from the event stream. | 0 | this repo |
 | **2 — Real transport** ✅ done | `TauriClient` (wraps `cairn-service` in-process) + Tauri v2 desktop shell + open-a-cairn picker (persist + auto-reopen); mock↔real switch isolated to `makeBackend`. Mobile target scaffolded (open-on-mobile deferred). | 1 | this repo |
-| **3 — Editor depth (NEXT)** | **Rework the editor: a beautiful, readable rendered view (GitHub-README-style GFM) is the DEFAULT; raw source ("code editor") is the secondary mode.** Rename modes accordingly (rendered/preview default, source secondary). Then CodeMirror niceties: live `[[wikilink]]` autocomplete + clickable links, frontmatter. | 1 | this repo |
-| **4 — Graph view** | `@xyflow/react` graph of notes / links / backlinks (engine `get_graph` already available). | 1 | this repo |
-| **5 — Shell polish** | Command palette, panes/tabs, themes, settings. | 1 | this repo |
+| **3 — Editor depth** ✅ done | Rendered GitHub-README-style markdown (GFM + Tailwind Typography + code highlighting) is the DEFAULT view; CodeMirror source is the secondary "Edit source" mode; clickable `[[wikilinks]]` (resolved-by-stem). `editorMode` = `rendered`\|`source`. *Still open:* `[[wikilink]]` autocomplete in source, frontmatter rendering. | 1 | this repo |
+| **4 — Graph view** ✅ done | `@xyflow/react` force-directed (`d3-force`) whole-cairn graph in a center-pane toggle; click node → opens note; live-refreshes on note events. *Deferred:* local/neighborhood graph. | 1 | this repo |
+| **5 — Shell polish (NEXT?)** | Command palette, panes/tabs, themes, settings. | 1 | this repo |
 | **6 — UI-plugin host** | Host the JS/TS UI-plugin API surface defined in engine spec §7. | 3–5 | this repo |
 | **7 — Tau actions** | Surface `AgentRuntime` actions (summarize, find-related, …) once tau firms up. | 2 | this repo + engine |
 
