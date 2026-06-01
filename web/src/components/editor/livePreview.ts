@@ -167,11 +167,8 @@ export function buildLivePreviewDecorations(
           );
         }
       } else if (name === "FencedCode") {
-        const touched = selectionTouches(
-          state,
-          lineRange(state, from, to).start,
-          lineRange(state, from, to).end,
-        );
+        const lr = lineRange(state, from, to);
+        const touched = selectionTouches(state, lr.start, lr.end);
         const firstLine = state.doc.lineAt(from).number;
         const lastLine = state.doc.lineAt(to).number;
         for (let n = firstLine; n <= lastLine; n++) {

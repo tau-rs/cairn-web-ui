@@ -89,7 +89,6 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.88em;
 }
-.cm-lp-codeblock:first-of-type,
 .cm-doc-livepreview .cm-line.cm-lp-codeblock {
   padding-left: 13px;
   padding-right: 13px;

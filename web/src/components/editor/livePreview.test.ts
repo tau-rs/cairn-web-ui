@@ -110,11 +110,15 @@ describe("buildLivePreviewDecorations", () => {
     expect(ds.some((d) => d.class === "cm-lp-codeblock")).toBe(true);
     // opening fence line is hidden
     expect(ds.some((d) => d.hidden && d.from === fence)).toBe(true);
+    const closingFence = doc.lastIndexOf("```");
+    expect(ds.some((d) => d.hidden && d.from === closingFence)).toBe(true);
   });
   it("reveals the fences when the cursor is inside the code block", () => {
     const doc = "text\n\n```js\nconst x = 1;\n```\n\nmore";
     const fence = doc.indexOf("```");
     const ds = decos(doc, doc.indexOf("const"));
     expect(ds.some((d) => d.hidden && d.from === fence)).toBe(false);
+    const closingFence = doc.lastIndexOf("```");
+    expect(ds.some((d) => d.hidden && d.from === closingFence)).toBe(false);
   });
 });
