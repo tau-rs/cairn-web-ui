@@ -25,7 +25,9 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   // live preview then renders the [[ideas]] as a widget.
   await page.keyboard.press("Home");
   // In live preview the wikilink renders as a clickable widget (not raw [[…]]).
-  await expect(page.locator(".cm-lp-wikilink", { hasText: "ideas" }).first()).toBeVisible();
+  await expect(
+    page.locator(".cm-lp-wikilink", { hasText: "ideas" }).first(),
+  ).toBeVisible();
 
   // Autosave fires after the debounce; status returns to Saved.
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 5000 });
