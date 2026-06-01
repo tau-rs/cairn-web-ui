@@ -64,7 +64,9 @@ async fn send_command<R: Runtime>(
         run_command_blocking(&state, &app, &command).map_err(ContractError::from)
     })
     .await
-    .map_err(|e| ContractError::Internal { message: e.to_string() })?
+    .map_err(|e| ContractError::Internal {
+        message: e.to_string(),
+    })?
 }
 
 // No R: Runtime generic — queries are read-only and never emit events.
@@ -78,7 +80,9 @@ async fn run_query(
         run_query_blocking(&state, &query).map_err(ContractError::from)
     })
     .await
-    .map_err(|e| ContractError::Internal { message: e.to_string() })?
+    .map_err(|e| ContractError::Internal {
+        message: e.to_string(),
+    })?
 }
 
 /// Open a cairn at `dir`: build the engine, reindex (emitting events), record
@@ -90,7 +94,9 @@ fn open_at<R: Runtime>(
 ) -> Result<(), ServiceError> {
     let mut engine = open_engine(dir)?;
     let mut sink = TauriSink(app.clone());
-    engine.reindex(&mut sink).map_err(|e| ServiceError::Internal(e.to_string()))?;
+    engine
+        .reindex(&mut sink)
+        .map_err(|e| ServiceError::Internal(e.to_string()))?;
     *state.inner.lock().expect("engine mutex poisoned") = Some((engine, dir.to_path_buf()));
     if let Err(e) = persist_path(app, dir) {
         eprintln!("cairn: failed to persist cairn path: {e}"); // non-fatal
@@ -99,17 +105,22 @@ fn open_at<R: Runtime>(
 }
 
 fn config_file<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("last-cairn.txt"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("last-cairn.txt"))
 }
 
 fn persist_path<R: Runtime>(app: &AppHandle<R>, dir: &Path) -> std::io::Result<()> {
-    let Some(f) = config_file(app) else { return Ok(()) };
+    let Some(f) = config_file(app) else {
+        return Ok(());
+    };
     if let Some(parent) = f.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let s = dir
-        .to_str()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "path is not valid UTF-8"))?;
+    let s = dir.to_str().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "path is not valid UTF-8")
+    })?;
     std::fs::write(f, s.as_bytes())
 }
 
@@ -126,10 +137,12 @@ async fn pick_and_open_cairn<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Option<String>, ContractError> {
     use tauri_plugin_dialog::DialogExt;
-    let Some(folder) = app.dialog().file().blocking_pick_folder() else { return Ok(None) };
-    let dir = folder
-        .into_path()
-        .map_err(|e| ContractError::Internal { message: e.to_string() })?;
+    let Some(folder) = app.dialog().file().blocking_pick_folder() else {
+        return Ok(None);
+    };
+    let dir = folder.into_path().map_err(|e| ContractError::Internal {
+        message: e.to_string(),
+    })?;
     let state = (*state).clone();
     let app2 = app.clone();
     let dir2 = dir.clone();
@@ -137,7 +150,9 @@ async fn pick_and_open_cairn<R: Runtime>(
         open_at(&state, &app2, &dir2).map_err(ContractError::from)
     })
     .await
-    .map_err(|e| ContractError::Internal { message: e.to_string() })??;
+    .map_err(|e| ContractError::Internal {
+        message: e.to_string(),
+    })??;
     Ok(Some(dir.to_string_lossy().into_owned()))
 }
 
@@ -195,12 +210,26 @@ mod tests {
         let mut sink: Vec<cairn_app::Event> = Vec::new();
         cairn_service::dispatch_command(
             &mut engine,
-            &Command::WriteNote { path: "a.md".into(), contents: "hello [[b]]".into() },
+            &Command::WriteNote {
+                path: "a.md".into(),
+                contents: "hello [[b]]".into(),
+            },
             &mut sink,
         )
         .unwrap();
-        let got = cairn_service::dispatch_query(&engine, &Query::GetNote { path: "a.md".into() }).unwrap();
-        assert_eq!(got, QueryResponse::Note { contents: "hello [[b]]".into() });
+        let got = cairn_service::dispatch_query(
+            &engine,
+            &Query::GetNote {
+                path: "a.md".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            QueryResponse::Note {
+                contents: "hello [[b]]".into()
+            }
+        );
     }
 
     #[test]
@@ -210,7 +239,9 @@ mod tests {
         let res = run_command_blocking(
             &state,
             &app.handle().clone(),
-            &Command::Commit { message: "x".into() },
+            &Command::Commit {
+                message: "x".into(),
+            },
         );
         assert!(matches!(res, Err(ServiceError::InvalidRequest(_))));
     }
@@ -220,15 +251,30 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let app = test_app();
         let state = (*app.state::<CairnState>()).clone();
-        *state.inner.lock().unwrap() = Some((open_engine(tmp.path()).unwrap(), tmp.path().to_path_buf()));
+        *state.inner.lock().unwrap() =
+            Some((open_engine(tmp.path()).unwrap(), tmp.path().to_path_buf()));
         run_command_blocking(
             &state,
             &app.handle().clone(),
-            &Command::WriteNote { path: "n.md".into(), contents: "body".into() },
+            &Command::WriteNote {
+                path: "n.md".into(),
+                contents: "body".into(),
+            },
         )
         .unwrap();
-        let r = run_query_blocking(&state, &Query::Search { query: "body".into() }).unwrap();
-        assert_eq!(r, QueryResponse::Paths { paths: vec!["n.md".into()] });
+        let r = run_query_blocking(
+            &state,
+            &Query::Search {
+                query: "body".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            QueryResponse::Paths {
+                paths: vec!["n.md".into()]
+            }
+        );
     }
 
     #[test]
