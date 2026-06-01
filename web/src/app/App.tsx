@@ -7,8 +7,9 @@ import { Backlinks } from "../components/Backlinks";
 import { SearchBar } from "../components/SearchBar";
 import { SearchResults } from "../components/SearchResults";
 import { CommitBar } from "../components/CommitBar";
-import { Settings } from "../components/Settings";
 import { ErrorToast } from "../components/ErrorToast";
+import { IconButton } from "../components/ui/IconButton";
+import { SettingsDialog } from "../components/SettingsDialog";
 import { OpenCairn } from "../components/OpenCairn";
 import { cairnStore, useCairn } from "./cairnStore";
 import { Logo } from "../components/ui/Logo";
@@ -36,6 +37,7 @@ export default function App() {
   const error = useCairn((s) => s.error);
   const graph = useCairn((s) => s.graph);
   const [view, setView] = useState<"editor" | "graph">("editor");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Store action functions are stable for the store's lifetime (Zustand never
   // replaces them; they read fresh state via get()), so capturing them once is safe.
   const actions = cairnStore.getState();
@@ -67,6 +69,21 @@ export default function App() {
               {view === "graph" ? "Editor" : "Graph"}
             </Button>
             <span className="grow" />
+            <IconButton label="Settings" onClick={() => setSettingsOpen(true)}>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </IconButton>
             <CommitBar
               saving={saving}
               dirty={dirty}
@@ -124,14 +141,15 @@ export default function App() {
             )}
           </div>
         }
-        backlinks={
-          <div className="flex flex-col gap-4">
-            <Backlinks paths={backlinks} onOpen={actions.openNote} />
-            <Settings settings={settings} onChange={actions.setSettings} />
-          </div>
-        }
+        backlinks={<Backlinks paths={backlinks} onOpen={actions.openNote} />}
       />
       <ErrorToast message={error} onDismiss={actions.dismissError} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={settings}
+        onChange={actions.setSettings}
+      />
     </>
   );
 }

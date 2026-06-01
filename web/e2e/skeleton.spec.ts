@@ -14,9 +14,11 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
     page.locator("aside").last().getByRole("button", { name: "index.md" }),
   ).toBeVisible();
 
-  // Create a new note that links to ideas.
-  page.once("dialog", (d) => d.accept("fresh.md"));
+  // Create a new note that links to ideas (via the styled modal).
   await page.getByRole("button", { name: /new note/i }).click();
+  const newNoteDialog = page.getByRole("dialog");
+  await newNoteDialog.getByPlaceholder("notes/idea.md").fill("fresh.md");
+  await newNoteDialog.getByRole("button", { name: /^create$/i }).click();
   // New note opens editable in live preview — type directly into CodeMirror.
   const cm = page.locator(".cm-content");
   await cm.click();
@@ -46,9 +48,13 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
     page.locator("aside").last().getByRole("button", { name: "fresh.md" }),
   ).toBeVisible();
 
-  // Manual commit records a commit id.
-  page.once("dialog", (d) => d.accept("e2e snapshot"));
+  // Manual commit via the styled modal records a commit id.
   await page.getByRole("button", { name: /^commit$/i }).click();
+  const commitDialog = page.getByRole("dialog");
+  await commitDialog
+    .getByPlaceholder("Describe this change")
+    .fill("e2e snapshot");
+  await commitDialog.getByRole("button", { name: /^commit$/i }).click();
   await expect(page.getByText(/@c\d{4}/)).toBeVisible();
 });
 
