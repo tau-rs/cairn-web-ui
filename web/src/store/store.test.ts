@@ -1,0 +1,75 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createCairnStore, DEFAULT_SETTINGS } from "./store";
+import { MockClient } from "../client/mock";
+
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => vi.useRealTimers());
+
+function setup() {
+  const client = new MockClient({ "a.md": "links to [[b]]", "b.md": "target note" });
+  const store = createCairnStore(client);
+  return { client, store };
+}
+
+describe("cairn store", () => {
+  it("init loads the note list", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    expect(store.getState().notePaths).toEqual(["a.md", "b.md"]);
+  });
+
+  it("openNote loads contents and backlinks", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("b.md");
+    expect(store.getState().activePath).toBe("b.md");
+    expect(store.getState().activeContents).toBe("target note");
+    expect(store.getState().backlinks).toEqual(["a.md"]);
+  });
+
+  it("editBuffer schedules a debounced autosave that writes the note", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("edited body [[b]]");
+    expect(store.getState().dirty).toBe(true);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs);
+    const res = await client.runQuery({ type: "get_note", path: "a.md" });
+    expect(res).toEqual({ type: "note", contents: "edited body [[b]]" });
+    expect(store.getState().dirty).toBe(false);
+  });
+
+  it("runSearch populates results; closeSearch clears them", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    await store.getState().runSearch("target");
+    expect(store.getState().searchResults).toEqual(["b.md"]);
+    store.getState().closeSearch();
+    expect(store.getState().searchResults).toBeNull();
+  });
+
+  it("commitManual commits and records the id", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    await store.getState().commitManual("snapshot");
+    expect(store.getState().lastCommit).toBe("c0001");
+  });
+
+  it("reacts to a note_changed event by refreshing the note list", async () => {
+    // Real timers here: vi.waitFor polls on real timers and the mock emits via
+    // queueMicrotask, so mixing fake timers would hang.
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    await client.sendCommand({ type: "write_note", path: "c.md", contents: "hi" });
+    await vi.waitFor(() => expect(store.getState().notePaths).toContain("c.md"));
+  });
+
+  it("surfaces errors from a failing command", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "sendCommand").mockRejectedValueOnce(new Error("boom"));
+    await store.getState().init();
+    await store.getState().commitManual("x");
+    expect(store.getState().error).toBe("boom");
+  });
+});
