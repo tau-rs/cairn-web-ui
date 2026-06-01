@@ -6,6 +6,7 @@ import { Backlinks } from "../components/Backlinks";
 import { SearchBar } from "../components/SearchBar";
 import { SearchResults } from "../components/SearchResults";
 import { CommitBar } from "../components/CommitBar";
+import { Settings } from "../components/Settings";
 import { cairnStore, useCairn } from "./cairnStore";
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
   const activePath = useCairn((s) => s.activePath);
   const activeContents = useCairn((s) => s.activeContents);
   const editorMode = useCairn((s) => s.settings.editorMode);
+  const settings = useCairn((s) => s.settings);
   const backlinks = useCairn((s) => s.backlinks);
   const query = useCairn((s) => s.query);
   const searchResults = useCairn((s) => s.searchResults);
@@ -75,7 +77,12 @@ export default function App() {
           />
         </div>
       }
-      backlinks={<Backlinks paths={backlinks} onOpen={actions.openNote} />}
+      backlinks={
+        <div className="flex flex-col gap-4">
+          <Backlinks paths={backlinks} onOpen={actions.openNote} />
+          <Settings settings={settings} onChange={actions.setSettings} />
+        </div>
+      }
     />
   );
 }
