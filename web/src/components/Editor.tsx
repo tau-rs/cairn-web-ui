@@ -1,16 +1,32 @@
+import { useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
-import { markdown } from "@codemirror/lang-markdown";
-import { MarkdownView } from "./MarkdownView";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { livePreview } from "./editor/livePreview";
+import { stem } from "../client/wikilink";
 
 export function Editor(props: {
   path: string | null;
   value: string;
-  mode: "rendered" | "source";
+  mode: "livepreview" | "source";
   notePaths: string[];
   onChange: (value: string) => void;
   onOpenNote: (path: string) => void;
   onToggleMode: () => void;
 }) {
+  const resolve = useMemo(() => {
+    const byStem = new Map<string, string>();
+    for (const p of props.notePaths) byStem.set(stem(p), p);
+    return (target: string) => byStem.get(stem(target)) ?? null;
+  }, [props.notePaths]);
+
+  const onOpenNote = props.onOpenNote;
+  const extensions = useMemo(() => {
+    const base = markdown({ base: markdownLanguage });
+    return props.mode === "livepreview"
+      ? [base, livePreview({ resolve, onOpenNote })]
+      : [base];
+  }, [props.mode, resolve, onOpenNote]);
+
   if (!props.path) {
     return (
       <div className="text-sm text-neutral-500">
@@ -26,26 +42,16 @@ export function Editor(props: {
           className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:bg-neutral-800"
           onClick={props.onToggleMode}
         >
-          {props.mode === "rendered" ? "Edit source" : "Done"}
+          {props.mode === "livepreview" ? "Source" : "Live Preview"}
         </button>
       </div>
-      {props.mode === "rendered" ? (
-        <div className="h-full overflow-auto">
-          <MarkdownView
-            contents={props.value}
-            notePaths={props.notePaths}
-            onOpenNote={props.onOpenNote}
-          />
-        </div>
-      ) : (
-        <CodeMirror
-          value={props.value}
-          height="100%"
-          theme="dark"
-          extensions={[markdown()]}
-          onChange={props.onChange}
-        />
-      )}
+      <CodeMirror
+        value={props.value}
+        height="100%"
+        theme="dark"
+        extensions={extensions}
+        onChange={props.onChange}
+      />
     </div>
   );
 }
