@@ -96,6 +96,14 @@ describe("MockClient", () => {
     });
   });
 
+  it("delete_note rejects with not_found for a missing note", async () => {
+    const c = new MockClient(freshNotes());
+    await expect(c.sendCommand({ type: "delete_note", path: "ghost.md" })).rejects.toEqual({
+      type: "not_found",
+      what: "ghost.md",
+    });
+  });
+
   it("commit returns committed with a short id and emits committed", async () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];

@@ -30,7 +30,8 @@ function displayTitle(path: string, raw: string): string {
     for (const line of frontmatter.split("\n")) {
       const t = line.trimStart();
       if (t.startsWith("title:")) {
-        const v = t.slice("title:".length).trim().replace(/^["']+|["']+$/g, "").trim();
+        // Two-pass quote strip mirrors Rust's trim_matches('"').trim_matches('\'').
+        const v = t.slice("title:".length).trim().replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "").trim();
         if (v) return v;
       }
     }
@@ -78,11 +79,18 @@ export class MockClient implements CairnClient {
         this.emit({ type: "note_changed", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
-      case "delete_note":
+      case "delete_note": {
+        // The real store errors when deleting a missing note (fs NotFound ->
+        // PortError::NotFound -> ContractError::NotFound).
+        if (!this.notes.has(c.path)) {
+          const err: ContractError = { type: "not_found", what: c.path };
+          throw err;
+        }
         this.notes.delete(c.path);
         this.emit({ type: "note_deleted", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
+      }
       case "commit": {
         this.commitSeq += 1;
         const commit = `c${String(this.commitSeq).padStart(4, "0")}`;
