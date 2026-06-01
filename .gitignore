@@ -9,6 +9,9 @@ playwright-report/
 # Rust (gateway crate, if/when added)
 target/
 
+# Brainstorming companion
+.superpowers/
+
 # Env / local
 .env
 .env.local
