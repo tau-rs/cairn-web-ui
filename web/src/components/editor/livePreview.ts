@@ -46,7 +46,7 @@ function selectionTouches(
   return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 }
 
-function lineRange(state: EditorState, from: number, to: number) {
+export function lineRange(state: EditorState, from: number, to: number) {
   return { start: state.doc.lineAt(from).from, end: state.doc.lineAt(to).to };
 }
 
@@ -113,17 +113,21 @@ export function buildLivePreviewDecorations(
         }
       } else if (name === "ListItem") {
         // Style each line of the item; replace a bullet marker with a • widget.
-        const lr = lineRange(state, from, from); // single-item first line
-        const line = state.doc.lineAt(from);
-        decos.push(Decoration.line({ class: "cm-lp-li" }).range(line.from));
+        const firstLine = state.doc.lineAt(from);
+        const touched = selectionTouches(state, firstLine.from, firstLine.to);
+        // indent every line of the item (continuation lines included)
+        for (let pos = from; pos <= to; pos = state.doc.lineAt(pos).to + 1) {
+          const ln = state.doc.lineAt(pos);
+          decos.push(Decoration.line({ class: "cm-lp-li" }).range(ln.from));
+          if (ln.to >= to) break;
+        }
         const mark = node.node.getChild("ListMark");
         if (mark) {
           const markText = state.doc.sliceString(mark.from, mark.to);
           const isBullet = /^[-*+]$/.test(markText);
-          const touched = selectionTouches(state, lr.start, lr.end);
           if (isBullet && !touched) {
             // replace "- " (marker + following space) with the bullet widget
-            const end = Math.min(mark.to + 1, line.to);
+            const end = Math.min(mark.to + 1, firstLine.to);
             decos.push(
               Decoration.replace({ widget: new BulletWidget() }).range(
                 mark.from,
