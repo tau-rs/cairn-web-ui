@@ -32,3 +32,4 @@ cairn-service  = { git = "https://github.com/tau-rs/cairn", rev = "079f9f9f5178d
 
 [dev-dependencies]
 tempfile = "3"
+tauri = { version = "2", features = ["test"] }
