@@ -12,6 +12,7 @@ import { BulletWidget } from "./widgets/bulletWidget";
 import { HrWidget } from "./widgets/hrWidget";
 import { TaskCheckboxWidget } from "./widgets/taskCheckboxWidget";
 import { ImageWidget } from "./widgets/imageWidget";
+import { TableWidget } from "./widgets/tableWidget";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
@@ -63,11 +64,33 @@ function isInsideCode(state: EditorState, pos: number): boolean {
   return false;
 }
 
+/** Walk the ancestor chain at `pos` looking for a node named `nodeName`. */
+function isInsidePos(
+  state: EditorState,
+  pos: number,
+  nodeName: string,
+): boolean {
+  const node = syntaxTree(state).resolveInner(pos, 1);
+  for (let n: typeof node | null = node; n; n = n.parent) {
+    if (n.name === nodeName) return true;
+  }
+  return false;
+}
+
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
 function isInsideImage(node: { node: SyntaxNode }): boolean {
   for (let n: SyntaxNode | null = node.node.parent; n; n = n.parent) {
     if (n.name === "Image") return true;
+  }
+  return false;
+}
+
+/** Walk a node's ancestors looking for an enclosing `Table` (for inline
+ *  branches inside table cells, whose range the block table widget owns). */
+function isInsideTable(node: { node: SyntaxNode }): boolean {
+  for (let n: SyntaxNode | null = node.node.parent; n; n = n.parent) {
+    if (n.name === "Table") return true;
   }
   return false;
 }
@@ -97,6 +120,7 @@ export function buildLivePreviewDecorations(
         }
       } else if (INLINE_CLASS[name]) {
         if (isInsideImage(node)) return;
+        if (isInsideTable(node)) return;
         decos.push(
           Decoration.mark({ class: INLINE_CLASS[name] }).range(from, to),
         );
@@ -107,6 +131,7 @@ export function buildLivePreviewDecorations(
         }
       } else if (name === "Link") {
         if (isInsideImage(node)) return;
+        if (isInsideTable(node)) return;
         // A `[[wikilink]]` parses its inner `[wikilink]` as a Link node; skip it
         // so the wikilink widget (below) owns that range — otherwise we'd emit a
         // stray cm-lp-link class and overlapping replace decorations.
@@ -220,6 +245,18 @@ export function buildLivePreviewDecorations(
             decos.push(Decoration.replace({}).range(line.from, line.to));
           }
         }
+      } else if (name === "Table") {
+        const start = state.doc.lineAt(from).from;
+        const end = state.doc.lineAt(to).to;
+        if (!selectionTouches(state, start, end)) {
+          const md = state.doc.sliceString(start, end);
+          decos.push(
+            Decoration.replace({
+              widget: new TableWidget(md),
+              block: true,
+            }).range(start, end),
+          );
+        }
       }
     },
   });
@@ -232,6 +269,7 @@ export function buildLivePreviewDecorations(
     const from = m.index;
     const to = from + m[0].length;
     if (isInsideCode(state, from)) continue;
+    if (isInsidePos(state, from, "Table")) continue;
     const inner = m[1];
     const target = inner.split("|")[0].trim();
     if (!target) continue;
@@ -258,6 +296,7 @@ export function buildLivePreviewDecorations(
     const from = im.index;
     const to = from + im[0].length;
     if (isInsideCode(state, from)) continue;
+    if (isInsidePos(state, from, "Table")) continue;
     if (selectionTouches(state, from, to)) continue;
     const alt = im[1];
     const src = opts.resolveImage(im[2]);

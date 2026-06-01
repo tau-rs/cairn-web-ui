@@ -170,4 +170,25 @@ describe("buildLivePreviewDecorations", () => {
     );
     expect(inside.length).toBe(0);
   });
+  it("replaces a table with a single block widget off-cursor", () => {
+    const doc = "intro\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nend";
+    const at = doc.indexOf("| A");
+    const ds = decos(doc, 0);
+    expect(ds.some((d) => d.widget && d.from === at)).toBe(true);
+  });
+  it("reveals the raw table when the cursor is inside it", () => {
+    const doc = "intro\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nend";
+    const at = doc.indexOf("| A");
+    const ds = decos(doc, doc.indexOf("| 1"));
+    expect(ds.some((d) => d.widget && d.from === at)).toBe(false);
+  });
+  it("does not emit cell decorations inside a table block (table widget owns the range)", () => {
+    const doc = "intro\n\n| A | [[ideas]] |\n|---|---|\n| 1 | 2 |\n\nend";
+    const tableAt = doc.indexOf("| A");
+    const ds = decos(doc, 0);
+    // exactly one widget covers the table range start; no wikilink widget inside
+    expect(ds.some((d) => d.widget && d.from === tableAt)).toBe(true);
+    const wikilinkAt = doc.indexOf("[[ideas]]");
+    expect(ds.some((d) => d.widget && d.from === wikilinkAt)).toBe(false);
+  });
 });
