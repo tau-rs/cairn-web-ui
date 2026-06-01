@@ -69,8 +69,8 @@ Implementations:
 |---|---|---|---|
 | **0 — Scaffold** | Vite + React + TS + Tailwind + Zustand app. Vendor the contract TS types. Define the `CairnClient` interface + `MockClient` + a fixture cairn. CI. | — | this repo |
 | **1 — Walking-skeleton UI** | Vertical slice on the mock: open a cairn, note list, open/edit a markdown note, search, backlinks panel, commit button, live refresh from the event stream. | 0 | this repo |
-| **2 — Real transport** | Add the `TauriClient` (wraps `cairn-service` in-process) + Tauri v2 shell + open-a-cairn picker; swap the mock for real notes. Engine gap already closed (ADR-0002), so this is UI-side only. | 1 | this repo |
-| **3 — Editor depth** | CodeMirror 6: live `[[wikilink]]` autocomplete, preview, frontmatter. | 1 | this repo |
+| **2 — Real transport** ✅ done | `TauriClient` (wraps `cairn-service` in-process) + Tauri v2 desktop shell + open-a-cairn picker (persist + auto-reopen); mock↔real switch isolated to `makeBackend`. Mobile target scaffolded (open-on-mobile deferred). | 1 | this repo |
+| **3 — Editor depth (NEXT)** | **Rework the editor: a beautiful, readable rendered view (GitHub-README-style GFM) is the DEFAULT; raw source ("code editor") is the secondary mode.** Rename modes accordingly (rendered/preview default, source secondary). Then CodeMirror niceties: live `[[wikilink]]` autocomplete + clickable links, frontmatter. | 1 | this repo |
 | **4 — Graph view** | `@xyflow/react` graph of notes / links / backlinks (engine `get_graph` already available). | 1 | this repo |
 | **5 — Shell polish** | Command palette, panes/tabs, themes, settings. | 1 | this repo |
 | **6 — UI-plugin host** | Host the JS/TS UI-plugin API surface defined in engine spec §7. | 3–5 | this repo |
