@@ -1074,6 +1074,7 @@ export interface CairnState {
   commitManual(message: string): Promise<void>;
   autoCommit(): Promise<void>;
   setSettings(patch: Partial<Settings>): void;
+  rearmInterval(): void;
   dismissError(): void;
 }
 
@@ -1081,8 +1082,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
   let started = false;
   let autosave: Debounced | null = null;
   let idleCommit: Debounced | null = null;
-  // The interval auto-commit timer runs for the app's lifetime; the store has
-  // no teardown, so we don't retain the handle (avoids an unused-local error).
+  let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
   const store = createStore<CairnState>()((set, get) => ({
     notePaths: [],
@@ -1112,10 +1112,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
         }
       });
       await get().refreshNotePaths();
-      const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
-      if (intervalAutoCommit) {
-        setInterval(() => void get().autoCommit(), intervalAutoCommitMin * 60_000);
-      }
+      get().rearmInterval();
     },
 
     async refreshNotePaths() {
@@ -1219,6 +1216,7 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     },
 
     async commitManual(message) {
+      if (get().committing) return;
       set({ committing: true });
       try {
         const res = await client.sendCommand({ type: "commit", message });
@@ -1239,6 +1237,18 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
 
     setSettings(patch) {
       set({ settings: { ...get().settings, ...patch } });
+      if ("intervalAutoCommit" in patch || "intervalAutoCommitMin" in patch) {
+        get().rearmInterval();
+      }
+    },
+
+    rearmInterval() {
+      if (intervalHandle) clearInterval(intervalHandle);
+      intervalHandle = null;
+      const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
+      if (intervalAutoCommit) {
+        intervalHandle = setInterval(() => void get().autoCommit(), intervalAutoCommitMin * 60_000);
+      }
     },
 
     dismissError() {
@@ -1794,16 +1804,21 @@ git add web/src/components/Backlinks.tsx web/src/components/Backlinks.test.tsx w
 `web/src/components/SearchBar.test.tsx`:
 ```tsx
 import { describe, it, expect, vi } from "vitest";
+import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SearchBar } from "./SearchBar";
 
 describe("SearchBar", () => {
-  it("submits the query on Enter", async () => {
+  it("submits the live query on Enter", async () => {
+    // Stateful harness so the controlled input actually updates as the user types.
     const onSearch = vi.fn();
-    render(<SearchBar value="" onChange={vi.fn()} onSearch={onSearch} />);
-    const input = screen.getByPlaceholderText(/search/i);
-    await userEvent.type(input, "target{enter}");
+    function Harness() {
+      const [v, setV] = useState("");
+      return <SearchBar value={v} onChange={setV} onSearch={onSearch} />;
+    }
+    render(<Harness />);
+    await userEvent.type(screen.getByPlaceholderText(/search/i), "target{enter}");
     expect(onSearch).toHaveBeenCalledWith("target");
   });
 });
@@ -1845,25 +1860,19 @@ Expected: FAIL — modules not found.
 
 `web/src/components/SearchBar.tsx`:
 ```tsx
-import { useRef } from "react";
-
 export function SearchBar(props: {
   value: string;
   onChange: (value: string) => void;
   onSearch: (query: string) => void;
 }) {
-  // Uncontrolled + ref: read the live DOM value on Enter. (A controlled `value`
-  // with a no-op onChange would never update, so onSearch would see "".)
-  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <input
-      ref={inputRef}
       className="w-64 rounded bg-neutral-800 px-2 py-1 text-sm text-neutral-100 outline-none"
       placeholder="Search…"
-      defaultValue={props.value}
+      value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && inputRef.current) props.onSearch(inputRef.current.value);
+        if (e.key === "Enter") props.onSearch(props.value);
       }}
     />
   );
