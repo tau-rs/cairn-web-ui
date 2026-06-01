@@ -48,3 +48,18 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   await page.getByRole("button", { name: /^commit$/i }).click();
   await expect(page.getByText(/@c\d{4}/)).toBeVisible();
 });
+
+test("graph view: toggle, see nodes, click to open a note", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("ideas.md")).toBeVisible(); // app loaded (mock fixture)
+
+  await page.getByRole("button", { name: /^graph$/i }).click();
+
+  // React Flow renders node labels (stems) inside .react-flow.
+  const flow = page.locator(".react-flow");
+  await expect(flow.getByText("ideas", { exact: true }).first()).toBeVisible();
+
+  // Clicking the "index" node opens index.md and returns to the editor (rendered).
+  await flow.getByText("index", { exact: true }).first().click();
+  await expect(page.getByRole("heading", { name: "Index" })).toBeVisible();
+});
