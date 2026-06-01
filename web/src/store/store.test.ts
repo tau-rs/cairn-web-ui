@@ -173,8 +173,8 @@ describe("cairn store", () => {
     );
   });
 
-  it("defaults the editor to the rendered view", () => {
-    expect(DEFAULT_SETTINGS.editorMode).toBe("rendered");
+  it("defaults the editor to live preview", () => {
+    expect(DEFAULT_SETTINGS.editorMode).toBe("livepreview");
   });
 
   it("defaults to an always-open cairn (mock) and sets cairnPath on init", async () => {
