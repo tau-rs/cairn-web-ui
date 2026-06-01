@@ -8,6 +8,7 @@ import { SearchResults } from "../components/SearchResults";
 import { CommitBar } from "../components/CommitBar";
 import { Settings } from "../components/Settings";
 import { ErrorToast } from "../components/ErrorToast";
+import { OpenCairn } from "../components/OpenCairn";
 import { cairnStore, useCairn } from "./cairnStore";
 
 export default function App() {
@@ -28,10 +29,15 @@ export default function App() {
   const uncommitted = useCairn((s) => s.uncommitted);
   const lastCommit = useCairn((s) => s.lastCommit);
   const committing = useCairn((s) => s.committing);
+  const cairnPath = useCairn((s) => s.cairnPath);
   const error = useCairn((s) => s.error);
   // Store action functions are stable for the store's lifetime (Zustand never
   // replaces them; they read fresh state via get()), so capturing them once is safe.
   const actions = cairnStore.getState();
+
+  if (cairnPath === null) {
+    return <OpenCairn onOpen={() => void actions.openCairn()} />;
+  }
 
   return (
     <>
