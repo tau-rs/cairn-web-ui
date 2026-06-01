@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { Settings as SettingsType } from "../store/store";
+import { Input } from "./ui/Input";
+import { SectionLabel } from "./ui/SectionLabel";
 
 export function Settings(props: {
   settings: SettingsType;
@@ -10,11 +12,11 @@ export function Settings(props: {
     String(s.intervalAutoCommitMin),
   );
   return (
-    <div className="flex flex-col gap-2 text-sm text-neutral-300">
-      <span className="text-xs uppercase tracking-wide text-neutral-500">
-        Auto-commit
+    <div className="flex flex-col gap-2 text-sm text-text">
+      <span className="mb-1">
+        <SectionLabel>Auto-commit</SectionLabel>
       </span>
-      <label className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-muted">
         <input
           type="checkbox"
           checked={s.idleAutoCommit}
@@ -22,7 +24,7 @@ export function Settings(props: {
         />
         Idle auto-commit
       </label>
-      <label className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-muted">
         <input
           type="checkbox"
           checked={s.intervalAutoCommit}
@@ -32,12 +34,12 @@ export function Settings(props: {
         />
         Interval auto-commit
       </label>
-      <label className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-muted">
         Interval (min)
-        <input
+        <Input
           type="number"
           min={1}
-          className="w-16 rounded bg-neutral-800 px-1"
+          className="w-16"
           value={intervalStr}
           onChange={(e) => {
             setIntervalStr(e.target.value);

@@ -12,10 +12,14 @@ describe("Button", () => {
   });
   it("applies the primary variant accent background", () => {
     render(<Button variant="primary">P</Button>);
-    expect(screen.getByRole("button", { name: "P" }).className).toContain("bg-accent");
+    expect(screen.getByRole("button", { name: "P" }).className).toContain(
+      "bg-accent",
+    );
   });
   it("ghost variant has no accent background", () => {
     render(<Button variant="ghost">G</Button>);
-    expect(screen.getByRole("button", { name: "G" }).className).not.toContain("bg-accent");
+    expect(screen.getByRole("button", { name: "G" }).className).not.toContain(
+      "bg-accent",
+    );
   });
 });

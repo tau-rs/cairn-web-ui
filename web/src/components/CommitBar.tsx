@@ -1,3 +1,5 @@
+import { Button } from "./ui/Button";
+
 export function CommitBar(props: {
   saving: boolean;
   dirty: boolean;
@@ -14,13 +16,13 @@ export function CommitBar(props: {
         ? "Saved · uncommitted"
         : "Saved";
   return (
-    <div className="flex items-center gap-3 text-xs text-neutral-400">
-      <span>{status}</span>
+    <div className="flex items-center gap-3 text-xs">
+      <span className="text-muted">{status}</span>
       {props.lastCommit && (
-        <span className="text-neutral-500">@{props.lastCommit}</span>
+        <span className="text-faint">@{props.lastCommit}</span>
       )}
-      <button
-        className="rounded border border-neutral-700 px-2 py-0.5 text-neutral-200 hover:bg-neutral-800 disabled:opacity-50"
+      <Button
+        variant="primary"
         disabled={props.committing}
         onClick={() => {
           const message = window.prompt("Commit message");
@@ -28,7 +30,7 @@ export function CommitBar(props: {
         }}
       >
         Commit
-      </button>
+      </Button>
     </div>
   );
 }

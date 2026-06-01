@@ -22,7 +22,13 @@ export default {
       fontFamily: {
         sans: ['"Inter Variable"', "Inter", "system-ui", "sans-serif"],
       },
-      borderRadius: { DEFAULT: "6px", sm: "4px", md: "6px", lg: "8px", xl: "12px" },
+      borderRadius: {
+        DEFAULT: "6px",
+        sm: "4px",
+        md: "6px",
+        lg: "8px",
+        xl: "12px",
+      },
     },
   },
   plugins: [typography],

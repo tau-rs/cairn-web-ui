@@ -3,6 +3,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { livePreview } from "./editor/livePreview";
 import { stem } from "../client/wikilink";
+import { Button } from "./ui/Button";
 
 export function Editor(props: {
   path: string | null;
@@ -29,7 +30,7 @@ export function Editor(props: {
 
   if (!props.path) {
     return (
-      <div className="text-sm text-neutral-500">
+      <div className="text-sm text-muted">
         No note open. Pick one from the list.
       </div>
     );
@@ -37,13 +38,10 @@ export function Editor(props: {
   return (
     <div className="flex h-full flex-col">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm text-neutral-300">{props.path}</span>
-        <button
-          className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:bg-neutral-800"
-          onClick={props.onToggleMode}
-        >
+        <span className="text-sm text-muted">{props.path}</span>
+        <Button variant="ghost" onClick={props.onToggleMode}>
           {props.mode === "livepreview" ? "Source" : "Live Preview"}
-        </button>
+        </Button>
       </div>
       <CodeMirror
         value={props.value}

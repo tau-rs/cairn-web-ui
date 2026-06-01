@@ -5,7 +5,10 @@ export function IconButton({
   children,
   className = "",
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <button
       aria-label={label}

@@ -1,4 +1,10 @@
-export function Logo({ size = 18, className = "" }: { size?: number; className?: string }) {
+export function Logo({
+  size = 18,
+  className = "",
+}: {
+  size?: number;
+  className?: string;
+}) {
   return (
     <svg
       width={size}
@@ -7,7 +13,16 @@ export function Logo({ size = 18, className = "" }: { size?: number; className?:
       className={`text-accent ${className}`}
       aria-hidden="true"
     >
-      <rect x="3" y="3" width="10" height="10" rx="3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <rect
+        x="3"
+        y="3"
+        width="10"
+        height="10"
+        rx="3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
       <circle cx="8" cy="8" r="2" fill="currentColor" />
     </svg>
   );

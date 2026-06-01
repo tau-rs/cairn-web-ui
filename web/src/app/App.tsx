@@ -51,7 +51,11 @@ export default function App() {
           <div className="flex w-full items-center gap-3">
             <Logo />
             <span className="text-sm font-semibold text-text">Cairn</span>
-            <SearchBar value={query} onChange={actions.setQuery} onSearch={actions.runSearch} />
+            <SearchBar
+              value={query}
+              onChange={actions.setQuery}
+              onSearch={actions.runSearch}
+            />
             <Button
               variant="ghost"
               onClick={() => {
