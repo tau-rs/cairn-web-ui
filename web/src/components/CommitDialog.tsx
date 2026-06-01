@@ -42,7 +42,11 @@ export function CommitDialog({
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button variant="primary" disabled={!msg.trim() || committing} onClick={submit}>
+        <Button
+          variant="primary"
+          disabled={!msg.trim() || committing}
+          onClick={submit}
+        >
           Commit
         </Button>
       </div>

@@ -22,10 +22,19 @@ describe("NoteList", () => {
   it("opens the new-note dialog and creates a note", async () => {
     const onNew = vi.fn();
     render(
-      <NoteList paths={[]} activePath={null} onOpen={vi.fn()} onNew={onNew} onDelete={vi.fn()} />,
+      <NoteList
+        paths={[]}
+        activePath={null}
+        onOpen={vi.fn()}
+        onNew={onNew}
+        onDelete={vi.fn()}
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /new note/i }));
-    await userEvent.type(screen.getByPlaceholderText("notes/idea.md"), "new.md");
+    await userEvent.type(
+      screen.getByPlaceholderText("notes/idea.md"),
+      "new.md",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(onNew).toHaveBeenCalledWith("new.md");
   });

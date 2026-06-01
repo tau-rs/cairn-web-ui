@@ -27,9 +27,13 @@ export function Modal({
           {...(description ? {} : { "aria-describedby": undefined })}
           className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-4 text-text shadow-2xl focus:outline-none"
         >
-          <Dialog.Title className="text-sm font-semibold text-text">{title}</Dialog.Title>
+          <Dialog.Title className="text-sm font-semibold text-text">
+            {title}
+          </Dialog.Title>
           {description ? (
-            <Dialog.Description className="mt-0.5 text-xs text-faint">{description}</Dialog.Description>
+            <Dialog.Description className="mt-0.5 text-xs text-faint">
+              {description}
+            </Dialog.Description>
           ) : null}
           <div className="mt-3">{children}</div>
         </Dialog.Content>

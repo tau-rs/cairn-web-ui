@@ -15,10 +15,7 @@ export function NoteList(props: {
     <div className="flex flex-col gap-1 text-sm">
       <div className="mb-1 flex items-center justify-between">
         <SectionLabel>Notes</SectionLabel>
-        <Button
-          variant="ghost"
-          onClick={() => setNewOpen(true)}
-        >
+        <Button variant="ghost" onClick={() => setNewOpen(true)}>
           + New note
         </Button>
       </div>
@@ -46,7 +43,11 @@ export function NoteList(props: {
           </button>
         </div>
       ))}
-      <NewNoteDialog open={newOpen} onOpenChange={setNewOpen} onCreate={props.onNew} />
+      <NewNoteDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        onCreate={props.onNew}
+      />
     </div>
   );
 }

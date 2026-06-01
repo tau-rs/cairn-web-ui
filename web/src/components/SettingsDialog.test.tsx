@@ -8,7 +8,12 @@ describe("SettingsDialog", () => {
   it("renders the auto-commit controls and Done closes", async () => {
     const onOpenChange = vi.fn();
     render(
-      <SettingsDialog open onOpenChange={onOpenChange} settings={DEFAULT_SETTINGS} onChange={vi.fn()} />,
+      <SettingsDialog
+        open
+        onOpenChange={onOpenChange}
+        settings={DEFAULT_SETTINGS}
+        onChange={vi.fn()}
+      />,
     );
     expect(screen.getByText(/idle auto-commit/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Done" }));

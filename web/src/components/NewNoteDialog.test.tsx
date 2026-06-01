@@ -7,7 +7,9 @@ describe("NewNoteDialog", () => {
   it("creates from the typed path and closes", async () => {
     const onCreate = vi.fn();
     const onOpenChange = vi.fn();
-    render(<NewNoteDialog open onOpenChange={onOpenChange} onCreate={onCreate} />);
+    render(
+      <NewNoteDialog open onOpenChange={onOpenChange} onCreate={onCreate} />,
+    );
     await userEvent.type(screen.getByPlaceholderText("notes/idea.md"), "a.md");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(onCreate).toHaveBeenCalledWith("a.md");
@@ -20,7 +22,9 @@ describe("NewNoteDialog", () => {
   it("Cancel closes without creating", async () => {
     const onCreate = vi.fn();
     const onOpenChange = vi.fn();
-    render(<NewNoteDialog open onOpenChange={onOpenChange} onCreate={onCreate} />);
+    render(
+      <NewNoteDialog open onOpenChange={onOpenChange} onCreate={onCreate} />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCreate).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);

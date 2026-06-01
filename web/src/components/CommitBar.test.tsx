@@ -45,9 +45,14 @@ describe("CommitBar", () => {
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Commit" })); // trigger
-    await userEvent.type(screen.getByPlaceholderText("Describe this change"), "snapshot");
+    await userEvent.type(
+      screen.getByPlaceholderText("Describe this change"),
+      "snapshot",
+    );
     const dialog = screen.getByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Commit" }));
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Commit" }),
+    );
     expect(onCommit).toHaveBeenCalledWith("snapshot");
   });
 });
