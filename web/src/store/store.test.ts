@@ -125,4 +125,26 @@ describe("cairn store", () => {
     const listCalls = spy.mock.calls.filter(([q]) => q.type === "list_notes").length;
     expect(listCalls).toBe(1);
   });
+
+  it("defaults to an always-open cairn (mock) and sets cairnPath on init", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    expect(store.getState().cairnPath).toBe("(fixture)");
+    expect(store.getState().notePaths.length).toBeGreaterThan(0);
+  });
+
+  it("openCairn sets cairnPath and loads notes via the host", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "x.md": "hi" });
+    const host = {
+      currentCairn: () => Promise.resolve<string | null>(null),
+      openCairn: () => Promise.resolve<string | null>("/tmp/mycairn"),
+    };
+    const store = createCairnStore(client, host);
+    await store.getState().init();
+    expect(store.getState().cairnPath).toBeNull();
+    await store.getState().openCairn();
+    expect(store.getState().cairnPath).toBe("/tmp/mycairn");
+    expect(store.getState().notePaths).toContain("x.md");
+  });
 });

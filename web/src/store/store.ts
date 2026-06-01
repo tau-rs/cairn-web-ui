@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient } from "../client/types";
 import type { ContractError } from "../contract";
 import { debounce, type Debounced } from "../util/timer";
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export interface CairnState {
+  cairnPath: string | null;
   notePaths: string[];
   activePath: string | null;
   activeContents: string;
@@ -37,6 +39,7 @@ export interface CairnState {
   error: string | null;
 
   init(): Promise<void>;
+  openCairn(): Promise<void>;
   refreshNotePaths(): Promise<void>;
   openNote(path: string): Promise<void>;
   editBuffer(contents: string): void;
@@ -54,13 +57,17 @@ export interface CairnState {
   dismissError(): void;
 }
 
-export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
+export function createCairnStore(
+  client: CairnClient,
+  host: CairnHost = alwaysOpenHost,
+): StoreApi<CairnState> {
   let autosave: Debounced | null = null;
   let idleCommit: Debounced | null = null;
   let started = false;
   let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
   const store = createStore<CairnState>()((set, get) => ({
+    cairnPath: null,
     notePaths: [],
     activePath: null,
     activeContents: "",
@@ -78,6 +85,8 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
     async init() {
       if (started) return;
       started = true;
+      const path = await host.currentCairn();
+      set({ cairnPath: path });
       client.subscribe((e) => {
         if (e.type === "note_changed" || e.type === "note_deleted") {
           void get().refreshNotePaths();
@@ -87,8 +96,22 @@ export function createCairnStore(client: CairnClient): StoreApi<CairnState> {
           set({ lastCommit: e.commit, uncommitted: false });
         }
       });
-      await get().refreshNotePaths();
-      get().rearmInterval();
+      if (path !== null) {
+        await get().refreshNotePaths();
+        get().rearmInterval();
+      }
+    },
+
+    async openCairn() {
+      try {
+        const path = await host.openCairn();
+        if (path === null) return; // cancelled
+        set({ cairnPath: path, activePath: null, activeContents: "", backlinks: [] });
+        await get().refreshNotePaths();
+        get().rearmInterval();
+      } catch (err) {
+        set({ error: errMsg(err) });
+      }
     },
 
     async refreshNotePaths() {
