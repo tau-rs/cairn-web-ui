@@ -3,16 +3,27 @@
 /**
  * A read-only request.
  */
-export type Query = { "type": "get_note", 
-/**
- * Relative note path.
- */
-path: string, } | { "type": "search", 
-/**
- * Query string.
- */
-query: string, } | { "type": "get_backlinks", 
-/**
- * Relative note path.
- */
-path: string, } | { "type": "list_notes" } | { "type": "get_graph" };
+export type Query =
+  | {
+      type: "get_note";
+      /**
+       * Relative note path.
+       */
+      path: string;
+    }
+  | {
+      type: "search";
+      /**
+       * Query string.
+       */
+      query: string;
+    }
+  | {
+      type: "get_backlinks";
+      /**
+       * Relative note path.
+       */
+      path: string;
+    }
+  | { type: "list_notes" }
+  | { type: "get_graph" };

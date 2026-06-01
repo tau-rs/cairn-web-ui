@@ -23,7 +23,13 @@ describe("NoteList", () => {
     const onNew = vi.fn();
     vi.spyOn(window, "prompt").mockReturnValue("new.md");
     render(
-      <NoteList paths={[]} activePath={null} onOpen={vi.fn()} onNew={onNew} onDelete={vi.fn()} />,
+      <NoteList
+        paths={[]}
+        activePath={null}
+        onOpen={vi.fn()}
+        onNew={onNew}
+        onDelete={vi.fn()}
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /new note/i }));
     expect(onNew).toHaveBeenCalledWith("new.md");
@@ -40,7 +46,9 @@ describe("NoteList", () => {
         onDelete={onDelete}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /delete a\.md/i }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /delete a\.md/i }),
+    );
     expect(onDelete).toHaveBeenCalledWith("a.md");
   });
 });

@@ -4,9 +4,22 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+    types: [checks_requested]
+
+# Cancel superseded runs on the same ref EXCEPT on main, mirroring the
+# engine repo's policy (keeps the main-branch run that warms the
+# setup-node/pnpm cache from being cancelled mid-write).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
 
 jobs:
   web:
+    name: web
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,9 +35,55 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
       - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report/
+            web/test-results/
+          retention-days: 7
+
+  ci-summary:
+    # Single aggregated status for branch protection: require this one
+    # check. It is green only when every real job succeeded (or skipped).
+    name: ci-summary
+    if: always()
+    needs: [web, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all jobs to have succeeded
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "job results: $results"
+          for r in $results; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::a required CI job did not succeed ($r)"; exit 1 ;;
+            esac
+          done

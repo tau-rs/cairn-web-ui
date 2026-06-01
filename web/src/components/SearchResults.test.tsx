@@ -14,7 +14,9 @@ describe("SearchResults", () => {
   it("opens a result and can be closed", async () => {
     const onOpen = vi.fn();
     const onClose = vi.fn();
-    render(<SearchResults results={["b.md"]} onOpen={onOpen} onClose={onClose} />);
+    render(
+      <SearchResults results={["b.md"]} onOpen={onOpen} onClose={onClose} />,
+    );
     await userEvent.click(screen.getByText("b.md"));
     expect(onOpen).toHaveBeenCalledWith("b.md");
     await userEvent.click(screen.getByRole("button", { name: /close/i }));

@@ -13,7 +13,11 @@ export function SearchResults(props: {
         <span className="text-xs uppercase tracking-wide text-neutral-500">
           Results ({props.results.length})
         </span>
-        <button className="text-neutral-400 hover:text-white" aria-label="close" onClick={props.onClose}>
+        <button
+          className="text-neutral-400 hover:text-white"
+          aria-label="close"
+          onClick={props.onClose}
+        >
           ✕
         </button>
       </div>

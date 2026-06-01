@@ -5,7 +5,9 @@ import { ErrorToast } from "./ErrorToast";
 
 describe("ErrorToast", () => {
   it("renders nothing when message is null", () => {
-    const { container } = render(<ErrorToast message={null} onDismiss={vi.fn()} />);
+    const { container } = render(
+      <ErrorToast message={null} onDismiss={vi.fn()} />,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 

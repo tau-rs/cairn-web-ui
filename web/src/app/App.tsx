@@ -35,61 +35,67 @@ export default function App() {
 
   return (
     <>
-    <Shell
-      topBar={
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-neutral-400">Cairn</span>
-            <SearchBar value={query} onChange={actions.setQuery} onSearch={actions.runSearch} />
+      <Shell
+        topBar={
+          <div className="flex w-full items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-neutral-400">Cairn</span>
+              <SearchBar
+                value={query}
+                onChange={actions.setQuery}
+                onSearch={actions.runSearch}
+              />
+            </div>
+            <CommitBar
+              saving={saving}
+              dirty={dirty}
+              uncommitted={uncommitted}
+              lastCommit={lastCommit}
+              committing={committing}
+              onCommit={actions.commitManual}
+            />
           </div>
-          <CommitBar
-            saving={saving}
-            dirty={dirty}
-            uncommitted={uncommitted}
-            lastCommit={lastCommit}
-            committing={committing}
-            onCommit={actions.commitManual}
+        }
+        list={
+          <NoteList
+            paths={notePaths}
+            activePath={activePath}
+            onOpen={actions.openNote}
+            onNew={actions.createNote}
+            onDelete={actions.deleteNote}
           />
-        </div>
-      }
-      list={
-        <NoteList
-          paths={notePaths}
-          activePath={activePath}
-          onOpen={actions.openNote}
-          onNew={actions.createNote}
-          onDelete={actions.deleteNote}
-        />
-      }
-      editor={
-        <div className="relative h-full">
-          <SearchResults
-            results={searchResults}
-            onOpen={(p) => {
-              void actions.openNote(p);
-              actions.closeSearch();
-            }}
-            onClose={actions.closeSearch}
-          />
-          <Editor
-            path={activePath}
-            value={activeContents}
-            mode={editorMode}
-            onChange={actions.editBuffer}
-            onToggleMode={() =>
-              actions.setSettings({ editorMode: editorMode === "rich" ? "raw" : "rich" })
-            }
-          />
-        </div>
-      }
-      backlinks={
-        <div className="flex flex-col gap-4">
-          <Backlinks paths={backlinks} onOpen={actions.openNote} />
-          <Settings settings={settings} onChange={actions.setSettings} />
-        </div>
-      }
-    />
-    <ErrorToast message={error} onDismiss={actions.dismissError} />
+        }
+        editor={
+          <div className="relative h-full">
+            <SearchResults
+              results={searchResults}
+              onOpen={(p) => {
+                void actions.openNote(p);
+                actions.closeSearch();
+              }}
+              onClose={actions.closeSearch}
+            />
+            <Editor
+              path={activePath}
+              value={activeContents}
+              mode={editorMode}
+              onChange={actions.editBuffer}
+              onToggleMode={() =>
+                actions.setSettings({
+                  editorMode: editorMode === "rich" ? "raw" : "rich",
+                })
+              }
+            />
+          </div>
+        }
+        backlinks={
+          <div className="flex flex-col gap-4">
+            <Backlinks paths={backlinks} onOpen={actions.openNote} />
+            <Settings settings={settings} onChange={actions.setSettings} />
+          </div>
+        }
+      />
+      <ErrorToast message={error} onDismiss={actions.dismissError} />
     </>
   );
 }

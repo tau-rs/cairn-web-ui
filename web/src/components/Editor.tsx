@@ -9,7 +9,11 @@ export function Editor(props: {
   onToggleMode: () => void;
 }) {
   if (!props.path) {
-    return <div className="text-sm text-neutral-500">No note open. Pick one from the list.</div>;
+    return (
+      <div className="text-sm text-neutral-500">
+        No note open. Pick one from the list.
+      </div>
+    );
   }
   return (
     <div className="flex h-full flex-col">

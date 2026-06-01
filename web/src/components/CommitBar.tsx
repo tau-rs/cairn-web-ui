@@ -16,7 +16,9 @@ export function CommitBar(props: {
   return (
     <div className="flex items-center gap-3 text-xs text-neutral-400">
       <span>{status}</span>
-      {props.lastCommit && <span className="text-neutral-500">@{props.lastCommit}</span>}
+      {props.lastCommit && (
+        <span className="text-neutral-500">@{props.lastCommit}</span>
+      )}
       <button
         className="rounded border border-neutral-700 px-2 py-0.5 text-neutral-200 hover:bg-neutral-800 disabled:opacity-50"
         disabled={props.committing}

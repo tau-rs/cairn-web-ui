@@ -5,24 +5,36 @@ import type { NoteSummary } from "./NoteSummary";
 /**
  * Result of a successful query.
  */
-export type QueryResponse = { "type": "note", 
-/**
- * Full markdown contents.
- */
-contents: string, } | { "type": "paths", 
-/**
- * Relative note paths.
- */
-paths: Array<string>, } | { "type": "notes", 
-/**
- * One per note.
- */
-notes: Array<NoteSummary>, } | { "type": "graph", 
-/**
- * All note paths.
- */
-nodes: Array<string>, 
-/**
- * Directed link edges.
- */
-edges: Array<GraphEdge>, };
+export type QueryResponse =
+  | {
+      type: "note";
+      /**
+       * Full markdown contents.
+       */
+      contents: string;
+    }
+  | {
+      type: "paths";
+      /**
+       * Relative note paths.
+       */
+      paths: Array<string>;
+    }
+  | {
+      type: "notes";
+      /**
+       * One per note.
+       */
+      notes: Array<NoteSummary>;
+    }
+  | {
+      type: "graph";
+      /**
+       * All note paths.
+       */
+      nodes: Array<string>;
+      /**
+       * Directed link edges.
+       */
+      edges: Array<GraphEdge>;
+    };

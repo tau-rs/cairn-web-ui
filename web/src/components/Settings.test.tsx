@@ -9,7 +9,9 @@ describe("Settings", () => {
     const onChange = vi.fn();
     render(<Settings settings={DEFAULT_SETTINGS} onChange={onChange} />);
     await userEvent.click(screen.getByLabelText(/idle auto-commit/i));
-    expect(onChange).toHaveBeenCalledWith({ idleAutoCommit: !DEFAULT_SETTINGS.idleAutoCommit });
+    expect(onChange).toHaveBeenCalledWith({
+      idleAutoCommit: !DEFAULT_SETTINGS.idleAutoCommit,
+    });
   });
 
   it("edits the interval minutes", async () => {

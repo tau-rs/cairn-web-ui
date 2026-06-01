@@ -3,8 +3,12 @@
 /**
  * Result of a successful command.
  */
-export type CommandResponse = { "type": "done" } | { "type": "committed", 
-/**
- * Short commit id.
- */
-commit: string, };
+export type CommandResponse =
+  | { type: "done" }
+  | {
+      type: "committed";
+      /**
+       * Short commit id.
+       */
+      commit: string;
+    };

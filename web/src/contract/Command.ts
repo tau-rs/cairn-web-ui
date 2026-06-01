@@ -3,20 +3,29 @@
 /**
  * A request that mutates the cairn.
  */
-export type Command = { "type": "write_note", 
-/**
- * Relative note path.
- */
-path: string, 
-/**
- * Full markdown contents.
- */
-contents: string, } | { "type": "delete_note", 
-/**
- * Relative note path.
- */
-path: string, } | { "type": "commit", 
-/**
- * Commit message.
- */
-message: string, };
+export type Command =
+  | {
+      type: "write_note";
+      /**
+       * Relative note path.
+       */
+      path: string;
+      /**
+       * Full markdown contents.
+       */
+      contents: string;
+    }
+  | {
+      type: "delete_note";
+      /**
+       * Relative note path.
+       */
+      path: string;
+    }
+  | {
+      type: "commit";
+      /**
+       * Commit message.
+       */
+      message: string;
+    };

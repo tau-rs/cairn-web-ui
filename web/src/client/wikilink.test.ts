@@ -3,11 +3,9 @@ import { extractLinks, stem } from "./wikilink";
 
 describe("extractLinks", () => {
   it("extracts plain and aliased links in order with duplicates", () => {
-    expect(extractLinks("see [[Alpha]] and [[Beta|the second]] then [[Alpha]]")).toEqual([
-      "Alpha",
-      "Beta",
-      "Alpha",
-    ]);
+    expect(
+      extractLinks("see [[Alpha]] and [[Beta|the second]] then [[Alpha]]"),
+    ).toEqual(["Alpha", "Beta", "Alpha"]);
   });
 
   it("ignores unclosed and whitespace-only links", () => {

@@ -3,16 +3,25 @@
 /**
  * A typed error returned across the contract boundary.
  */
-export type ContractError = { "type": "not_found", 
-/**
- * What was missing (e.g. a note path).
- */
-what: string, } | { "type": "invalid_request", 
-/**
- * Human-readable reason.
- */
-message: string, } | { "type": "internal", 
-/**
- * Human-readable detail.
- */
-message: string, };
+export type ContractError =
+  | {
+      type: "not_found";
+      /**
+       * What was missing (e.g. a note path).
+       */
+      what: string;
+    }
+  | {
+      type: "invalid_request";
+      /**
+       * Human-readable reason.
+       */
+      message: string;
+    }
+  | {
+      type: "internal";
+      /**
+       * Human-readable detail.
+       */
+      message: string;
+    };
