@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { CommitDialog } from "./CommitDialog";
 
 describe("CommitDialog", () => {
@@ -42,5 +43,30 @@ describe("CommitDialog", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled(); // committing
+  });
+  it("resets the message field when cancelled and reopened", async () => {
+    const onCommit = vi.fn();
+    let externalSetOpen: (v: boolean) => void;
+    function Wrapper() {
+      const [open, setOpen] = useState(true);
+      externalSetOpen = setOpen;
+      return (
+        <CommitDialog
+          open={open}
+          committing={false}
+          onOpenChange={setOpen}
+          onCommit={onCommit}
+        />
+      );
+    }
+    render(<Wrapper />);
+    const input = screen.getByPlaceholderText("Describe this change");
+    await userEvent.type(input, "wip message");
+    expect(input).toHaveValue("wip message");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCommit).not.toHaveBeenCalled();
+    // Reopen
+    act(() => externalSetOpen(true));
+    expect(screen.getByPlaceholderText("Describe this change")).toHaveValue("");
   });
 });

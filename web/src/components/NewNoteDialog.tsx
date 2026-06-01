@@ -13,17 +13,20 @@ export function NewNoteDialog({
   onCreate: (path: string) => void;
 }) {
   const [path, setPath] = useState("");
+  const close = () => {
+    setPath("");
+    onOpenChange(false);
+  };
   const submit = () => {
     const p = path.trim();
     if (!p) return;
     onCreate(p);
-    setPath("");
-    onOpenChange(false);
+    close();
   };
   return (
     <Modal
       open={open}
-      onClose={() => onOpenChange(false)}
+      onClose={close}
       title="New note"
       description="Path inside the cairn"
     >
@@ -37,7 +40,7 @@ export function NewNoteDialog({
         }}
       />
       <div className="mt-3 flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => onOpenChange(false)}>
+        <Button variant="ghost" onClick={close}>
           Cancel
         </Button>
         <Button variant="primary" disabled={!path.trim()} onClick={submit}>

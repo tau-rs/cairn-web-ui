@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { NewNoteDialog } from "./NewNoteDialog";
 
 describe("NewNoteDialog", () => {
@@ -28,5 +29,25 @@ describe("NewNoteDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCreate).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+  it("resets the path field when cancelled and reopened", async () => {
+    const onCreate = vi.fn();
+    let externalSetOpen: (v: boolean) => void;
+    function Wrapper() {
+      const [open, setOpen] = useState(true);
+      externalSetOpen = setOpen;
+      return (
+        <NewNoteDialog open={open} onOpenChange={setOpen} onCreate={onCreate} />
+      );
+    }
+    render(<Wrapper />);
+    const input = screen.getByPlaceholderText("notes/idea.md");
+    await userEvent.type(input, "draft.md");
+    expect(input).toHaveValue("draft.md");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCreate).not.toHaveBeenCalled();
+    // Reopen
+    act(() => externalSetOpen(true));
+    expect(screen.getByPlaceholderText("notes/idea.md")).toHaveValue("");
   });
 });

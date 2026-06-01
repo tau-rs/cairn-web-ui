@@ -15,17 +15,20 @@ export function CommitDialog({
   onCommit: (message: string) => void;
 }) {
   const [msg, setMsg] = useState("");
+  const close = () => {
+    setMsg("");
+    onOpenChange(false);
+  };
   const submit = () => {
     const m = msg.trim();
     if (!m) return;
     onCommit(m);
-    setMsg("");
-    onOpenChange(false);
+    close();
   };
   return (
     <Modal
       open={open}
-      onClose={() => onOpenChange(false)}
+      onClose={close}
       title="Commit"
       description="Describe this change"
     >
@@ -39,7 +42,7 @@ export function CommitDialog({
         }}
       />
       <div className="mt-3 flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => onOpenChange(false)}>
+        <Button variant="ghost" onClick={close}>
           Cancel
         </Button>
         <Button
