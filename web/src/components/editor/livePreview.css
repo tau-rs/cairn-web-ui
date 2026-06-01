@@ -1,3 +1,16 @@
+/* --- UI-3 document look --- */
+.cm-doc-livepreview .cm-content {
+  max-width: 34em;
+  margin: 0 auto;
+}
+.cm-doc-source .cm-content {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  max-width: none;
+}
+.cm-doc-livepreview .cm-line {
+  margin: 0.15em 0;
+}
+
 .cm-lp-h1 {
   font-size: 1.6em;
   font-weight: 700;
