@@ -23,12 +23,18 @@ export function MarkdownView(props: {
         rehypePlugins={[rehypeHighlight]}
         components={{
           a({ className, children, href, ...rest }) {
-            const cls = Array.isArray(className) ? className.join(" ") : (className ?? "");
+            const cls = Array.isArray(className)
+              ? className.join(" ")
+              : (className ?? "");
             if (cls.includes("wikilink")) {
-              const target = (rest as Record<string, unknown>)["data-wikilink-target"] as string;
+              const target = (rest as Record<string, unknown>)[
+                "data-wikilink-target"
+              ] as string;
               if (cls.includes("unresolved") || !target) {
                 return (
-                  <span className="text-neutral-500 underline decoration-dotted">{children}</span>
+                  <span className="text-neutral-500 underline decoration-dotted">
+                    {children}
+                  </span>
                 );
               }
               return (

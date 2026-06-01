@@ -25,8 +25,11 @@ export function remarkWikiLink({ resolve }: WikiLinkOptions) {
         const inner = m[1];
         const target = inner.split("|")[0].trim();
         if (!target) continue;
-        const alias = inner.includes("|") ? inner.slice(inner.indexOf("|") + 1).trim() : target;
-        if (m.index > last) out.push({ type: "text", value: value.slice(last, m.index) });
+        const alias = inner.includes("|")
+          ? inner.slice(inner.indexOf("|") + 1).trim()
+          : target;
+        if (m.index > last)
+          out.push({ type: "text", value: value.slice(last, m.index) });
         const path = resolve(target);
         out.push({
           type: "link",
@@ -43,7 +46,8 @@ export function remarkWikiLink({ resolve }: WikiLinkOptions) {
         last = m.index + m[0].length;
       }
       if (out.length === 0) return;
-      if (last < value.length) out.push({ type: "text", value: value.slice(last) });
+      if (last < value.length)
+        out.push({ type: "text", value: value.slice(last) });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       parent.children.splice(index, 1, ...(out as any[]));

@@ -85,10 +85,12 @@ export default function App() {
               path={activePath}
               value={activeContents}
               mode={editorMode}
+              notePaths={notePaths}
               onChange={actions.editBuffer}
+              onOpenNote={actions.openNote}
               onToggleMode={() =>
                 actions.setSettings({
-                  editorMode: editorMode === "rich" ? "raw" : "rich",
+                  editorMode: editorMode === "rendered" ? "source" : "rendered",
                 })
               }
             />

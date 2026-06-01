@@ -13,7 +13,9 @@ export function Editor(props: {
 }) {
   if (!props.path) {
     return (
-      <div className="text-sm text-neutral-500">No note open. Pick one from the list.</div>
+      <div className="text-sm text-neutral-500">
+        No note open. Pick one from the list.
+      </div>
     );
   }
   return (
