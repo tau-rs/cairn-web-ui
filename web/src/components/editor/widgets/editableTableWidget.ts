@@ -144,10 +144,13 @@ export class EditableTableWidget extends WidgetType {
    *  CodeMirror dispatch happens here — the single commit is on real focus-out. */
   private apply(table: HTMLTableElement, model: TableModel): void {
     this.applying = true;
-    this.render(table, model);
-    requestAnimationFrame(() => {
-      table.querySelector<HTMLElement>("th, td")?.focus();
-      this.applying = false;
-    });
+    try {
+      this.render(table, model);
+    } finally {
+      requestAnimationFrame(() => {
+        this.applying = false;
+        table.querySelector<HTMLElement>("th, td")?.focus();
+      });
+    }
   }
 }
