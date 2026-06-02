@@ -4,6 +4,7 @@ const invoke = vi.fn();
 const listen = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...a: unknown[]) => invoke(...a),
+  convertFileSrc: (p: string) => "asset://" + p,
 }));
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (...a: unknown[]) => listen(...a),
@@ -72,5 +73,16 @@ describe("TauriHost", () => {
     invoke.mockResolvedValueOnce(null);
     expect(await new TauriHost().currentCairn()).toBeNull();
     expect(invoke).toHaveBeenCalledWith("current_cairn");
+  });
+
+  it("assetUrl returns the input path when no root is set", () => {
+    expect(new TauriHost().assetUrl("img/x.png")).toBe("img/x.png");
+  });
+
+  it("assetUrl resolves a local path via convertFileSrc once a root is open", async () => {
+    invoke.mockResolvedValueOnce("/tmp/c");
+    const h = new TauriHost();
+    await h.openCairn();
+    expect(h.assetUrl("img/x.png")).toBe("asset:///tmp/c/img/x.png");
   });
 });

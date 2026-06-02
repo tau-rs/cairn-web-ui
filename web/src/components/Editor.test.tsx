@@ -8,6 +8,7 @@ const base = {
   value: "# Hi\n\nlink [[ideas]]",
   notePaths: ["ideas.md"],
   mode: "livepreview" as "livepreview" | "source",
+  assetUrl: (p: string) => p,
   onChange: vi.fn(),
   onOpenNote: vi.fn(),
   onToggleMode: vi.fn(),

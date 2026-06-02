@@ -1,7 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
+import { EditorView } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { livePreview } from "./editor/livePreview";
+import { toggleCheckboxChange } from "./editor/checkboxToggle";
+import { makeImageResolver } from "./editor/imageResolver";
+import {
+  docTheme,
+  docHighlightStyle,
+  markdownCodeLanguages,
+} from "./editor/docTheme";
 import { stem } from "../client/wikilink";
 import { Button } from "./ui/Button";
 
@@ -10,10 +18,13 @@ export function Editor(props: {
   value: string;
   mode: "livepreview" | "source";
   notePaths: string[];
+  assetUrl: (relPath: string) => string;
   onChange: (value: string) => void;
   onOpenNote: (path: string) => void;
   onToggleMode: () => void;
 }) {
+  const viewRef = useRef<EditorView | null>(null);
+
   const resolve = useMemo(() => {
     const byStem = new Map<string, string>();
     for (const p of props.notePaths) byStem.set(stem(p), p);
@@ -21,12 +32,32 @@ export function Editor(props: {
   }, [props.notePaths]);
 
   const onOpenNote = props.onOpenNote;
+  const resolveImage = useMemo(
+    () => makeImageResolver(props.assetUrl),
+    [props.assetUrl],
+  );
   const extensions = useMemo(() => {
-    const base = markdown({ base: markdownLanguage });
-    return props.mode === "livepreview"
-      ? [base, livePreview({ resolve, onOpenNote })]
-      : [base];
-  }, [props.mode, resolve, onOpenNote]);
+    const base = markdown({
+      base: markdownLanguage,
+      codeLanguages: markdownCodeLanguages,
+    });
+    const common = [base, docTheme, docHighlightStyle, EditorView.lineWrapping];
+    const lp = livePreview({
+      resolve,
+      onOpenNote,
+      onToggleCheckbox: (bracketOpen: number) => {
+        const view = viewRef.current;
+        if (!view) return;
+        const change = toggleCheckboxChange(
+          view.state.doc.toString(),
+          bracketOpen,
+        );
+        view.dispatch({ changes: change });
+      },
+      resolveImage,
+    });
+    return props.mode === "livepreview" ? [...common, lp] : common;
+  }, [props.mode, resolve, onOpenNote, resolveImage]);
 
   if (!props.path) {
     return (
@@ -43,13 +74,33 @@ export function Editor(props: {
           {props.mode === "livepreview" ? "Source" : "Live Preview"}
         </Button>
       </div>
-      <CodeMirror
-        value={props.value}
-        height="100%"
-        theme="dark"
-        extensions={extensions}
-        onChange={props.onChange}
-      />
+      <div
+        className={
+          "flex-1 min-h-0 " +
+          (props.mode === "livepreview"
+            ? "cm-doc-livepreview"
+            : "cm-doc-source")
+        }
+      >
+        <CodeMirror
+          value={props.value}
+          height="100%"
+          // Disable @uiw/react-codemirror's default light theme so our
+          // transparent docTheme shows the graphite app background.
+          theme="none"
+          extensions={extensions}
+          basicSetup={{
+            lineNumbers: false,
+            foldGutter: false,
+            highlightActiveLine: false,
+            highlightActiveLineGutter: false,
+          }}
+          onChange={props.onChange}
+          onCreateEditor={(view) => {
+            viewRef.current = view;
+          }}
+        />
+      </div>
     </div>
   );
 }

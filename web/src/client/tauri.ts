@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Command,
@@ -36,10 +36,19 @@ export class TauriClient implements CairnClient {
 
 /** App-level cairn lifecycle over Tauri commands. */
 export class TauriHost implements CairnHost {
-  currentCairn(): Promise<string | null> {
-    return invoke<string | null>("current_cairn");
+  private root: string | null = null;
+  async currentCairn(): Promise<string | null> {
+    this.root = await invoke<string | null>("current_cairn");
+    return this.root;
   }
-  openCairn(): Promise<string | null> {
-    return invoke<string | null>("pick_and_open_cairn");
+  async openCairn(): Promise<string | null> {
+    this.root = await invoke<string | null>("pick_and_open_cairn");
+    return this.root;
+  }
+  assetUrl(relPath: string): string {
+    if (/^(https?:|data:)/i.test(relPath)) return relPath;
+    if (!this.root) return relPath;
+    const sep = this.root.endsWith("/") ? "" : "/";
+    return convertFileSrc(`${this.root}${sep}${relPath}`);
   }
 }

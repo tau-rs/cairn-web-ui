@@ -1,17 +1,23 @@
 import { syntaxTree } from "@codemirror/language";
+import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  type DecorationSet,
-  type ViewUpdate,
-} from "@codemirror/view";
-import { type EditorState, type Range } from "@codemirror/state";
+  StateField,
+  type EditorState,
+  type Extension,
+  type Range,
+} from "@codemirror/state";
 import { WikilinkWidget } from "./wikilinkWidget";
+import { BulletWidget } from "./widgets/bulletWidget";
+import { HrWidget } from "./widgets/hrWidget";
+import { TaskCheckboxWidget } from "./widgets/taskCheckboxWidget";
+import { ImageWidget } from "./widgets/imageWidget";
+import { TableWidget } from "./widgets/tableWidget";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
   onOpenNote: (path: string) => void;
+  onToggleCheckbox: (bracketOpen: number) => void;
+  resolveImage: (src: string) => string;
 }
 
 const HEADING_CLASS: Record<string, string> = {
@@ -45,10 +51,45 @@ function selectionTouches(
   return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 }
 
+export function lineRange(state: EditorState, from: number, to: number) {
+  return { start: state.doc.lineAt(from).from, end: state.doc.lineAt(to).to };
+}
+
 function isInsideCode(state: EditorState, pos: number): boolean {
   const node = syntaxTree(state).resolveInner(pos, 1);
   for (let n: typeof node | null = node; n; n = n.parent) {
     if (/Code/.test(n.name)) return true;
+  }
+  return false;
+}
+
+/** Walk the ancestor chain at `pos` looking for a node named `nodeName`. */
+function isInsidePos(
+  state: EditorState,
+  pos: number,
+  nodeName: string,
+): boolean {
+  const node = syntaxTree(state).resolveInner(pos, 1);
+  for (let n: typeof node | null = node; n; n = n.parent) {
+    if (n.name === nodeName) return true;
+  }
+  return false;
+}
+
+type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
+
+function isInsideImage(node: { node: SyntaxNode }): boolean {
+  for (let n: SyntaxNode | null = node.node.parent; n; n = n.parent) {
+    if (n.name === "Image") return true;
+  }
+  return false;
+}
+
+/** Walk a node's ancestors looking for an enclosing `Table` (for inline
+ *  branches inside table cells, whose range the block table widget owns). */
+function isInsideTable(node: { node: SyntaxNode }): boolean {
+  for (let n: SyntaxNode | null = node.node.parent; n; n = n.parent) {
+    if (n.name === "Table") return true;
   }
   return false;
 }
@@ -77,6 +118,8 @@ export function buildLivePreviewDecorations(
           }
         }
       } else if (INLINE_CLASS[name]) {
+        if (isInsideImage(node)) return;
+        if (isInsideTable(node)) return;
         decos.push(
           Decoration.mark({ class: INLINE_CLASS[name] }).range(from, to),
         );
@@ -86,6 +129,8 @@ export function buildLivePreviewDecorations(
           }
         }
       } else if (name === "Link") {
+        if (isInsideImage(node)) return;
+        if (isInsideTable(node)) return;
         // A `[[wikilink]]` parses its inner `[wikilink]` as a Link node; skip it
         // so the wikilink widget (below) owns that range — otherwise we'd emit a
         // stray cm-lp-link class and overlapping replace decorations.
@@ -106,6 +151,111 @@ export function buildLivePreviewDecorations(
           if (closeStart != null)
             decos.push(Decoration.replace({}).range(closeStart, to));
         }
+      } else if (name === "ListItem") {
+        // Style each line of the item; replace a bullet marker with a • widget.
+        const firstLine = state.doc.lineAt(from);
+        // indent every line of the item (continuation lines included)
+        for (let pos = from; pos <= to; pos = state.doc.lineAt(pos).to + 1) {
+          const ln = state.doc.lineAt(pos);
+          decos.push(Decoration.line({ class: "cm-lp-li" }).range(ln.from));
+          if (ln.to >= to) break;
+        }
+        const taskMatch = /^(\s*[-*+]\s+)(\[[ xX]\])/.exec(firstLine.text);
+        const mark = node.node.getChild("ListMark");
+
+        if (taskMatch && mark) {
+          // Task item: hide the list marker entirely and render only the checkbox.
+          const open = firstLine.from + taskMatch[1].length; // index of "["
+          const close = open + 3; // covers "[ ]"
+          if (!selectionTouches(state, open, close)) {
+            // hide the "- " marker (keep any leading indent before mark.from)
+            decos.push(Decoration.replace({}).range(mark.from, open));
+            const checked = /[xX]/.test(
+              firstLine.text[open - firstLine.from + 1],
+            );
+            decos.push(
+              Decoration.replace({
+                widget: new TaskCheckboxWidget(
+                  checked,
+                  open,
+                  opts.onToggleCheckbox,
+                ),
+              }).range(open, close),
+            );
+          }
+        } else if (mark) {
+          // Non-task list item: bullet marker handling (unordered only).
+          const markText = state.doc.sliceString(mark.from, mark.to);
+          const isBullet = /^[-*+]$/.test(markText);
+          if (
+            isBullet &&
+            !selectionTouches(state, firstLine.from, firstLine.to)
+          ) {
+            const end = Math.min(mark.to + 1, firstLine.to);
+            decos.push(
+              Decoration.replace({ widget: new BulletWidget() }).range(
+                mark.from,
+                end,
+              ),
+            );
+          }
+        }
+      } else if (name === "Blockquote") {
+        // Class every line of the quote; hide each line's "> " mark off-cursor.
+        const touched = selectionTouches(state, from, to);
+        let pos = from;
+        while (pos <= to) {
+          const line = state.doc.lineAt(pos);
+          decos.push(
+            Decoration.line({ class: "cm-lp-quote" }).range(line.from),
+          );
+          if (!touched) {
+            const match = /^(\s*>\s?)/.exec(line.text);
+            if (match) {
+              decos.push(
+                Decoration.replace({}).range(
+                  line.from,
+                  line.from + match[1].length,
+                ),
+              );
+            }
+          }
+          if (line.to >= to) break;
+          pos = line.to + 1;
+        }
+      } else if (name === "HorizontalRule") {
+        if (!selectionTouches(state, from, to)) {
+          decos.push(
+            Decoration.replace({ widget: new HrWidget() }).range(from, to),
+          );
+        }
+      } else if (name === "FencedCode") {
+        const lr = lineRange(state, from, to);
+        const touched = selectionTouches(state, lr.start, lr.end);
+        const firstLine = state.doc.lineAt(from).number;
+        const lastLine = state.doc.lineAt(to).number;
+        for (let n = firstLine; n <= lastLine; n++) {
+          const line = state.doc.line(n);
+          decos.push(
+            Decoration.line({ class: "cm-lp-codeblock" }).range(line.from),
+          );
+          const isFence = /^\s*```/.test(line.text);
+          if (isFence && !touched && line.length > 0) {
+            decos.push(Decoration.replace({}).range(line.from, line.to));
+          }
+        }
+      } else if (name === "Table") {
+        const start = state.doc.lineAt(from).from;
+        const end = state.doc.lineAt(to).to;
+        if (!selectionTouches(state, start, end)) {
+          const md = state.doc.sliceString(start, end);
+          decos.push(
+            Decoration.replace({
+              widget: new TableWidget(md),
+              block: true,
+            }).range(start, end),
+          );
+        }
       }
     },
   });
@@ -118,6 +268,7 @@ export function buildLivePreviewDecorations(
     const from = m.index;
     const to = from + m[0].length;
     if (isInsideCode(state, from)) continue;
+    if (isInsidePos(state, from, "Table")) continue;
     const inner = m[1];
     const target = inner.split("|")[0].trim();
     if (!target) continue;
@@ -129,6 +280,30 @@ export function buildLivePreviewDecorations(
     decos.push(
       Decoration.replace({
         widget: new WikilinkWidget(alias, path, opts.onOpenNote),
+      }).range(from, to),
+    );
+  }
+
+  // Images: scan the text (like wikilinks) so nesting/aliases don't trip up a
+  // single-token tree lookup. Skip images inside code, reveal raw on cursor.
+  // Intentionally does NOT handle spaces-in-path, `"title"` suffixes, or
+  // bracketed alt text — those forms stay raw.
+  const IMAGE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+  IMAGE.lastIndex = 0;
+  let im: RegExpExecArray | null;
+  while ((im = IMAGE.exec(text)) !== null) {
+    const from = im.index;
+    const to = from + im[0].length;
+    if (isInsideCode(state, from)) continue;
+    if (isInsidePos(state, from, "Table")) continue;
+    if (selectionTouches(state, from, to)) continue;
+    const alt = im[1];
+    const src = opts.resolveImage(im[2]);
+    const line = state.doc.lineAt(from);
+    const block = line.text.trim() === im[0];
+    decos.push(
+      Decoration.replace({
+        widget: new ImageWidget(src, alt, block),
       }).range(from, to),
     );
   }
@@ -148,25 +323,23 @@ function findCloseBracket(
 }
 
 /** The live-preview CodeMirror extension. */
-export function livePreview(opts: LivePreviewOptions) {
-  return ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      constructor(view: EditorView) {
-        this.decorations = buildLivePreviewDecorations(view.state, opts);
-      }
-      update(u: ViewUpdate) {
-        if (u.docChanged || u.selectionSet || u.viewportChanged) {
-          this.decorations = buildLivePreviewDecorations(u.state, opts);
-        }
-      }
+export function livePreview(opts: LivePreviewOptions): Extension {
+  const field = StateField.define<DecorationSet>({
+    create(state) {
+      return buildLivePreviewDecorations(state, opts);
     },
-    {
-      decorations: (v) => v.decorations,
-      provide: (plugin) =>
-        EditorView.atomicRanges.of(
-          (view) => view.plugin(plugin)?.decorations ?? Decoration.none,
-        ),
+    update(value, tr) {
+      if (tr.docChanged || tr.selection) {
+        return buildLivePreviewDecorations(tr.state, opts);
+      }
+      return value;
     },
-  );
+    provide: (f) => [
+      EditorView.decorations.from(f),
+      EditorView.atomicRanges.of(
+        (view) => view.state.field(f) ?? Decoration.none,
+      ),
+    ],
+  });
+  return field;
 }

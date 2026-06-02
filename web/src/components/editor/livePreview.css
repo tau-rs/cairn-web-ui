@@ -1,3 +1,16 @@
+/* --- UI-3 document look --- */
+.cm-doc-livepreview .cm-content {
+  max-width: 34em;
+  margin: 0 auto;
+}
+.cm-doc-source .cm-content {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  max-width: none;
+}
+.cm-doc-livepreview .cm-line {
+  margin: 0.15em 0;
+}
+
 .cm-lp-h1 {
   font-size: 1.6em;
   font-weight: 700;
@@ -51,4 +64,70 @@
 .cm-lp-wikilink.unresolved {
   color: #9a9ba6;
   text-decoration: underline dotted;
+}
+.cm-lp-li {
+  padding-left: 1.4em;
+}
+.cm-lp-bullet {
+  color: #6b6c77;
+  display: inline-block;
+  width: 1.2em;
+  margin-left: -1.2em;
+  text-align: center;
+}
+.cm-lp-quote {
+  border-left: 3px solid #2f2f3a;
+  padding-left: 12px;
+  color: #9a9ba6;
+}
+.cm-lp-hr {
+  border-top: 1px solid #26262e;
+  margin: 0.4em 0;
+}
+.cm-lp-codeblock {
+  background: #16161c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+}
+.cm-doc-livepreview .cm-line.cm-lp-codeblock {
+  padding-left: 13px;
+  padding-right: 13px;
+}
+.cm-lp-task {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid #6b6c77;
+  border-radius: 3px;
+  vertical-align: -2px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+.cm-lp-task.checked {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+.cm-lp-img {
+  max-width: 100%;
+  vertical-align: middle;
+  border-radius: 6px;
+}
+.cm-lp-img.block {
+  display: block;
+  margin: 0.6em 0;
+}
+.cm-lp-table {
+  border-collapse: collapse;
+  margin: 0.4em 0;
+  font-size: 0.92em;
+}
+.cm-lp-table th,
+.cm-lp-table td {
+  border: 1px solid #26262e;
+  padding: 5px 11px;
+  text-align: left;
+}
+.cm-lp-table th {
+  background: #16161c;
+  font-weight: 600;
 }

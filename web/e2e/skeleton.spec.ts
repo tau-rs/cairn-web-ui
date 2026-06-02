@@ -92,3 +92,38 @@ test("live preview: heading styled, wikilink opens note, source toggle shows raw
   await page.getByRole("button", { name: /^source$/i }).click();
   await expect(page.locator(".cm-content")).toContainText("# Ideas");
 });
+
+test("document live-preview: blocks render, checkbox toggles, code reveals raw", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+
+  // Block elements render in live preview (load-bearing: the StateField-based
+  // block table widget must render in a real browser without throwing).
+  await expect(page.locator(".cm-lp-table")).toBeVisible();
+  await expect(page.locator("img.cm-lp-img")).toBeVisible();
+  await expect(page.locator(".cm-lp-hr")).toBeVisible();
+  await expect(page.locator(".cm-lp-codeblock").first()).toBeVisible();
+  await expect(page.locator(".cm-lp-bullet").first()).toBeVisible();
+  // The rendered table is a real <table> with the fixture's cells.
+  await expect(
+    page.locator(".cm-lp-table").getByRole("columnheader", { name: "A" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".cm-lp-table").getByRole("cell", { name: "1" }),
+  ).toBeVisible();
+
+  // The open task renders an unchecked checkbox; clicking it checks the source.
+  const openTask = page.locator(".cm-lp-task.unchecked").first();
+  await expect(openTask).toBeVisible();
+  await openTask.click();
+  // After toggle the source has one more checked task than before (now two).
+  await expect(page.locator(".cm-lp-task.checked")).toHaveCount(2);
+
+  // Reveal-on-cursor: clicking into the fenced code block places the caret on
+  // its line and swaps the rendered block back to its raw markdown source.
+  await page.locator(".cm-lp-codeblock").first().click();
+  await expect(page.getByText("```js").first()).toBeVisible();
+  await expect(page.getByText("const x = 1;").first()).toBeVisible();
+});
