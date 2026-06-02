@@ -127,3 +127,25 @@ test("document live-preview: blocks render, checkbox toggles, code reveals raw",
   await expect(page.getByText("```js").first()).toBeVisible();
   await expect(page.getByText("const x = 1;").first()).toBeVisible();
 });
+
+test("click-to-edit: blockquote, code block, and image reveal raw on click", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const content = page.locator(".cm-content");
+
+  // Blockquote: clicking its text reveals the raw "> " marker.
+  await page.getByText("a quoted line").click();
+  await expect(content).toContainText("> a quoted line");
+
+  // Code block: clicking inside reveals the ``` fences.
+  await page.getByText("const x = 1;").click({ position: { x: 4, y: 8 } });
+  await expect(content).toContainText("```");
+
+  // Image: clicking the rendered <img> reveals its raw markdown and removes the img.
+  await expect(page.locator("img.cm-lp-img")).toBeVisible();
+  await page.locator("img.cm-lp-img").click();
+  await expect(content).toContainText("![logo](img/logo.png)");
+  await expect(page.locator("img.cm-lp-img")).toHaveCount(0);
+});
