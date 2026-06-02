@@ -149,3 +149,27 @@ test("click-to-edit: blockquote, code block, and image reveal raw on click", asy
   await expect(content).toContainText("![logo](img/logo.png)");
   await expect(page.locator("img.cm-lp-img")).toHaveCount(0);
 });
+
+test("table editor: click to edit a cell and commit on click-away", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const content = page.locator(".cm-content");
+
+  // Click the rendered table → it becomes editable.
+  await page.locator(".cm-lp-table").first().click();
+  const firstCell = page
+    .locator(".cm-lp-table.editing th, .cm-lp-table.editing td")
+    .first();
+  await expect(firstCell).toBeVisible();
+
+  // Edit a body cell, then click away to commit.
+  const cell = page.locator(".cm-lp-table.editing td").first();
+  await cell.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("X1");
+  await page.getByText("Kitchen sink").click(); // click away
+  // The committed value appears in the document source / re-rendered table.
+  await expect(content).toContainText("X1");
+});

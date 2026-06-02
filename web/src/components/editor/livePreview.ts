@@ -12,6 +12,7 @@ import { HrWidget } from "./widgets/hrWidget";
 import { TaskCheckboxWidget } from "./widgets/taskCheckboxWidget";
 import { ImageWidget } from "./widgets/imageWidget";
 import { TableWidget } from "./widgets/tableWidget";
+import { EditableTableWidget } from "./widgets/editableTableWidget";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
@@ -20,6 +21,7 @@ export interface LivePreviewOptions {
   resolveImage: (src: string) => string;
   onEditImage: (from: number) => void;
   onEnterTableEdit: (from: number) => void;
+  onCommitTable: (from: number, to: number, md: string) => void;
 }
 
 const HEADING_CLASS: Record<string, string> = {
@@ -249,8 +251,20 @@ export function buildLivePreviewDecorations(
       } else if (name === "Table") {
         const start = state.doc.lineAt(from).from;
         const end = state.doc.lineAt(to).to;
-        if (!selectionTouches(state, start, end)) {
-          const md = state.doc.sliceString(start, end);
+        const md = state.doc.sliceString(start, end);
+        if (selectionTouches(state, start, end)) {
+          decos.push(
+            Decoration.replace({
+              widget: new EditableTableWidget(
+                md,
+                start,
+                end,
+                opts.onCommitTable,
+              ),
+              block: true,
+            }).range(start, end),
+          );
+        } else {
           decos.push(
             Decoration.replace({
               widget: new TableWidget(md, start, opts.onEnterTableEdit),

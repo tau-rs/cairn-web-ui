@@ -66,6 +66,11 @@ export function Editor(props: {
         if (!view) return;
         view.dispatch({ selection: EditorSelection.cursor(pos) });
       },
+      onCommitTable: (from: number, to: number, md: string) => {
+        const view = viewRef.current;
+        if (!view) return;
+        view.dispatch({ changes: { from, to, insert: md } });
+      },
     });
     return props.mode === "livepreview" ? [...common, lp] : common;
   }, [props.mode, resolve, onOpenNote, resolveImage]);

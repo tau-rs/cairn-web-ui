@@ -133,3 +133,20 @@
   background: #16161c;
   font-weight: 600;
 }
+.cm-lp-table-edit {
+  position: relative;
+  display: inline-block;
+  padding: 2px 18px 18px 2px;
+}
+.cm-lp-table.editing th,
+.cm-lp-table.editing td {
+  min-width: 48px;
+  outline: none;
+}
+.cm-lp-table.editing th:focus,
+.cm-lp-table.editing td:focus {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+  background: #1a1a26;
+  color: #f1f1f4;
+}
