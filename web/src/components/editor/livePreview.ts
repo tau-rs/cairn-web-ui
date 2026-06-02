@@ -1,12 +1,11 @@
 import { syntaxTree } from "@codemirror/language";
+import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  type DecorationSet,
-  type ViewUpdate,
-} from "@codemirror/view";
-import { type EditorState, type Range } from "@codemirror/state";
+  StateField,
+  type EditorState,
+  type Extension,
+  type Range,
+} from "@codemirror/state";
 import { WikilinkWidget } from "./wikilinkWidget";
 import { BulletWidget } from "./widgets/bulletWidget";
 import { HrWidget } from "./widgets/hrWidget";
@@ -324,25 +323,23 @@ function findCloseBracket(
 }
 
 /** The live-preview CodeMirror extension. */
-export function livePreview(opts: LivePreviewOptions) {
-  return ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      constructor(view: EditorView) {
-        this.decorations = buildLivePreviewDecorations(view.state, opts);
-      }
-      update(u: ViewUpdate) {
-        if (u.docChanged || u.selectionSet || u.viewportChanged) {
-          this.decorations = buildLivePreviewDecorations(u.state, opts);
-        }
-      }
+export function livePreview(opts: LivePreviewOptions): Extension {
+  const field = StateField.define<DecorationSet>({
+    create(state) {
+      return buildLivePreviewDecorations(state, opts);
     },
-    {
-      decorations: (v) => v.decorations,
-      provide: (plugin) =>
-        EditorView.atomicRanges.of(
-          (view) => view.plugin(plugin)?.decorations ?? Decoration.none,
-        ),
+    update(value, tr) {
+      if (tr.docChanged || tr.selection) {
+        return buildLivePreviewDecorations(tr.state, opts);
+      }
+      return value;
     },
-  );
+    provide: (f) => [
+      EditorView.decorations.from(f),
+      EditorView.atomicRanges.of(
+        (view) => view.state.field(f) ?? Decoration.none,
+      ),
+    ],
+  });
+  return field;
 }

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import type { DecorationSet } from "@codemirror/view";
-import { buildLivePreviewDecorations } from "./livePreview";
+import { EditorView, type DecorationSet } from "@codemirror/view";
+import { buildLivePreviewDecorations, livePreview } from "./livePreview";
 
 const opts = {
   resolve: (t: string) => (t === "ideas" ? "ideas.md" : null),
@@ -190,5 +190,16 @@ describe("buildLivePreviewDecorations", () => {
     expect(ds.some((d) => d.widget && d.from === tableAt)).toBe(true);
     const wikilinkAt = doc.indexOf("[[ideas]]");
     expect(ds.some((d) => d.widget && d.from === wikilinkAt)).toBe(false);
+  });
+  it("mounts an EditorView with a table without throwing (block decoration via StateField)", () => {
+    const doc = "intro\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nend";
+    const state = EditorState.create({
+      doc,
+      extensions: [markdown({ base: markdownLanguage }), livePreview(opts)],
+    });
+    expect(() => {
+      const view = new EditorView({ state });
+      view.destroy();
+    }).not.toThrow();
   });
 });
