@@ -85,6 +85,9 @@ export function Editor(props: {
         <CodeMirror
           value={props.value}
           height="100%"
+          // Disable @uiw/react-codemirror's default light theme so our
+          // transparent docTheme shows the graphite app background.
+          theme="none"
           extensions={extensions}
           basicSetup={{
             lineNumbers: false,
