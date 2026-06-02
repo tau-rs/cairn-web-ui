@@ -2,11 +2,15 @@ import { WidgetType } from "@codemirror/view";
 import { parseTable } from "../tableParse";
 
 export class TableWidget extends WidgetType {
-  constructor(readonly md: string) {
+  constructor(
+    readonly md: string,
+    readonly from: number,
+    readonly onEnterEdit: (from: number) => void,
+  ) {
     super();
   }
   eq(other: TableWidget): boolean {
-    return other.md === this.md;
+    return other.md === this.md && other.from === this.from;
   }
   toDOM(): HTMLElement {
     const { header, rows } = parseTable(this.md);
@@ -23,13 +27,16 @@ export class TableWidget extends WidgetType {
     for (const r of rows) {
       const tr = tbody.insertRow();
       for (const c of r) {
-        const td = tr.insertCell();
-        td.textContent = c;
+        tr.insertCell().textContent = c;
       }
     }
+    table.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      this.onEnterEdit(this.from);
+    });
     return table;
   }
   ignoreEvent(): boolean {
-    return true;
+    return false;
   }
 }

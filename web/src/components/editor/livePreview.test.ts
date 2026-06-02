@@ -10,6 +10,7 @@ const opts = {
   onToggleCheckbox: vi.fn(),
   resolveImage: (src: string) => "resolved:" + src,
   onEditImage: vi.fn(),
+  onEnterTableEdit: vi.fn(),
 };
 
 interface Deco {

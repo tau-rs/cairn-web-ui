@@ -19,6 +19,7 @@ export interface LivePreviewOptions {
   onToggleCheckbox: (bracketOpen: number) => void;
   resolveImage: (src: string) => string;
   onEditImage: (from: number) => void;
+  onEnterTableEdit: (from: number) => void;
 }
 
 const HEADING_CLASS: Record<string, string> = {
@@ -252,7 +253,7 @@ export function buildLivePreviewDecorations(
           const md = state.doc.sliceString(start, end);
           decos.push(
             Decoration.replace({
-              widget: new TableWidget(md),
+              widget: new TableWidget(md, start, opts.onEnterTableEdit),
               block: true,
             }).range(start, end),
           );
