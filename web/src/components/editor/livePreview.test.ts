@@ -25,7 +25,10 @@ function decos(doc: string, cursor: number): Deco[] {
     selection: EditorSelection.cursor(cursor),
     extensions: [markdown({ base: markdownLanguage })],
   });
-  const set: DecorationSet = buildLivePreviewDecorations(state, opts);
+  const set: DecorationSet = buildLivePreviewDecorations(
+    state,
+    opts,
+  ).decorations;
   const out: Deco[] = [];
   set.between(0, doc.length, (from, to, value) => {
     const spec = value.spec as { class?: string; widget?: unknown };
@@ -39,6 +42,47 @@ function decos(doc: string, cursor: number): Deco[] {
   });
   return out;
 }
+
+function atomicRanges(
+  doc: string,
+  cursor: number,
+): { from: number; to: number }[] {
+  const state = EditorState.create({
+    doc,
+    selection: EditorSelection.cursor(cursor),
+    extensions: [markdown({ base: markdownLanguage })],
+  });
+  const set = buildLivePreviewDecorations(state, opts).atomic;
+  const out: { from: number; to: number }[] = [];
+  set.between(0, doc.length, (from, to) => {
+    out.push({ from, to });
+  });
+  return out;
+}
+
+describe("atomic ranges (widgets only)", () => {
+  it("marks a widget (image) range as atomic", () => {
+    const doc = "see ![a](x.png) end";
+    const at = doc.indexOf("![");
+    expect(atomicRanges(doc, 0).some((r) => r.from === at)).toBe(true);
+  });
+  it("marks a table widget range as atomic", () => {
+    const doc = "intro\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nend";
+    const at = doc.indexOf("| A");
+    expect(atomicRanges(doc, 0).some((r) => r.from === at)).toBe(true);
+  });
+  it("does NOT mark a blockquote's hidden > marker as atomic", () => {
+    const doc = "> quoted\n\nbody";
+    // cursor off the quote so the > is hidden (a plain replace) — but not atomic
+    const ranges = atomicRanges(doc, doc.indexOf("body"));
+    expect(ranges.some((r) => r.from === 0)).toBe(false);
+  });
+  it("does NOT mark a heading's hidden # marker as atomic", () => {
+    const doc = "# Title\n\nbody";
+    const ranges = atomicRanges(doc, doc.indexOf("body"));
+    expect(ranges.some((r) => r.from === 0)).toBe(false);
+  });
+});
 
 describe("buildLivePreviewDecorations", () => {
   it("styles a heading and hides the # marker when the cursor is elsewhere", () => {

@@ -98,7 +98,7 @@ function isInsideTable(node: { node: SyntaxNode }): boolean {
 export function buildLivePreviewDecorations(
   state: EditorState,
   opts: LivePreviewOptions,
-): DecorationSet {
+): { decorations: DecorationSet; atomic: DecorationSet } {
   const decos: Range<Decoration>[] = [];
   const tree = syntaxTree(state);
 
@@ -308,7 +308,15 @@ export function buildLivePreviewDecorations(
     );
   }
 
-  return Decoration.set(decos, /* sort */ true);
+  const decorations = Decoration.set(decos, /* sort */ true);
+  // Only widget-bearing decorations are atomic (so the caret skips rendered
+  // widgets). Plain marker-hide replaces (#, **, > , ```) must NOT be atomic, or
+  // a click near a hidden line-start marker gets pushed out of the element.
+  const atomicDecos = decos.filter(
+    (r) => (r.value.spec as { widget?: unknown }).widget != null,
+  );
+  const atomic = Decoration.set(atomicDecos, /* sort */ true);
+  return { decorations, atomic };
 }
 
 /** Find the closing `]` position of a link, between `searchFrom` and `to`. */
@@ -324,7 +332,10 @@ function findCloseBracket(
 
 /** The live-preview CodeMirror extension. */
 export function livePreview(opts: LivePreviewOptions): Extension {
-  const field = StateField.define<DecorationSet>({
+  const field = StateField.define<{
+    decorations: DecorationSet;
+    atomic: DecorationSet;
+  }>({
     create(state) {
       return buildLivePreviewDecorations(state, opts);
     },
@@ -335,9 +346,9 @@ export function livePreview(opts: LivePreviewOptions): Extension {
       return value;
     },
     provide: (f) => [
-      EditorView.decorations.from(f),
+      EditorView.decorations.from(f, (v) => v.decorations),
       EditorView.atomicRanges.of(
-        (view) => view.state.field(f) ?? Decoration.none,
+        (view) => view.state.field(f)?.atomic ?? Decoration.none,
       ),
     ],
   });
