@@ -32,7 +32,8 @@ export class EditableTableWidget extends WidgetType {
       const next = e.relatedTarget as Node | null;
       if (next && wrap.contains(next)) return; // moving between cells
       const md = serializeTable(this.readModel(table));
-      if (md !== this.md) this.onCommit(this.from, this.to, md);
+      const original = serializeTable(parseTable(this.md));
+      if (md !== original) this.onCommit(this.from, this.to, md);
     });
 
     // Focus the first cell on enter.
