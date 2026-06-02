@@ -5,6 +5,8 @@ export class ImageWidget extends WidgetType {
     readonly src: string,
     readonly alt: string,
     readonly block: boolean,
+    readonly from: number,
+    readonly onEdit: (from: number) => void,
   ) {
     super();
   }
@@ -12,7 +14,8 @@ export class ImageWidget extends WidgetType {
     return (
       other.src === this.src &&
       other.alt === this.alt &&
-      other.block === this.block
+      other.block === this.block &&
+      other.from === this.from
     );
   }
   toDOM(): HTMLElement {
@@ -20,9 +23,13 @@ export class ImageWidget extends WidgetType {
     img.className = this.block ? "cm-lp-img block" : "cm-lp-img";
     img.src = this.src;
     img.alt = this.alt;
+    img.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      this.onEdit(this.from);
+    });
     return img;
   }
   ignoreEvent(): boolean {
-    return true;
+    return false;
   }
 }

@@ -9,6 +9,7 @@ const opts = {
   onOpenNote: vi.fn(),
   onToggleCheckbox: vi.fn(),
   resolveImage: (src: string) => "resolved:" + src,
+  onEditImage: vi.fn(),
 };
 
 interface Deco {
@@ -200,6 +201,12 @@ describe("buildLivePreviewDecorations", () => {
     const at = doc.indexOf("![");
     const ds = decos(doc, at + 2);
     expect(ds.some((d) => d.widget && d.from === at)).toBe(false);
+  });
+  it("still renders an image widget at the match position off-cursor", () => {
+    const doc = "see ![logo](img/logo.png) end";
+    const at = doc.indexOf("![");
+    const ds = decos(doc, 0);
+    expect(ds.some((d) => d.widget && d.from === at)).toBe(true);
   });
   it("does not emit inline marks inside an image's alt text (no overlap with the widget)", () => {
     const doc = "see ![*a*](x.png) end";

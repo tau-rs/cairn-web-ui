@@ -18,6 +18,7 @@ export interface LivePreviewOptions {
   onOpenNote: (path: string) => void;
   onToggleCheckbox: (bracketOpen: number) => void;
   resolveImage: (src: string) => string;
+  onEditImage: (from: number) => void;
 }
 
 const HEADING_CLASS: Record<string, string> = {
@@ -303,7 +304,7 @@ export function buildLivePreviewDecorations(
     const block = line.text.trim() === im[0];
     decos.push(
       Decoration.replace({
-        widget: new ImageWidget(src, alt, block),
+        widget: new ImageWidget(src, alt, block, from, opts.onEditImage),
       }).range(from, to),
     );
   }
