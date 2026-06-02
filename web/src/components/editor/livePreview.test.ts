@@ -10,6 +10,8 @@ const opts = {
   onToggleCheckbox: vi.fn(),
   resolveImage: (src: string) => "resolved:" + src,
   onEditImage: vi.fn(),
+  onEnterTableEdit: vi.fn(),
+  onCommitTable: vi.fn(),
 };
 
 interface Deco {
@@ -227,11 +229,13 @@ describe("buildLivePreviewDecorations", () => {
     const ds = decos(doc, 0);
     expect(ds.some((d) => d.widget && d.from === at)).toBe(true);
   });
-  it("reveals the raw table when the cursor is inside it", () => {
+  it("swaps to the editable table widget when the cursor is inside it", () => {
     const doc = "intro\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nend";
     const at = doc.indexOf("| A");
     const ds = decos(doc, doc.indexOf("| 1"));
-    expect(ds.some((d) => d.widget && d.from === at)).toBe(false);
+    // Touched → still a single block widget at the table start (the editable
+    // one), not raw pipes — local-DOM editing avoids a CM rebuild mid-edit.
+    expect(ds.some((d) => d.widget && d.from === at)).toBe(true);
   });
   it("does not emit cell decorations inside a table block (table widget owns the range)", () => {
     const doc = "intro\n\n| A | [[ideas]] |\n|---|---|\n| 1 | 2 |\n\nend";

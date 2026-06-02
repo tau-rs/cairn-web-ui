@@ -149,3 +149,75 @@ test("click-to-edit: blockquote, code block, and image reveal raw on click", asy
   await expect(content).toContainText("![logo](img/logo.png)");
   await expect(page.locator("img.cm-lp-img")).toHaveCount(0);
 });
+
+test("table editor: click to edit a cell and commit on click-away", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const content = page.locator(".cm-content");
+
+  // Click the rendered table → it becomes editable.
+  await page.locator(".cm-lp-table").first().click();
+  const firstCell = page
+    .locator(".cm-lp-table.editing th, .cm-lp-table.editing td")
+    .first();
+  await expect(firstCell).toBeVisible();
+
+  // Edit a body cell, then click away to commit.
+  const cell = page.locator(".cm-lp-table.editing td").first();
+  await cell.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("X1");
+  await page.getByText("Kitchen sink").click(); // click away
+  // The committed value appears in the document source / re-rendered table.
+  await expect(content).toContainText("X1");
+});
+
+test("table editor: add a row and a column, commit on click-away", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+
+  await page.locator(".cm-lp-table").first().click();
+  const rowsBefore = await page
+    .locator(".cm-lp-table.editing tbody tr")
+    .count();
+
+  await page.locator(".cm-lp-add-row").click();
+  await expect(page.locator(".cm-lp-table.editing tbody tr")).toHaveCount(
+    rowsBefore + 1,
+  );
+
+  const colsBefore = await page
+    .locator(".cm-lp-table.editing thead th")
+    .count();
+  await page.locator(".cm-lp-add-col").click();
+  await expect(page.locator(".cm-lp-table.editing thead th")).toHaveCount(
+    colsBefore + 1,
+  );
+
+  // Click away → commit; re-render read-only, then re-open to confirm persisted.
+  await page.getByText("Kitchen sink").click();
+  await page.locator(".cm-lp-table").first().click();
+  await expect(page.locator(".cm-lp-table.editing tbody tr")).toHaveCount(
+    rowsBefore + 1,
+  );
+  await expect(page.locator(".cm-lp-table.editing thead th")).toHaveCount(
+    colsBefore + 1,
+  );
+});
+
+test("table editor: Tab moves between cells", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  await page.locator(".cm-lp-table").first().click();
+  const cells = page.locator(
+    ".cm-lp-table.editing th, .cm-lp-table.editing td",
+  );
+  await cells.first().click();
+  await page.keyboard.press("Tab");
+  // focus advanced to the second cell
+  await expect(cells.nth(1)).toBeFocused();
+});

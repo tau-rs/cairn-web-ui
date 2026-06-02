@@ -133,3 +133,75 @@
   background: #16161c;
   font-weight: 600;
 }
+.cm-lp-table-edit {
+  position: relative;
+  display: inline-block;
+  padding: 2px 18px 18px 2px;
+}
+.cm-lp-table.editing th,
+.cm-lp-table.editing td {
+  min-width: 48px;
+  outline: none;
+}
+.cm-lp-table.editing th:focus,
+.cm-lp-table.editing td:focus {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+  background: #1a1a26;
+  color: #f1f1f4;
+}
+.cm-lp-table-edit .cm-lp-add-col,
+.cm-lp-table-edit .cm-lp-add-row,
+.cm-lp-col-del,
+.cm-lp-row-del {
+  position: absolute;
+  border: 1px dashed #6366f155;
+  background: #6366f120;
+  color: #6366f1;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cm-lp-table-edit:hover .cm-lp-add-col,
+.cm-lp-table-edit:hover .cm-lp-add-row {
+  opacity: 1;
+}
+.cm-lp-table-edit .cm-lp-add-col {
+  top: 2px;
+  right: 0;
+  bottom: 18px;
+  width: 14px;
+}
+.cm-lp-table-edit .cm-lp-add-row {
+  left: 2px;
+  right: 18px;
+  bottom: 0;
+  height: 14px;
+}
+.cm-lp-col-del {
+  top: 2px;
+  right: 2px;
+  border: none;
+  background: transparent;
+  color: #f4a3a3;
+}
+.cm-lp-table.editing th {
+  position: relative;
+}
+.cm-lp-table.editing td:first-child {
+  position: relative;
+}
+.cm-lp-row-del {
+  left: -16px;
+  top: 4px;
+  border: none;
+  background: transparent;
+  color: #f4a3a3;
+}
+.cm-lp-table.editing th:hover .cm-lp-col-del,
+.cm-lp-table.editing tr:hover .cm-lp-row-del {
+  opacity: 1;
+}
