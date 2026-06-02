@@ -208,3 +208,16 @@ test("table editor: add a row and a column, commit on click-away", async ({
     colsBefore + 1,
   );
 });
+
+test("table editor: Tab moves between cells", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  await page.locator(".cm-lp-table").first().click();
+  const cells = page.locator(
+    ".cm-lp-table.editing th, .cm-lp-table.editing td",
+  );
+  await cells.first().click();
+  await page.keyboard.press("Tab");
+  // focus advanced to the second cell
+  await expect(cells.nth(1)).toBeFocused();
+});

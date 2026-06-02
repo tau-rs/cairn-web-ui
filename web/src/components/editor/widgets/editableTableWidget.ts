@@ -83,6 +83,7 @@ export class EditableTableWidget extends WidgetType {
     model.header.forEach((h, ci) => {
       const th = document.createElement("th");
       th.contentEditable = "plaintext-only";
+      this.cellKeys(table, th);
       th.textContent = h;
       th.appendChild(
         this.ctl("cm-lp-col-del", "×", () =>
@@ -97,6 +98,7 @@ export class EditableTableWidget extends WidgetType {
       row.forEach((c, ci) => {
         const td = tr.insertCell();
         td.contentEditable = "plaintext-only";
+        this.cellKeys(table, td);
         td.textContent = c;
         if (ci === 0) {
           td.appendChild(
@@ -122,6 +124,26 @@ export class EditableTableWidget extends WidgetType {
         this.apply(table, addRow(this.readModel(table))),
       ),
     );
+  }
+
+  /** Tab / Shift-Tab between cells; Enter → cell below; Esc → leave (commit). */
+  private cellKeys(table: HTMLElement, cell: HTMLElement): void {
+    cell.addEventListener("keydown", (e) => {
+      const cells = [...table.querySelectorAll<HTMLElement>("th, td")];
+      const i = cells.indexOf(cell);
+      const cols = table.querySelectorAll("thead th").length || 1;
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const next = cells[i + (e.shiftKey ? -1 : 1)];
+        next?.focus();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        cells[i + cols]?.focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cell.blur(); // focus leaves the table → focusout commit
+      }
+    });
   }
 
   /** A non-editable control button that doesn't steal the contenteditable caret. */
