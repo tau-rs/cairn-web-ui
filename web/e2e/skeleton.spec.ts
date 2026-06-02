@@ -173,3 +173,38 @@ test("table editor: click to edit a cell and commit on click-away", async ({
   // The committed value appears in the document source / re-rendered table.
   await expect(content).toContainText("X1");
 });
+
+test("table editor: add a row and a column, commit on click-away", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "kitchensink.md" }).click();
+
+  await page.locator(".cm-lp-table").first().click();
+  const rowsBefore = await page
+    .locator(".cm-lp-table.editing tbody tr")
+    .count();
+
+  await page.locator(".cm-lp-add-row").click();
+  await expect(page.locator(".cm-lp-table.editing tbody tr")).toHaveCount(
+    rowsBefore + 1,
+  );
+
+  const colsBefore = await page
+    .locator(".cm-lp-table.editing thead th")
+    .count();
+  await page.locator(".cm-lp-add-col").click();
+  await expect(page.locator(".cm-lp-table.editing thead th")).toHaveCount(
+    colsBefore + 1,
+  );
+
+  // Click away → commit; re-render read-only, then re-open to confirm persisted.
+  await page.getByText("Kitchen sink").click();
+  await page.locator(".cm-lp-table").first().click();
+  await expect(page.locator(".cm-lp-table.editing tbody tr")).toHaveCount(
+    rowsBefore + 1,
+  );
+  await expect(page.locator(".cm-lp-table.editing thead th")).toHaveCount(
+    colsBefore + 1,
+  );
+});
