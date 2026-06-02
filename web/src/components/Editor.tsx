@@ -100,6 +100,8 @@ export function Editor(props: {
             foldGutter: false,
             highlightActiveLine: false,
             highlightActiveLineGutter: false,
+            // Don't highlight every other occurrence of the selected text.
+            highlightSelectionMatches: false,
           }}
           onChange={props.onChange}
           onCreateEditor={(view) => {
