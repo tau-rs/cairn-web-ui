@@ -1,5 +1,15 @@
 # Cairn Web UI — CE‑A: Click‑to‑Edit (Reveal) Design Spec
 
+> **Correction (post-implementation, 2026-06-02):** the root cause analysis in §1
+> below was **wrong**. Narrowing `atomicRanges` to widgets (§2 Mechanism A) is a
+> valid, kept cleanup, but it did NOT fix the blockquote. The real bug was
+> `margin: 0.15em 0` on `.cm-line` (added in UI‑3): CodeMirror lays lines out
+> contiguously and ignores margins in its height map, so `posAtCoords` drifted and
+> clicks on a blockquote landed on the line below. The fix was changing that margin
+> to `padding-top/bottom`. The image click handler (§2 Mechanism B) shipped as
+> designed. Lesson: interaction bugs like this are only caught by e2e — the unit
+> tests passed throughout because the pure builder was always correct.
+
 **Date:** 2026-06-02
 **Status:** approved, ready for implementation planning
 **Sub-project:** CE‑A of the click‑to‑edit initiative (CE‑B, the rich table editor,
