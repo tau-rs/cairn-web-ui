@@ -8,7 +8,8 @@
   max-width: none;
 }
 .cm-doc-livepreview .cm-line {
-  margin: 0.15em 0;
+  padding-top: 0.15em;
+  padding-bottom: 0.15em;
 }
 
 .cm-lp-h1 {
@@ -111,6 +112,7 @@
   max-width: 100%;
   vertical-align: middle;
   border-radius: 6px;
+  cursor: pointer;
 }
 .cm-lp-img.block {
   display: block;

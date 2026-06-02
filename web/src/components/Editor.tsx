@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
+import { EditorSelection } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { livePreview } from "./editor/livePreview";
 import { toggleCheckboxChange } from "./editor/checkboxToggle";
@@ -55,6 +56,11 @@ export function Editor(props: {
         view.dispatch({ changes: change });
       },
       resolveImage,
+      onEditImage: (pos: number) => {
+        const view = viewRef.current;
+        if (!view) return;
+        view.dispatch({ selection: EditorSelection.cursor(pos) });
+      },
     });
     return props.mode === "livepreview" ? [...common, lp] : common;
   }, [props.mode, resolve, onOpenNote, resolveImage]);
