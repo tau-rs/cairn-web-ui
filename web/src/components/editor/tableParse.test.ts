@@ -47,6 +47,10 @@ describe("serializeTable", () => {
     expect(md).toContain("x\\|y");
     expect(parseTable(md)).toEqual(model);
   });
+  it("round-trips a cell containing a backslash", () => {
+    const model = { header: ["A\\B"], rows: [["x\\"]] };
+    expect(parseTable(serializeTable(model))).toEqual(model);
+  });
 });
 
 describe("table model ops", () => {

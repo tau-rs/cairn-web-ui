@@ -3,14 +3,14 @@ export interface TableModel {
   rows: string[][];
 }
 
-// Split a table row on UNescaped pipes, drop outer pipes, unescape \| → |.
+// Split a table row on UNescaped pipes, drop outer pipes, unescape \| → | then \\ → \.
 const cells = (line: string): string[] =>
   line
     .trim()
     .replace(/^\|/, "")
     .replace(/\|$/, "")
     .split(/(?<!\\)\|/)
-    .map((c) => c.trim().replace(/\\\|/g, "|"));
+    .map((c) => c.trim().replace(/\\\|/g, "|").replace(/\\\\/g, "\\"));
 
 /** Parse a GFM pipe table's source into a header + body rows (line 2 = delimiter, dropped). */
 export function parseTable(md: string): TableModel {
@@ -24,7 +24,8 @@ export function parseTable(md: string): TableModel {
   return { header, rows };
 }
 
-const escapeCell = (s: string): string => s.trim().replace(/\|/g, "\\|");
+const escapeCell = (s: string): string =>
+  s.trim().replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 const fmtRow = (cs: string[]): string =>
   `| ${cs.map(escapeCell).join(" | ")} |`;
 
@@ -36,7 +37,7 @@ export function serializeTable(m: TableModel): string {
 
 /** Append a blank row (column count = header length). */
 export function addRow(m: TableModel): TableModel {
-  return { header: m.header, rows: [...m.rows, m.header.map(() => "")] };
+  return { header: [...m.header], rows: [...m.rows, m.header.map(() => "")] };
 }
 
 /** Remove a body row; keeps at least one body row. */
