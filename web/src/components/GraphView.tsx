@@ -60,17 +60,14 @@ export function GraphView(props: {
     fittedRef.current = false;
   }, [data]);
 
-  const highlight = (): Set<string> | null => {
-    const h = hoverRef.current;
-    if (!h) return null;
-    const set = new Set<string>([h]);
-    for (const n of adjacency.get(h) ?? []) set.add(n);
-    return set;
-  };
-
   const paintNode = useCallback(
     (node: RFNode, ctx: CanvasRenderingContext2D, scale: number) => {
-      const hl = highlight();
+      const h = hoverRef.current;
+      let hl: Set<string> | null = null;
+      if (h) {
+        hl = new Set<string>([h]);
+        for (const n of adjacency.get(h) ?? []) hl.add(n);
+      }
       const active = node.id === props.activePath;
       const lit = hl ? hl.has(node.id) : true;
       const r = nodeRadius(node.degree);
