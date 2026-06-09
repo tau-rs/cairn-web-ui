@@ -258,7 +258,7 @@ export function createCairnStore(
       try {
         set({ noteTags: await client.noteTags() });
       } catch {
-        set({ noteTags: {} });
+        // leave the existing noteTags as-is — stale data beats clearing it
       }
     },
 

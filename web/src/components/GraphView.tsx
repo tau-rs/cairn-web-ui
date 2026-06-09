@@ -31,7 +31,7 @@ interface RFNode {
 export function GraphView(props: {
   nodes: string[];
   edges: { from: string; to: string }[];
-  tagsByNote: Record<string, string[]>;
+  tagsByNote: Record<string, string[]>; // consumed in Task 5 (color groups)
   activePath: string | null;
   onOpenNote: (path: string) => void;
 }) {
