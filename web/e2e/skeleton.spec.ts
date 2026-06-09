@@ -71,6 +71,11 @@ test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
   // The forces gear opens the settings panel.
   await page.getByRole("button", { name: "Graph forces" }).click();
   await expect(page.getByLabel("Center force")).toBeVisible();
+
+  // Color groups: the Groups section is present and Add group adds a row.
+  await expect(page.getByText("Groups", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /add group/i }).click();
+  await expect(page.getByLabel("Group query")).toBeVisible();
 });
 
 test("live preview: heading styled, wikilink opens note, source toggle shows raw", async ({

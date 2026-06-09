@@ -125,4 +125,12 @@ describe("MockClient", () => {
       expect(events).toContainEqual({ type: "committed", commit: "c0001" }),
     );
   });
+
+  it("noteTags parses tags from note content", async () => {
+    const c = new MockClient({
+      "a.md": "---\ntags: [x, y]\n---\nbody #z",
+      "b.md": "plain",
+    });
+    expect(await c.noteTags()).toEqual({ "a.md": ["x", "y", "z"], "b.md": [] });
+  });
 });

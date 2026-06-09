@@ -36,6 +36,7 @@ export interface CairnState {
   searchResults: string[] | null;
   backlinks: string[];
   graph: { nodes: string[]; edges: { from: string; to: string }[] } | null;
+  noteTags: Record<string, string[]>;
   settings: Settings;
   error: string | null;
 
@@ -83,6 +84,7 @@ export function createCairnStore(
     searchResults: null,
     backlinks: [],
     graph: null,
+    noteTags: {},
     settings: DEFAULT_SETTINGS,
     error: null,
 
@@ -252,6 +254,11 @@ export function createCairnStore(
           set({ graph: { nodes: res.nodes, edges: res.edges } });
       } catch (err) {
         set({ error: errMsg(err) });
+      }
+      try {
+        set({ noteTags: await client.noteTags() });
+      } catch {
+        // leave the existing noteTags as-is — stale data beats clearing it
       }
     },
 

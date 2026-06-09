@@ -36,6 +36,7 @@ export default function App() {
   const cairnPath = useCairn((s) => s.cairnPath);
   const error = useCairn((s) => s.error);
   const graph = useCairn((s) => s.graph);
+  const noteTags = useCairn((s) => s.noteTags);
   const [view, setView] = useState<"editor" | "graph">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Store action functions are stable for the store's lifetime (Zustand never
@@ -117,6 +118,7 @@ export default function App() {
               <GraphView
                 nodes={graph?.nodes ?? []}
                 edges={graph?.edges ?? []}
+                tagsByNote={noteTags}
                 activePath={activePath}
                 onOpenNote={(p) => {
                   void actions.openNote(p);

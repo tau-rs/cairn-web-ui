@@ -10,6 +10,7 @@ import type {
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import { extractLinks, stem } from "./wikilink";
+import { extractTags } from "../components/graph/tags";
 
 /** Split a leading `---\n...\n---\n` frontmatter block. Mirrors cairn-domain
  *  Note::parse (frontmatter is the YAML between fences; body is the rest). */
@@ -179,6 +180,12 @@ export class MockClient implements CairnClient {
         return { type: "graph", nodes, edges };
       }
     }
+  }
+
+  noteTags(): Promise<Record<string, string[]>> {
+    const out: Record<string, string[]> = {};
+    for (const [path, content] of this.notes) out[path] = extractTags(content);
+    return Promise.resolve(out);
   }
 
   /** Test/dev helper: current note paths. */

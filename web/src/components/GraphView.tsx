@@ -15,6 +15,13 @@ import {
   loadForceSettings,
   saveForceSettings,
 } from "./graph/forceSettings";
+import { GraphGroupsPanel } from "./graph/GraphGroupsPanel";
+import {
+  type ColorGroup,
+  loadColorGroups,
+  saveColorGroups,
+  matchGroupColor,
+} from "./graph/colorGroups";
 
 // react-force-graph mutates node objects (adds x/y/vx/vy) and rewrites
 // link.source/target from id strings into node references at runtime.
@@ -31,6 +38,7 @@ interface RFNode {
 export function GraphView(props: {
   nodes: string[];
   edges: { from: string; to: string }[];
+  tagsByNote: Record<string, string[]>; // path → tags, for color-group matching
   activePath: string | null;
   onOpenNote: (path: string) => void;
 }) {
@@ -58,6 +66,12 @@ export function GraphView(props: {
   const changeForces = (next: ForceSettings) => {
     setForces(next);
     saveForceSettings(next);
+  };
+
+  const [groups, setGroups] = useState<ColorGroup[]>(loadColorGroups);
+  const changeGroups = (next: ColorGroup[]) => {
+    setGroups(next);
+    saveColorGroups(next);
   };
 
   // Size the canvas to the container.
@@ -113,13 +127,20 @@ export function GraphView(props: {
         for (const n of adjacency.get(h) ?? []) hl.add(n);
       }
       const active = node.id === props.activePath;
-      const lit = hl ? hl.has(node.id) : true;
+      const inHL = hl ? hl.has(node.id) : true;
       const r = nodeRadius(node.degree);
+      const base = active
+        ? "#6366f1"
+        : (matchGroupColor(node.id, props.tagsByNote[node.id] ?? [], groups) ??
+          "#cdd0e0");
 
       ctx.beginPath();
       ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
-      ctx.fillStyle = active ? "#6366f1" : lit ? "#cdd0e0" : "#6b6c7755";
+      // Hover focus: dim non-neighbors (keep their group hue at low alpha).
+      ctx.globalAlpha = hl && !inHL && !active ? 0.25 : 1;
+      ctx.fillStyle = base;
       ctx.fill();
+      ctx.globalAlpha = 1;
 
       let alpha = labelAlpha(scale);
       if (active || node.id === hoverRef.current) alpha = 1;
@@ -134,7 +155,7 @@ export function GraphView(props: {
         ctx.globalAlpha = 1;
       }
     },
-    [props.activePath, adjacency],
+    [props.activePath, adjacency, groups, props.tagsByNote],
   );
 
   const paintPointer = useCallback(
@@ -192,11 +213,14 @@ export function GraphView(props: {
           </svg>
         </IconButton>
         {panelOpen && (
-          <GraphForcesPanel
-            settings={forces}
-            onChange={changeForces}
-            onReset={() => changeForces(DEFAULT_FORCE_SETTINGS)}
-          />
+          <>
+            <GraphGroupsPanel groups={groups} onChange={changeGroups} />
+            <GraphForcesPanel
+              settings={forces}
+              onChange={changeForces}
+              onReset={() => changeForces(DEFAULT_FORCE_SETTINGS)}
+            />
+          </>
         )}
       </div>
       {size.width > 0 && size.height > 0 && (
