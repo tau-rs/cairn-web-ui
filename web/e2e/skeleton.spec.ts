@@ -67,6 +67,10 @@ test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
   // The force-graph renders a <canvas>; the toggle flips to "Editor".
   await expect(page.locator("canvas").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /^editor$/i })).toBeVisible();
+
+  // The forces gear opens the settings panel.
+  await page.getByRole("button", { name: "Graph forces" }).click();
+  await expect(page.getByLabel("Center force")).toBeVisible();
 });
 
 test("live preview: heading styled, wikilink opens note, source toggle shows raw", async ({
