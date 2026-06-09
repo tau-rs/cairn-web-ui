@@ -58,21 +58,15 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   await expect(page.getByText(/@c\d{4}/)).toBeVisible();
 });
 
-test("graph view: toggle, see nodes, click to open a note", async ({
-  page,
-}) => {
+test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("ideas.md")).toBeVisible(); // app loaded (mock fixture)
 
   await page.getByRole("button", { name: /^graph$/i }).click();
 
-  // React Flow renders node labels (stems) inside .react-flow.
-  const flow = page.locator(".react-flow");
-  await expect(flow.getByText("ideas", { exact: true }).first()).toBeVisible();
-
-  // Clicking the "index" node opens index.md and returns to the editor (live preview).
-  await flow.getByText("index", { exact: true }).first().click();
-  await expect(page.locator(".cm-lp-h1")).toBeVisible();
+  // The force-graph renders a <canvas>; the toggle flips to "Editor".
+  await expect(page.locator("canvas").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /^editor$/i })).toBeVisible();
 });
 
 test("live preview: heading styled, wikilink opens note, source toggle shows raw", async ({
