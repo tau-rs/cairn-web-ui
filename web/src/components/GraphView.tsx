@@ -22,6 +22,13 @@ import {
   saveColorGroups,
   matchGroupColor,
 } from "./graph/colorGroups";
+import {
+  type LocalGraphSettings,
+  DEPTH_RANGE,
+  localSubgraph,
+  loadLocalGraph,
+  saveLocalGraph,
+} from "./graph/localGraph";
 
 // react-force-graph mutates node objects (adds x/y/vx/vy) and rewrites
 // link.source/target from id strings into node references at runtime.
@@ -42,18 +49,49 @@ export function GraphView(props: {
   activePath: string | null;
   onOpenNote: (path: string) => void;
 }) {
-  // Graph shape only — NOT activePath/hover, so the simulation never restarts
-  // when you open a note or hover.
-  const data = useMemo(
+  const [local, setLocal] = useState<LocalGraphSettings>(loadLocalGraph);
+  const changeLocal = (next: LocalGraphSettings) => {
+    setLocal(next);
+    saveLocalGraph(next);
+  };
+
+  // Global graph — memoized on [nodes, edges] ONLY, so opening a note in global
+  // mode never restarts the simulation.
+  const globalData = useMemo(
     () => buildGraphData(props.nodes, props.edges),
     [props.nodes, props.edges],
   );
   // Adjacency from a fresh string-keyed build (the `data.links` array gets
   // mutated by react-force-graph, so don't read neighbor ids from it).
-  const adjacency = useMemo(
+  const globalAdj = useMemo(
     () => buildAdjacency(buildGraphData(props.nodes, props.edges).links),
     [props.nodes, props.edges],
   );
+
+  // Local subgraph — computed ONLY when local mode is on with a note open;
+  // depends on activePath/depth (the focused neighborhood genuinely changes).
+  const useLocal = local.enabled && !!props.activePath;
+  const localSub = useMemo(
+    () =>
+      useLocal
+        ? localSubgraph(props.nodes, props.edges, props.activePath, local.depth)
+        : null,
+    [useLocal, props.nodes, props.edges, props.activePath, local.depth],
+  );
+  const localData = useMemo(
+    () => (localSub ? buildGraphData(localSub.nodes, localSub.edges) : null),
+    [localSub],
+  );
+  const localAdj = useMemo(
+    () =>
+      localSub
+        ? buildAdjacency(buildGraphData(localSub.nodes, localSub.edges).links)
+        : null,
+    [localSub],
+  );
+
+  const data = localData ?? globalData;
+  const adjacency = localAdj ?? globalAdj;
 
   const fgRef = useRef<ForceGraphMethods<RFNode, GLink>>();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -192,6 +230,28 @@ export function GraphView(props: {
   // ForceGraph2D mounts once the container has a measured size.
   return (
     <div ref={containerRef} className="relative h-full w-full">
+      <div className="absolute left-2 top-2 z-10 flex overflow-hidden rounded-md border border-border text-[11px]">
+        {(["local", "global"] as const).map((m) => {
+          const isLocal = m === "local";
+          const selected = local.enabled === isLocal;
+          return (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={selected}
+              className={
+                "px-2.5 py-1 capitalize " +
+                (selected
+                  ? "bg-accent text-accent-fg"
+                  : "bg-surface text-muted hover:text-text")
+              }
+              onClick={() => changeLocal({ ...local, enabled: isLocal })}
+            >
+              {m}
+            </button>
+          );
+        })}
+      </div>
       <div className="absolute right-2 top-2 z-10 flex flex-col items-end gap-2">
         <IconButton
           label="Graph forces"
@@ -214,6 +274,27 @@ export function GraphView(props: {
         </IconButton>
         {panelOpen && (
           <>
+            <div className="w-52 rounded-lg border border-border bg-surface p-3 shadow-2xl">
+              <div className="mb-2 text-[10px] uppercase tracking-wide text-faint">
+                Local graph
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[11px] text-text">
+                <span>Depth</span>
+                <span className="text-faint">{local.depth}</span>
+              </div>
+              <input
+                type="range"
+                aria-label="Local graph depth"
+                className="w-full accent-accent"
+                min={DEPTH_RANGE.min}
+                max={DEPTH_RANGE.max}
+                step={DEPTH_RANGE.step}
+                value={local.depth}
+                onChange={(e) =>
+                  changeLocal({ ...local, depth: Number(e.target.value) })
+                }
+              />
+            </div>
             <GraphGroupsPanel groups={groups} onChange={changeGroups} />
             <GraphForcesPanel
               settings={forces}
@@ -223,30 +304,37 @@ export function GraphView(props: {
           </>
         )}
       </div>
-      {size.width > 0 && size.height > 0 && (
-        <ForceGraph2D
-          ref={fgRef}
-          width={size.width}
-          height={size.height}
-          graphData={data as { nodes: RFNode[]; links: GLink[] }}
-          backgroundColor="rgba(0,0,0,0)"
-          nodeCanvasObject={paintNode}
-          nodePointerAreaPaint={paintPointer}
-          linkColor={linkColor}
-          linkWidth={1}
-          autoPauseRedraw={false}
-          enableNodeDrag
-          onNodeClick={(n: RFNode) => props.onOpenNote(n.id)}
-          onNodeHover={(n: RFNode | null) => {
-            hoverRef.current = n?.id ?? null;
-          }}
-          onEngineStop={() => {
-            if (!fittedRef.current) {
-              fittedRef.current = true;
-              fgRef.current?.zoomToFit(400, 40);
-            }
-          }}
-        />
+      {local.enabled && !props.activePath ? (
+        <div className="flex h-full w-full items-center justify-center text-sm text-faint">
+          Open a note to see its local graph
+        </div>
+      ) : (
+        size.width > 0 &&
+        size.height > 0 && (
+          <ForceGraph2D
+            ref={fgRef}
+            width={size.width}
+            height={size.height}
+            graphData={data as { nodes: RFNode[]; links: GLink[] }}
+            backgroundColor="rgba(0,0,0,0)"
+            nodeCanvasObject={paintNode}
+            nodePointerAreaPaint={paintPointer}
+            linkColor={linkColor}
+            linkWidth={1}
+            autoPauseRedraw={false}
+            enableNodeDrag
+            onNodeClick={(n: RFNode) => props.onOpenNote(n.id)}
+            onNodeHover={(n: RFNode | null) => {
+              hoverRef.current = n?.id ?? null;
+            }}
+            onEngineStop={() => {
+              if (!fittedRef.current) {
+                fittedRef.current = true;
+                fgRef.current?.zoomToFit(400, 40);
+              }
+            }}
+          />
+        )
       )}
     </div>
   );
