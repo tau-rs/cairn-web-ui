@@ -4,8 +4,6 @@ export interface ColorGroup {
   color: string;
 }
 
-export const DEFAULT_COLOR_GROUPS: ColorGroup[] = [];
-
 const STORAGE_KEY = "cairn.graph.groups";
 
 const isValid = (g: unknown): g is ColorGroup =>
