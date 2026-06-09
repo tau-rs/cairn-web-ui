@@ -10,6 +10,8 @@ import { CommitBar } from "../components/CommitBar";
 import { ErrorToast } from "../components/ErrorToast";
 import { IconButton } from "../components/ui/IconButton";
 import { SettingsDialog } from "../components/SettingsDialog";
+import { NewNoteDialog } from "../components/NewNoteDialog";
+import { CommitDialog } from "../components/CommitDialog";
 import { OpenCairn } from "../components/OpenCairn";
 import { cairnStore, useCairn } from "./cairnStore";
 import { Logo } from "../components/ui/Logo";
@@ -39,6 +41,8 @@ export default function App() {
   const noteTags = useCairn((s) => s.noteTags);
   const [view, setView] = useState<"editor" | "graph">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [commitOpen, setCommitOpen] = useState(false);
   // Store action functions are stable for the store's lifetime (Zustand never
   // replaces them; they read fresh state via get()), so capturing them once is safe.
   const actions = cairnStore.getState();
@@ -91,7 +95,7 @@ export default function App() {
               uncommitted={uncommitted}
               lastCommit={lastCommit}
               committing={committing}
-              onCommit={actions.commitManual}
+              onRequestCommit={() => setCommitOpen(true)}
             />
           </div>
         }
@@ -100,7 +104,7 @@ export default function App() {
             paths={notePaths}
             activePath={activePath}
             onOpen={actions.openNote}
-            onNew={actions.createNote}
+            onRequestNew={() => setNewNoteOpen(true)}
             onDelete={actions.deleteNote}
           />
         }
@@ -152,6 +156,17 @@ export default function App() {
         onOpenChange={setSettingsOpen}
         settings={settings}
         onChange={actions.setSettings}
+      />
+      <NewNoteDialog
+        open={newNoteOpen}
+        onOpenChange={setNewNoteOpen}
+        onCreate={actions.createNote}
+      />
+      <CommitDialog
+        open={commitOpen}
+        onOpenChange={setCommitOpen}
+        committing={committing}
+        onCommit={actions.commitManual}
       />
     </>
   );

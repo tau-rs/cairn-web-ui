@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { CommitBar } from "./CommitBar";
 
 describe("CommitBar", () => {
@@ -12,7 +11,7 @@ describe("CommitBar", () => {
         uncommitted={false}
         lastCommit={null}
         committing={false}
-        onCommit={vi.fn()}
+        onRequestCommit={vi.fn()}
       />,
     );
     expect(screen.getByText(/saving/i)).toBeInTheDocument();
@@ -26,33 +25,25 @@ describe("CommitBar", () => {
         uncommitted={false}
         lastCommit="c0007"
         committing={false}
-        onCommit={vi.fn()}
+        onRequestCommit={vi.fn()}
       />,
     );
     expect(screen.getByText(/c0007/)).toBeInTheDocument();
   });
 
-  it("opens the commit dialog and commits the message", async () => {
-    const onCommit = vi.fn();
+  it("requests a commit when 'Commit' is clicked", () => {
+    const onRequestCommit = vi.fn();
     render(
       <CommitBar
         saving={false}
         dirty={false}
-        uncommitted
+        uncommitted={true}
         lastCommit={null}
         committing={false}
-        onCommit={onCommit}
+        onRequestCommit={onRequestCommit}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Commit" })); // trigger
-    await userEvent.type(
-      screen.getByPlaceholderText("Describe this change"),
-      "snapshot",
-    );
-    const dialog = screen.getByRole("dialog");
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Commit" }),
-    );
-    expect(onCommit).toHaveBeenCalledWith("snapshot");
+    fireEvent.click(screen.getByRole("button", { name: /^commit$/i }));
+    expect(onRequestCommit).toHaveBeenCalled();
   });
 });
