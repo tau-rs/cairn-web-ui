@@ -31,6 +31,7 @@ interface RFNode {
 export function GraphView(props: {
   nodes: string[];
   edges: { from: string; to: string }[];
+  tagsByNote: Record<string, string[]>;
   activePath: string | null;
   onOpenNote: (path: string) => void;
 }) {

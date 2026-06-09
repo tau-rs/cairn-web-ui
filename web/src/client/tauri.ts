@@ -32,6 +32,10 @@ export class TauriClient implements CairnClient {
       unlisten?.();
     };
   }
+  noteTags(): Promise<Record<string, string[]>> {
+    // Stub: the engine does not expose tags yet. Swap for a query when it does.
+    return Promise.resolve({});
+  }
 }
 
 /** App-level cairn lifecycle over Tauri commands. */

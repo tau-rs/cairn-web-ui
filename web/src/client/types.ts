@@ -17,4 +17,8 @@ export interface CairnClient {
   sendCommand(c: Command): Promise<CommandResponse>;
   runQuery(q: Query): Promise<QueryResponse>;
   subscribe(cb: (e: Event) => void): Unsubscribe;
+  /** All notes' tags (path → tags). Client-level capability (not a contract
+   *  Query): the mock parses note content; Tauri stubs {} until the engine
+   *  exposes tags. */
+  noteTags(): Promise<Record<string, string[]>>;
 }
