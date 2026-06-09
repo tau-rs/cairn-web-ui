@@ -7,6 +7,14 @@ import {
   labelAlpha,
   type GLink,
 } from "./graph/graphData";
+import { IconButton } from "./ui/IconButton";
+import { GraphForcesPanel } from "./graph/GraphForcesPanel";
+import {
+  type ForceSettings,
+  DEFAULT_FORCE_SETTINGS,
+  loadForceSettings,
+  saveForceSettings,
+} from "./graph/forceSettings";
 
 // react-force-graph mutates node objects (adds x/y/vx/vy) and rewrites
 // link.source/target from id strings into node references at runtime.
@@ -16,6 +24,8 @@ interface RFNode {
   degree: number;
   x?: number;
   y?: number;
+  fx?: number; // d3 pin (set to freeze, undefined to release)
+  fy?: number;
 }
 
 export function GraphView(props: {
@@ -42,6 +52,13 @@ export function GraphView(props: {
   const hoverRef = useRef<string | null>(null);
   const fittedRef = useRef(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [forces, setForces] = useState<ForceSettings>(loadForceSettings);
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const changeForces = (next: ForceSettings) => {
+    setForces(next);
+    saveForceSettings(next);
+  };
 
   // Size the canvas to the container.
   useEffect(() => {
@@ -59,6 +76,33 @@ export function GraphView(props: {
   useEffect(() => {
     fittedRef.current = false;
   }, [data]);
+
+  // Apply force settings to the d3 simulation (imperative; forces created by
+  // react-force-graph). Re-applies on settings/data/size change.
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    fg.d3Force("charge")?.strength(forces.repel);
+    const link = fg.d3Force("link") as
+      | { strength: (n: number) => unknown; distance: (n: number) => unknown }
+      | undefined;
+    link?.strength(forces.linkForce);
+    link?.distance(forces.linkDistance);
+    fg.d3Force("center")?.strength(forces.center);
+
+    // Freeze = pin every node so the layout holds static (hover still repaints);
+    // unfreeze clears the pins.
+    for (const n of data.nodes as RFNode[]) {
+      if (forces.frozen) {
+        n.fx = n.x;
+        n.fy = n.y;
+      } else {
+        n.fx = undefined;
+        n.fy = undefined;
+      }
+    }
+    if (!forces.frozen) fg.d3ReheatSimulation();
+  }, [forces, data, size.width, size.height]);
 
   const paintNode = useCallback(
     (node: RFNode, ctx: CanvasRenderingContext2D, scale: number) => {
@@ -126,7 +170,35 @@ export function GraphView(props: {
   // Single stable container (the ref/ResizeObserver always track THIS div);
   // ForceGraph2D mounts once the container has a measured size.
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
+      <div className="absolute right-2 top-2 z-10 flex flex-col items-end gap-2">
+        <IconButton
+          label="Graph forces"
+          className="border border-border bg-surface"
+          onClick={() => setPanelOpen((o) => !o)}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </IconButton>
+        {panelOpen && (
+          <GraphForcesPanel
+            settings={forces}
+            onChange={changeForces}
+            onReset={() => changeForces(DEFAULT_FORCE_SETTINGS)}
+          />
+        )}
+      </div>
       {size.width > 0 && size.height > 0 && (
         <ForceGraph2D
           ref={fgRef}
