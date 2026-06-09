@@ -78,6 +78,23 @@ test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
   await expect(page.getByLabel("Group query")).toBeVisible();
 });
 
+test("graph local mode: open a note, switch to Local, canvas renders", async ({
+  page,
+}) => {
+  await page.goto("/");
+  // Open a note so the graph has a root.
+  await page.getByRole("button", { name: "index.md" }).click();
+  // Switch to the graph view.
+  await page.getByRole("button", { name: /^graph$/i }).click();
+  // Toggle to Local — the canvas (now the index.md neighborhood) still renders.
+  await page.getByRole("button", { name: "Local" }).click();
+  await expect(page.locator("canvas").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Local" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
 test("live preview: heading styled, wikilink opens note, source toggle shows raw", async ({
   page,
 }) => {
