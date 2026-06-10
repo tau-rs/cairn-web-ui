@@ -2,6 +2,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient } from "../client/types";
 import type { ContractError, TagCount } from "../contract";
+import type { PluginSummary } from "../contract";
 import { debounce, type Debounced } from "../util/timer";
 import {
   openOrPreview,
@@ -60,6 +61,8 @@ export interface CairnState {
   noteTags: Record<string, string[]>;
   tags: TagCount[];
   activeTag: string | null;
+  plugins: PluginSummary[];
+  notice: string | null;
   settings: Settings;
   error: string | null;
 
@@ -82,6 +85,9 @@ export interface CairnState {
   runSearch(query: string): Promise<void>;
   loadTags(): Promise<void>;
   filterByTag(tag: string): Promise<void>;
+  loadPlugins(): Promise<void>;
+  invokePlugin(plugin: string, command: string): Promise<void>;
+  dismissNotice(): void;
   setQuery(query: string): void;
   closeSearch(): void;
   refreshBacklinks(): Promise<void>;
@@ -177,6 +183,8 @@ export function createCairnStore(
       noteTags: {},
       tags: [],
       activeTag: null,
+      plugins: [],
+      notice: null,
       settings: DEFAULT_SETTINGS,
       error: null,
 
@@ -203,6 +211,7 @@ export function createCairnStore(
         if (path !== null) {
           await get().refreshNotePaths();
           await get().loadTags();
+          await get().loadPlugins();
           // Restore persisted pinned tabs; skip any that no longer load.
           const persisted = loadTabs(get().notePaths);
           for (const p of persisted.pinned) {
@@ -236,6 +245,8 @@ export function createCairnStore(
             tags: [],
             activeTag: null,
             searchSnippets: null,
+            plugins: [],
+            notice: null,
           });
           await get().refreshNotePaths();
           get().rearmInterval();
@@ -462,6 +473,38 @@ export function createCairnStore(
         } catch (err) {
           set({ error: errMsg(err) });
         }
+      },
+
+      async loadPlugins() {
+        try {
+          const res = await client.runQuery({ type: "list_plugins" });
+          if (res.type === "plugins") set({ plugins: res.plugins });
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      async invokePlugin(plugin, command) {
+        try {
+          const res = await client.sendCommand({
+            type: "invoke_plugin_command",
+            plugin,
+            command,
+            args: null,
+          });
+          if (res.type === "plugin_result") {
+            set({
+              notice:
+                typeof res.result === "string" ? res.result : `Ran ${command}`,
+            });
+          }
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      dismissNotice() {
+        set({ notice: null });
       },
 
       setQuery(query) {

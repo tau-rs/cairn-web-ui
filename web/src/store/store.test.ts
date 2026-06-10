@@ -429,4 +429,22 @@ describe("cairn store", () => {
     expect(renameCalls.length).toBe(1);
     expect(store.getState().notePaths).toContain("a.md");
   });
+  it("loadPlugins populates the plugin list on init", async () => {
+    vi.useRealTimers();
+    const store = createCairnStore(new MockClient({}));
+    await store.getState().init();
+    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo"]);
+  });
+  it("invokePlugin sets a notice and applies the side effect", async () => {
+    vi.useRealTimers();
+    const store = createCairnStore(new MockClient({}));
+    await store.getState().init();
+    await store.getState().invokePlugin("demo", "stamp");
+    expect(store.getState().notice).toBe("stamp.md");
+    await vi.waitFor(() =>
+      expect(store.getState().notePaths).toContain("stamp.md"),
+    );
+    store.getState().dismissNotice();
+    expect(store.getState().notice).toBeNull();
+  });
 });
