@@ -1,11 +1,13 @@
 import { IconButton } from "./ui/IconButton";
 import { SectionLabel } from "./ui/SectionLabel";
+import { splitSnippet, type SearchSnippet } from "./searchHighlight";
 
 export function SearchResults(props: {
   results: string[] | null;
   onOpen: (path: string) => void;
   onClose: () => void;
   title?: string;
+  snippets?: Record<string, SearchSnippet>;
 }) {
   if (props.results === null) return null;
   return (
@@ -25,15 +27,35 @@ export function SearchResults(props: {
         <span className="text-sm text-faint">No matches</span>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {props.results.map((path) => (
-            <button
-              key={path}
-              className="block w-full truncate rounded px-2 py-1 text-left text-sm text-muted hover:bg-surface-2"
-              onClick={() => props.onOpen(path)}
-            >
-              {path}
-            </button>
-          ))}
+          {props.results.map((path) => {
+            const snip = props.snippets?.[path];
+            return (
+              <button
+                key={path}
+                aria-label={path}
+                className="block w-full rounded px-2 py-1 text-left hover:bg-surface-2"
+                onClick={() => props.onOpen(path)}
+              >
+                <span className="block truncate text-sm text-muted">
+                  {path}
+                </span>
+                {snip && (
+                  <span className="mt-0.5 block truncate text-xs text-faint">
+                    {splitSnippet(snip.snippet, snip.highlights).map(
+                      (seg, i) =>
+                        seg.match ? (
+                          <mark key={i} className="bg-transparent text-accent">
+                            {seg.text}
+                          </mark>
+                        ) : (
+                          <span key={i}>{seg.text}</span>
+                        ),
+                    )}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
