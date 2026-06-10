@@ -13,6 +13,7 @@ import {
   type TabsState,
 } from "../components/tabs/tabsModel";
 import { loadTabs, saveTabs } from "../components/tabs/tabsPersistence";
+import type { SearchSnippet } from "../components/searchHighlight";
 
 export interface Settings {
   autosaveMs: number;
@@ -52,6 +53,7 @@ export interface CairnState {
   committing: boolean;
   query: string;
   searchResults: string[] | null;
+  searchSnippets: Record<string, SearchSnippet> | null;
   backlinks: string[];
   graph: { nodes: string[]; edges: { from: string; to: string }[] } | null;
   noteTags: Record<string, string[]>;
@@ -167,6 +169,7 @@ export function createCairnStore(
       committing: false,
       query: "",
       searchResults: null,
+      searchSnippets: null,
       backlinks: [],
       graph: null,
       noteTags: {},
@@ -230,6 +233,7 @@ export function createCairnStore(
             backlinks: [],
             tags: [],
             activeTag: null,
+            searchSnippets: null,
           });
           await get().refreshNotePaths();
           get().rearmInterval();
@@ -390,8 +394,19 @@ export function createCairnStore(
       async runSearch(query) {
         try {
           const res = await client.runQuery({ type: "search", query });
-          if (res.type === "paths")
-            set({ query, searchResults: res.paths, activeTag: null });
+          if (res.type === "search_results") {
+            set({
+              query,
+              searchResults: res.results.map((r) => r.path),
+              searchSnippets: Object.fromEntries(
+                res.results.map((r) => [
+                  r.path,
+                  { snippet: r.snippet, highlights: r.highlights },
+                ]),
+              ),
+              activeTag: null,
+            });
+          }
         } catch (err) {
           set({ error: errMsg(err) });
         }
@@ -410,7 +425,11 @@ export function createCairnStore(
         try {
           const res = await client.runQuery({ type: "notes_by_tag", tag });
           if (res.type === "paths")
-            set({ searchResults: res.paths, activeTag: tag });
+            set({
+              searchResults: res.paths,
+              searchSnippets: null,
+              activeTag: tag,
+            });
         } catch (err) {
           set({ error: errMsg(err) });
         }
@@ -421,7 +440,7 @@ export function createCairnStore(
       },
 
       closeSearch() {
-        set({ searchResults: null, activeTag: null });
+        set({ searchResults: null, searchSnippets: null, activeTag: null });
       },
 
       async refreshBacklinks() {

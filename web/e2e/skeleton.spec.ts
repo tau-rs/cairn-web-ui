@@ -417,3 +417,20 @@ test("real tags: the Tags panel lists a tag and filtering shows its notes", asyn
   await overlay.getByRole("button", { name: "todo.md" }).click();
   await expect(page.getByTestId("search-results")).toHaveCount(0);
 });
+
+test("search shows a highlighted snippet", async ({ page }) => {
+  await page.goto("/");
+  await page.getByPlaceholder("Search…").fill("Start");
+  await page.getByPlaceholder("Search…").press("Enter");
+  const overlay = page.getByTestId("search-results");
+  await expect(overlay).toBeVisible();
+  // index.md ("Start at [[ideas]] …") matches; its row shows a snippet.
+  await expect(overlay.getByRole("button", { name: "index.md" })).toContainText(
+    "Start",
+  );
+  // the matched term is rendered as a <mark> highlight.
+  await expect(overlay.locator("mark")).toContainText("Start");
+  // clicking the result opens the note + closes the overlay.
+  await overlay.getByRole("button", { name: "index.md" }).click();
+  await expect(page.getByTestId("search-results")).toHaveCount(0);
+});

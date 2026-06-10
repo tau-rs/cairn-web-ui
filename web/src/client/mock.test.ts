@@ -31,8 +31,16 @@ describe("MockClient", () => {
       "alpha.md": "zeta body",
     });
     expect(await c.runQuery({ type: "search", query: "ALPHA" })).toEqual({
-      type: "paths",
-      paths: ["alpha.md", "zeta.md"],
+      type: "search_results",
+      results: [
+        { path: "alpha.md", score: 0, snippet: "zeta body", highlights: [] },
+        {
+          path: "zeta.md",
+          score: 1,
+          snippet: "alpha note",
+          highlights: [[0, 5]],
+        },
+      ],
     });
   });
 
@@ -100,8 +108,8 @@ describe("MockClient", () => {
       ]),
     );
     expect(await c.runQuery({ type: "search", query: "target" })).toEqual({
-      type: "paths",
-      paths: [],
+      type: "search_results",
+      results: [],
     });
   });
 

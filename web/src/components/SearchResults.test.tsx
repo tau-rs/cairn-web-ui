@@ -38,4 +38,28 @@ describe("SearchResults", () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+  it("renders a highlighted snippet when provided", () => {
+    render(
+      <SearchResults
+        results={["a.md"]}
+        snippets={{
+          "a.md": { snippet: "the quick fox", highlights: [[4, 9]] },
+        }}
+        onOpen={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("quick")).toBeInTheDocument(); // the matched segment
+    expect(screen.getByRole("button", { name: "a.md" })).toHaveTextContent(
+      "the quick fox",
+    );
+  });
+  it("renders path-only when no snippet is provided", () => {
+    render(
+      <SearchResults results={["a.md"]} onOpen={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "a.md" })).toHaveTextContent(
+      "a.md",
+    );
+  });
 });
