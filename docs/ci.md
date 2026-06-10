@@ -21,8 +21,9 @@ that warms PR builds is never cancelled mid-write).
   Cargo (`src-tauri/`), grouped by lockstep family.
 - **`claude-review.yml`** — AI review of every PR, including Dependabot's
   (`allowed_bots: dependabot`).
-- **`auto-update-prs.yml`** — rebases every behind, non-draft PR when `main`
-  advances, so strict branch protection never strands a PR.
+- **`auto-update-prs.yml`** — updates every behind, non-draft PR (merges `main`
+  in via GitHub's "Update branch") when `main` advances, so strict branch
+  protection never strands a PR.
 - **`auto-rerun-flaky.yml`** — reruns a CI run only when *every* failed job
   matches the flaky allowlist (`e2e`, `review PR`); a real failure stays red.
 
