@@ -266,3 +266,42 @@ test("command palette: ⌘K quick-opens a note and runs a command", async ({
     page.getByRole("button", { name: /^commit$/i }).last(),
   ).toBeVisible(); // commit dialog's submit button
 });
+
+test("editor tabs: preview replaces, edit pins, close focuses, reload restores", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("index.md")).toBeVisible(); // app loaded
+
+  // Note-list lives in the first aside; scope source clicks there so they
+  // don't collide with backlink/tab buttons of the same name.
+  const noteList = page.locator("aside").first();
+
+  // Open index → a single preview tab.
+  await noteList.getByRole("button", { name: "index.md" }).click();
+  await expect(page.getByRole("tab", { name: /index/ })).toBeVisible();
+
+  // Open ideas → the preview tab is REPLACED (index tab gone).
+  await noteList.getByRole("button", { name: "ideas.md" }).click();
+  await expect(page.getByRole("tab", { name: /ideas/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /index/ })).toHaveCount(0);
+
+  // Edit ideas → its tab pins. Open todo → a new preview tab (ideas stays).
+  const cm = page.locator(".cm-content");
+  await cm.click();
+  await page.keyboard.type(" edited");
+  await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 5000 });
+  await noteList.getByRole("button", { name: "todo.md" }).click();
+  await expect(page.getByRole("tab", { name: /ideas/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /todo/ })).toBeVisible();
+
+  // Close the todo tab via its × → ideas remains.
+  await page.getByRole("button", { name: "close todo" }).click();
+  await expect(page.getByRole("tab", { name: /todo/ })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: /ideas/ })).toBeVisible();
+
+  // Reload → the pinned ideas tab is restored; the (preview) todo is not.
+  await page.reload();
+  await expect(page.getByRole("tab", { name: /ideas/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /todo/ })).toHaveCount(0);
+});

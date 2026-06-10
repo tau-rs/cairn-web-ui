@@ -3,6 +3,7 @@ import { GraphView } from "../components/GraphView";
 import { Shell } from "../components/Shell";
 import { NoteList } from "../components/NoteList";
 import { Editor } from "../components/Editor";
+import { TabStrip } from "../components/tabs/TabStrip";
 import { Backlinks } from "../components/Backlinks";
 import { SearchBar } from "../components/SearchBar";
 import { SearchResults } from "../components/SearchResults";
@@ -28,9 +29,19 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const st = cairnStore.getState();
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "w") {
+        e.preventDefault();
+        st.closeActiveTab();
+      } else if (e.ctrlKey && e.key === "Tab") {
+        e.preventDefault();
+        st.cycleTab(e.shiftKey ? -1 : 1);
+      } else if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
+        e.preventDefault();
+        st.jumpToTab(Number(e.key));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -54,6 +65,8 @@ export default function App() {
   const error = useCairn((s) => s.error);
   const graph = useCairn((s) => s.graph);
   const noteTags = useCairn((s) => s.noteTags);
+  const tabs = useCairn((s) => s.tabs);
+  const openNotes = useCairn((s) => s.openNotes);
   const [view, setView] = useState<"editor" | "graph">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newNoteOpen, setNewNoteOpen] = useState(false);
@@ -70,6 +83,7 @@ export default function App() {
   const COMMANDS: PaletteCommand[] = [
     { id: "new-note", label: "New note" },
     { id: "commit", label: "Commit changes…" },
+    { id: "close-tab", label: "Close tab" },
     { id: "toggle-view", label: "Toggle Graph / Editor" },
     { id: "open-settings", label: "Open Settings" },
     { id: "toggle-editor-mode", label: "Toggle Source / Live preview" },
@@ -81,6 +95,9 @@ export default function App() {
         break;
       case "commit":
         setCommitOpen(true);
+        break;
+      case "close-tab":
+        actions.closeActiveTab();
         break;
       case "toggle-view":
         setView((v) => {
@@ -100,6 +117,12 @@ export default function App() {
     }
     setPaletteOpen(false);
   };
+
+  const tabViews = tabs.map((t) => ({
+    path: t.path,
+    preview: t.preview,
+    dirty: openNotes[t.path]?.dirty ?? false,
+  }));
 
   return (
     <>
@@ -180,21 +203,34 @@ export default function App() {
                 }}
               />
             ) : (
-              <Editor
-                path={activePath}
-                value={activeContents}
-                mode={editorMode}
-                notePaths={notePaths}
-                assetUrl={actions.assetUrl}
-                onChange={actions.editBuffer}
-                onOpenNote={actions.openNote}
-                onToggleMode={() =>
-                  actions.setSettings({
-                    editorMode:
-                      editorMode === "livepreview" ? "source" : "livepreview",
-                  })
-                }
-              />
+              <div className="flex h-full flex-col">
+                <TabStrip
+                  tabs={tabViews}
+                  activePath={activePath}
+                  onSelect={actions.selectTab}
+                  onPin={actions.pinTab}
+                  onClose={actions.closeTab}
+                />
+                <div className="min-h-0 flex-1">
+                  <Editor
+                    path={activePath}
+                    value={activeContents}
+                    mode={editorMode}
+                    notePaths={notePaths}
+                    assetUrl={actions.assetUrl}
+                    onChange={actions.editBuffer}
+                    onOpenNote={actions.openNote}
+                    onToggleMode={() =>
+                      actions.setSettings({
+                        editorMode:
+                          editorMode === "livepreview"
+                            ? "source"
+                            : "livepreview",
+                      })
+                    }
+                  />
+                </div>
+              </div>
             )}
           </div>
         }
