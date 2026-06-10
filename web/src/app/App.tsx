@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { GraphView } from "../components/GraphView";
 import { Shell } from "../components/Shell";
 import { FolderTree } from "../components/tree/FolderTreeView";
@@ -21,22 +21,43 @@ import { OpenCairn } from "../components/OpenCairn";
 import { cairnStore, useCairn } from "./cairnStore";
 import { Logo } from "../components/ui/Logo";
 import { Button } from "../components/ui/Button";
+import {
+  COMMAND_DEFS,
+  effectiveBinding,
+  chordToId,
+  type Overrides,
+} from "../components/shortcuts/commands";
+import { eventToChord, formatChord } from "../components/shortcuts/keybinding";
+import {
+  loadOverrides,
+  saveOverrides,
+} from "../components/shortcuts/keybindingPersistence";
+
+const IS_MAC =
+  typeof navigator !== "undefined" &&
+  /mac/i.test(navigator.platform || navigator.userAgent || "");
 
 export default function App() {
   useEffect(() => {
     void cairnStore.getState().init();
   }, []);
 
+  const [overrides, setOverrides] = useState<Overrides>(() => loadOverrides());
+  const chordMap = useMemo(() => chordToId(overrides), [overrides]);
+  const runCommandRef = useRef<(id: string) => void>(() => {});
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const chord = eventToChord(e);
+      const id = chord ? chordMap[chord] : undefined;
+      if (id) {
+        e.preventDefault();
+        runCommandRef.current(id);
+        return;
+      }
+      // Built-in tab navigation (parameterized; not rebindable).
       const st = cairnStore.getState();
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen((o) => !o);
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "w") {
-        e.preventDefault();
-        st.closeActiveTab();
-      } else if (e.ctrlKey && e.key === "Tab") {
+      if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
         st.cycleTab(e.shiftKey ? -1 : 1);
       } else if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
@@ -46,7 +67,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [chordMap]);
 
   const notePaths = useCairn((s) => s.notePaths);
   const activePath = useCairn((s) => s.activePath);
@@ -81,16 +102,21 @@ export default function App() {
     return <OpenCairn onOpen={() => void actions.openCairn()} />;
   }
 
-  const COMMANDS: PaletteCommand[] = [
-    { id: "new-note", label: "New note" },
-    { id: "commit", label: "Commit changes…" },
-    { id: "close-tab", label: "Close tab" },
-    { id: "toggle-view", label: "Toggle Graph / Editor" },
-    { id: "open-settings", label: "Open Settings" },
-    { id: "toggle-editor-mode", label: "Toggle Source / Live preview" },
-  ];
+  const COMMANDS: PaletteCommand[] = COMMAND_DEFS.filter(
+    (d) => d.id !== "open-palette",
+  ).map((d) => {
+    const eff = effectiveBinding(d.id, overrides);
+    return {
+      id: d.id,
+      label: d.label,
+      hint: eff ? formatChord(eff, IS_MAC) : undefined,
+    };
+  });
   const runCommand = (id: string) => {
     switch (id) {
+      case "open-palette":
+        setPaletteOpen((o) => !o);
+        return;
       case "new-note":
         setNewNoteInitial("");
         setNewNoteOpen(true);
@@ -119,6 +145,7 @@ export default function App() {
     }
     setPaletteOpen(false);
   };
+  runCommandRef.current = runCommand;
 
   const tabViews = tabs.map((t) => ({
     path: t.path,
@@ -251,6 +278,11 @@ export default function App() {
         onOpenChange={setSettingsOpen}
         settings={settings}
         onChange={actions.setSettings}
+        keybindingOverrides={overrides}
+        onKeybindingsChange={(o) => {
+          setOverrides(o);
+          saveOverrides(o);
+        }}
       />
       <NewNoteDialog
         open={newNoteOpen}

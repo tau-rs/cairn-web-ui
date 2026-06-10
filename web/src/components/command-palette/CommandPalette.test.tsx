@@ -54,4 +54,17 @@ describe("CommandPalette", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(props.onRunCommand).toHaveBeenCalledWith("commit");
   });
+  it("renders a command's shortcut hint", () => {
+    render(
+      <CommandPalette
+        open
+        onClose={vi.fn()}
+        commands={[{ id: "commit", label: "Commit changes", hint: "⌘↵" }]}
+        notes={[]}
+        onRunCommand={vi.fn()}
+        onOpenNote={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("⌘↵")).toBeInTheDocument();
+  });
 });
