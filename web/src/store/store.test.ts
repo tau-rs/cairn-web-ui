@@ -290,7 +290,9 @@ describe("cairn store", () => {
     await store.getState().openNote("a.md");
     store.getState().editBuffer("flushed [[b]]");
     store.getState().closeTab("a.md"); // close within the autosave window
-    await vi.runAllTimersAsync();
+    // Flush the in-flight write's microtasks (advance only the autosave window so
+    // the recurring auto-commit interval armed by init() isn't tripped).
+    await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs);
     expect(
       spy.mock.calls.some(
         ([c]) => c.type === "write_note" && c.contents === "flushed [[b]]",
