@@ -10,6 +10,7 @@ import { SearchBar } from "../components/SearchBar";
 import { SearchResults } from "../components/SearchResults";
 import { CommitBar } from "../components/CommitBar";
 import { ErrorToast } from "../components/ErrorToast";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { NoticeToast } from "../components/NoticeToast";
 import {
   toPaletteCommands,
@@ -244,59 +245,81 @@ export default function App() {
           </>
         }
         editor={
-          <div className="relative h-full">
-            <SearchResults
-              results={searchResults}
-              snippets={searchSnippets ?? undefined}
-              title={activeTag ? `Tagged · ${activeTag}` : undefined}
-              onOpen={(p) => {
-                void actions.openNote(p);
-                actions.closeSearch();
-              }}
-              onClose={actions.closeSearch}
-            />
-            {view === "graph" ? (
-              <GraphView
-                nodes={graph?.nodes ?? []}
-                edges={graph?.edges ?? []}
-                tagsByNote={noteTags}
-                activePath={activePath}
-                onOpenNote={(p) => {
-                  void actions.openNote(p);
-                  setView("editor");
-                }}
-              />
-            ) : (
-              <div className="flex h-full flex-col">
-                <TabStrip
-                  tabs={tabViews}
-                  activePath={activePath}
-                  onSelect={actions.selectTab}
-                  onPin={actions.pinTab}
-                  onClose={actions.closeTab}
-                />
-                <div className="min-h-0 flex-1">
-                  <Editor
-                    path={activePath}
-                    value={activeContents}
-                    mode={editorMode}
-                    notePaths={notePaths}
-                    assetUrl={actions.assetUrl}
-                    onChange={actions.editBuffer}
-                    onOpenNote={actions.openNote}
-                    onToggleMode={() =>
-                      actions.setSettings({
-                        editorMode:
-                          editorMode === "livepreview"
-                            ? "source"
-                            : "livepreview",
-                      })
-                    }
-                  />
-                </div>
+          // Retry clears the boundary so the pane re-renders; it recovers from
+          // transient throws. If the cause is intrinsic to the open note (e.g. a
+          // decoration-builder bug on its content), the crash recurs until the
+          // user navigates away — still better than blanking the whole app.
+          <ErrorBoundary
+            fallback={(reset) => (
+              <div
+                role="alert"
+                className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-text"
+              >
+                <p className="text-sm font-medium">This view crashed.</p>
+                <p className="max-w-sm text-xs text-muted">
+                  The rest of the app is still usable. Retry to reload just this
+                  pane.
+                </p>
+                <Button variant="primary" onClick={reset}>
+                  Retry
+                </Button>
               </div>
             )}
-          </div>
+          >
+            <div className="relative h-full">
+              <SearchResults
+                results={searchResults}
+                snippets={searchSnippets ?? undefined}
+                title={activeTag ? `Tagged · ${activeTag}` : undefined}
+                onOpen={(p) => {
+                  void actions.openNote(p);
+                  actions.closeSearch();
+                }}
+                onClose={actions.closeSearch}
+              />
+              {view === "graph" ? (
+                <GraphView
+                  nodes={graph?.nodes ?? []}
+                  edges={graph?.edges ?? []}
+                  tagsByNote={noteTags}
+                  activePath={activePath}
+                  onOpenNote={(p) => {
+                    void actions.openNote(p);
+                    setView("editor");
+                  }}
+                />
+              ) : (
+                <div className="flex h-full flex-col">
+                  <TabStrip
+                    tabs={tabViews}
+                    activePath={activePath}
+                    onSelect={actions.selectTab}
+                    onPin={actions.pinTab}
+                    onClose={actions.closeTab}
+                  />
+                  <div className="min-h-0 flex-1">
+                    <Editor
+                      path={activePath}
+                      value={activeContents}
+                      mode={editorMode}
+                      notePaths={notePaths}
+                      assetUrl={actions.assetUrl}
+                      onChange={actions.editBuffer}
+                      onOpenNote={actions.openNote}
+                      onToggleMode={() =>
+                        actions.setSettings({
+                          editorMode:
+                            editorMode === "livepreview"
+                              ? "source"
+                              : "livepreview",
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </ErrorBoundary>
         }
         backlinks={<Backlinks paths={backlinks} onOpen={actions.openNote} />}
       />
