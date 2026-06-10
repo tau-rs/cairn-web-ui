@@ -441,3 +441,20 @@ test("search shows a highlighted snippet", async ({ page }) => {
   await overlay.getByRole("button", { name: "index.md" }).click();
   await expect(page.getByTestId("search-results")).toHaveCount(0);
 });
+
+test("rename: inline-rename a note in the tree", async ({ page }) => {
+  await page.goto("/");
+  const sidebar = page.locator("aside").first();
+  const idx = sidebar.getByRole("button", { name: "index", exact: true });
+  await expect(idx).toBeVisible();
+  await idx.dblclick();
+  const input = sidebar.getByRole("textbox");
+  await input.fill("home");
+  await input.press("Enter");
+  await expect(
+    sidebar.getByRole("button", { name: "home", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("button", { name: "index", exact: true }),
+  ).toHaveCount(0);
+});

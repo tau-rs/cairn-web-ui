@@ -220,6 +220,7 @@ export default function App() {
                 setNewNoteInitial(folder + "/");
                 setNewNoteOpen(true);
               }}
+              onApplyRenames={actions.applyRenames}
             />
             <TagsPanel
               tags={tags}
