@@ -202,4 +202,42 @@ describe("MockClient", () => {
       c.sendCommand({ type: "rename_note", from: "a.md", to: "b.md" }),
     ).rejects.toMatchObject({ type: "invalid_request" });
   });
+  it("list_plugins returns the seeded demo plugin", async () => {
+    const c = new MockClient({});
+    expect(await c.runQuery({ type: "list_plugins" })).toEqual({
+      type: "plugins",
+      plugins: [
+        {
+          id: "demo",
+          name: "Demo plugin",
+          version: "1.0.0",
+          commands: [{ id: "stamp", title: "Insert stamp note" }],
+        },
+      ],
+    });
+  });
+  it("invoke_plugin_command demo/stamp writes a note and returns its path", async () => {
+    const c = new MockClient({});
+    const res = await c.sendCommand({
+      type: "invoke_plugin_command",
+      plugin: "demo",
+      command: "stamp",
+      args: null,
+    });
+    expect(res).toEqual({ type: "plugin_result", result: "stamp.md" });
+    expect(
+      await c.runQuery({ type: "get_note", path: "stamp.md" }),
+    ).toMatchObject({ type: "note" });
+  });
+  it("invoke_plugin_command errors on an unknown command", async () => {
+    const c = new MockClient({});
+    await expect(
+      c.sendCommand({
+        type: "invoke_plugin_command",
+        plugin: "demo",
+        command: "nope",
+        args: null,
+      }),
+    ).rejects.toMatchObject({ type: "invalid_request" });
+  });
 });

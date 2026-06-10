@@ -8,6 +8,7 @@ import type {
   NoteSummary,
   GraphEdge,
   SearchResult,
+  PluginSummary,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import { extractLinks, stem } from "./wikilink";
@@ -74,6 +75,14 @@ export class MockClient implements CairnClient {
   private notes: Map<string, string>;
   private subscribers = new Set<(e: Event) => void>();
   private commitSeq = 0;
+  private plugins: PluginSummary[] = [
+    {
+      id: "demo",
+      name: "Demo plugin",
+      version: "1.0.0",
+      commands: [{ id: "stamp", title: "Insert stamp note" }],
+    },
+  ];
 
   constructor(seed: Record<string, string> = {}) {
     this.notes = new Map(Object.entries(seed));
@@ -120,6 +129,19 @@ export class MockClient implements CairnClient {
         this.emit({ type: "committed", commit });
         return { type: "committed", commit };
       }
+      case "invoke_plugin_command": {
+        if (c.plugin === "demo" && c.command === "stamp") {
+          this.notes.set("stamp.md", "# Stamp\n");
+          this.emit({ type: "note_changed", path: "stamp.md" });
+          this.emit({ type: "reindexed", count: this.notes.size });
+          return { type: "plugin_result", result: "stamp.md" };
+        }
+        const err: ContractError = {
+          type: "invalid_request",
+          message: `unknown plugin command ${c.plugin}/${c.command}`,
+        };
+        throw err;
+      }
       case "rename_note": {
         if (!this.notes.has(c.from)) {
           const err: ContractError = { type: "not_found", what: c.from };
@@ -150,7 +172,7 @@ export class MockClient implements CairnClient {
         return { type: "done" };
       }
       default: {
-        throw new Error(`mock: unsupported command ${c.type}`);
+        throw new Error(`mock: unsupported command ${(c as Command).type}`);
       }
     }
   }
@@ -264,8 +286,10 @@ export class MockClient implements CairnClient {
           .sort();
         return { type: "paths", paths };
       }
+      case "list_plugins":
+        return { type: "plugins", plugins: this.plugins };
       default: {
-        throw new Error(`mock: unsupported query ${q.type}`);
+        throw new Error(`mock: unsupported query ${(q as Query).type}`);
       }
     }
   }

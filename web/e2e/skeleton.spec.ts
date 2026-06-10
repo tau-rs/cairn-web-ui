@@ -458,3 +458,27 @@ test("rename: inline-rename a note in the tree", async ({ page }) => {
     sidebar.getByRole("button", { name: "index", exact: true }),
   ).toHaveCount(0);
 });
+
+test("plugins: invoke a plugin command from the palette + see it in Settings", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar.getByText("index", { exact: true })).toBeVisible();
+
+  // Run the demo plugin command from the palette.
+  await page.keyboard.press("Control+k");
+  const input = page.getByPlaceholder(/type a command/i);
+  await input.fill("stamp");
+  await page.keyboard.press("Enter");
+
+  // Side effect: a "stamp" note appears in the tree; a notice toast shows.
+  await expect(
+    sidebar.getByRole("button", { name: "stamp", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("stamp.md")).toBeVisible();
+
+  // Settings shows the Plugins panel with the demo plugin.
+  await page.getByLabel("Settings").click();
+  await expect(page.getByRole("dialog").getByText(/Demo plugin/)).toBeVisible();
+});
