@@ -1,0 +1,127 @@
+name: Nightly
+
+# Comprehensive checks kept OFF the per-PR critical path so feature PRs
+# stay fast. Runs nightly + on demand. Nothing here is a required check;
+# a red nightly is a signal, never a merge gate.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tauri-cross:
+    name: tauri-cross (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install WebKitGTK + build deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev build-essential cmake
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Build frontend (produces web/dist embedded by the Rust shell)
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Compile the Tauri shell
+        run: cargo build --manifest-path src-tauri/Cargo.toml
+
+  e2e-full-browser:
+    name: e2e (${{ matrix.browser }})
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm exec playwright test --browser=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: |
+            web/playwright-report/
+            web/test-results/
+          retention-days: 7
+
+  audit:
+    name: audit (npm + cargo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: pnpm audit (web)
+        working-directory: web
+        run: pnpm audit --audit-level=high
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit (src-tauri)
+        run: cargo audit --file src-tauri/Cargo.lock
+
+  nightly-summary:
+    name: nightly-summary
+    if: always()
+    needs: [tauri-cross, e2e-full-browser, audit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate results
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "## Nightly results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Job results: $results" >> "$GITHUB_STEP_SUMMARY"
+          for r in $results; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::a nightly job did not succeed ($r)"; exit 1 ;;
+            esac
+          done
