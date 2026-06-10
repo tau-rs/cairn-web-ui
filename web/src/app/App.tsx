@@ -78,6 +78,7 @@ export default function App() {
   const backlinks = useCairn((s) => s.backlinks);
   const query = useCairn((s) => s.query);
   const searchResults = useCairn((s) => s.searchResults);
+  const searchSnippets = useCairn((s) => s.searchSnippets);
   const saving = useCairn((s) => s.saving);
   const dirty = useCairn((s) => s.dirty);
   const uncommitted = useCairn((s) => s.uncommitted);
@@ -231,6 +232,7 @@ export default function App() {
           <div className="relative h-full">
             <SearchResults
               results={searchResults}
+              snippets={searchSnippets ?? undefined}
               title={activeTag ? `Tagged · ${activeTag}` : undefined}
               onOpen={(p) => {
                 void actions.openNote(p);
