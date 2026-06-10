@@ -12,6 +12,7 @@ function setup(over = {}) {
     onDelete: vi.fn(),
     onRequestNew: vi.fn(),
     onRequestNewInFolder: vi.fn(),
+    onApplyRenames: vi.fn(),
     ...over,
   };
   render(<FolderTree {...props} />);
