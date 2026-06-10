@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NoteList } from "./NoteList";
 
@@ -11,7 +11,7 @@ describe("NoteList", () => {
         paths={["a.md", "b.md"]}
         activePath="a.md"
         onOpen={onOpen}
-        onNew={vi.fn()}
+        onRequestNew={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
@@ -19,24 +19,19 @@ describe("NoteList", () => {
     expect(onOpen).toHaveBeenCalledWith("b.md");
   });
 
-  it("opens the new-note dialog and creates a note", async () => {
-    const onNew = vi.fn();
+  it("requests a new note when '+ New note' is clicked", () => {
+    const onRequestNew = vi.fn();
     render(
       <NoteList
-        paths={[]}
+        paths={["a.md"]}
         activePath={null}
         onOpen={vi.fn()}
-        onNew={onNew}
+        onRequestNew={onRequestNew}
         onDelete={vi.fn()}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /new note/i }));
-    await userEvent.type(
-      screen.getByPlaceholderText("notes/idea.md"),
-      "new.md",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Create" }));
-    expect(onNew).toHaveBeenCalledWith("new.md");
+    fireEvent.click(screen.getByRole("button", { name: /new note/i }));
+    expect(onRequestNew).toHaveBeenCalled();
   });
 
   it("calls onDelete for a note", async () => {
@@ -46,7 +41,7 @@ describe("NoteList", () => {
         paths={["a.md"]}
         activePath={null}
         onOpen={vi.fn()}
-        onNew={vi.fn()}
+        onRequestNew={vi.fn()}
         onDelete={onDelete}
       />,
     );

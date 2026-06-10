@@ -241,3 +241,28 @@ test("table editor: Tab moves between cells", async ({ page }) => {
   // focus advanced to the second cell
   await expect(cells.nth(1)).toBeFocused();
 });
+
+test("command palette: ⌘K quick-opens a note and runs a command", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("ideas.md")).toBeVisible(); // app loaded
+
+  // Open the palette (Control+k works on CI; the app listener accepts meta or ctrl).
+  await page.keyboard.press("Control+k");
+  const input = page.getByPlaceholder(/type a command/i);
+  await expect(input).toBeVisible();
+
+  // Quick-open a note.
+  await input.fill("ideas");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-content")).toContainText("Ideas"); // ideas.md opened
+
+  // Re-open, run the Commit command → the commit dialog appears.
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder(/type a command/i).fill("commit");
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("button", { name: /^commit$/i }).last(),
+  ).toBeVisible(); // commit dialog's submit button
+});

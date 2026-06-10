@@ -10,6 +10,12 @@ import { CommitBar } from "../components/CommitBar";
 import { ErrorToast } from "../components/ErrorToast";
 import { IconButton } from "../components/ui/IconButton";
 import { SettingsDialog } from "../components/SettingsDialog";
+import { NewNoteDialog } from "../components/NewNoteDialog";
+import { CommitDialog } from "../components/CommitDialog";
+import {
+  CommandPalette,
+  type PaletteCommand,
+} from "../components/command-palette/CommandPalette";
 import { OpenCairn } from "../components/OpenCairn";
 import { cairnStore, useCairn } from "./cairnStore";
 import { Logo } from "../components/ui/Logo";
@@ -18,6 +24,17 @@ import { Button } from "../components/ui/Button";
 export default function App() {
   useEffect(() => {
     void cairnStore.getState().init();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const notePaths = useCairn((s) => s.notePaths);
@@ -39,6 +56,9 @@ export default function App() {
   const noteTags = useCairn((s) => s.noteTags);
   const [view, setView] = useState<"editor" | "graph">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [commitOpen, setCommitOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // Store action functions are stable for the store's lifetime (Zustand never
   // replaces them; they read fresh state via get()), so capturing them once is safe.
   const actions = cairnStore.getState();
@@ -46,6 +66,40 @@ export default function App() {
   if (cairnPath === null) {
     return <OpenCairn onOpen={() => void actions.openCairn()} />;
   }
+
+  const COMMANDS: PaletteCommand[] = [
+    { id: "new-note", label: "New note" },
+    { id: "commit", label: "Commit changes…" },
+    { id: "toggle-view", label: "Toggle Graph / Editor" },
+    { id: "open-settings", label: "Open Settings" },
+    { id: "toggle-editor-mode", label: "Toggle Source / Live preview" },
+  ];
+  const runCommand = (id: string) => {
+    switch (id) {
+      case "new-note":
+        setNewNoteOpen(true);
+        break;
+      case "commit":
+        setCommitOpen(true);
+        break;
+      case "toggle-view":
+        setView((v) => {
+          const next = v === "graph" ? "editor" : "graph";
+          if (next === "graph") void actions.loadGraph();
+          return next;
+        });
+        break;
+      case "open-settings":
+        setSettingsOpen(true);
+        break;
+      case "toggle-editor-mode":
+        actions.setSettings({
+          editorMode: editorMode === "livepreview" ? "source" : "livepreview",
+        });
+        break;
+    }
+    setPaletteOpen(false);
+  };
 
   return (
     <>
@@ -91,7 +145,7 @@ export default function App() {
               uncommitted={uncommitted}
               lastCommit={lastCommit}
               committing={committing}
-              onCommit={actions.commitManual}
+              onRequestCommit={() => setCommitOpen(true)}
             />
           </div>
         }
@@ -100,7 +154,7 @@ export default function App() {
             paths={notePaths}
             activePath={activePath}
             onOpen={actions.openNote}
-            onNew={actions.createNote}
+            onRequestNew={() => setNewNoteOpen(true)}
             onDelete={actions.deleteNote}
           />
         }
@@ -152,6 +206,29 @@ export default function App() {
         onOpenChange={setSettingsOpen}
         settings={settings}
         onChange={actions.setSettings}
+      />
+      <NewNoteDialog
+        open={newNoteOpen}
+        onOpenChange={setNewNoteOpen}
+        onCreate={actions.createNote}
+      />
+      <CommitDialog
+        open={commitOpen}
+        onOpenChange={setCommitOpen}
+        committing={committing}
+        onCommit={actions.commitManual}
+      />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={COMMANDS}
+        notes={notePaths}
+        onRunCommand={runCommand}
+        onOpenNote={(p) => {
+          void actions.openNote(p);
+          setView("editor");
+          setPaletteOpen(false);
+        }}
       />
     </>
   );
