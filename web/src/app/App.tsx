@@ -10,6 +10,11 @@ import { SearchBar } from "../components/SearchBar";
 import { SearchResults } from "../components/SearchResults";
 import { CommitBar } from "../components/CommitBar";
 import { ErrorToast } from "../components/ErrorToast";
+import { NoticeToast } from "../components/NoticeToast";
+import {
+  toPaletteCommands,
+  parsePluginCommandId,
+} from "../components/plugins/pluginCommands";
 import { IconButton } from "../components/ui/IconButton";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { NewNoteDialog } from "../components/NewNoteDialog";
@@ -92,6 +97,8 @@ export default function App() {
   const openNotes = useCairn((s) => s.openNotes);
   const tags = useCairn((s) => s.tags);
   const activeTag = useCairn((s) => s.activeTag);
+  const plugins = useCairn((s) => s.plugins);
+  const notice = useCairn((s) => s.notice);
   const [view, setView] = useState<"editor" | "graph">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newNoteOpen, setNewNoteOpen] = useState(false);
@@ -106,17 +113,24 @@ export default function App() {
     return <OpenCairn onOpen={() => void actions.openCairn()} />;
   }
 
-  const COMMANDS: PaletteCommand[] = COMMAND_DEFS.filter(
-    (d) => d.id !== "open-palette",
-  ).map((d) => {
-    const eff = effectiveBinding(d.id, overrides);
-    return {
-      id: d.id,
-      label: d.label,
-      hint: eff ? formatChord(eff, IS_MAC) : undefined,
-    };
-  });
+  const COMMANDS: PaletteCommand[] = [
+    ...COMMAND_DEFS.filter((d) => d.id !== "open-palette").map((d) => {
+      const eff = effectiveBinding(d.id, overrides);
+      return {
+        id: d.id,
+        label: d.label,
+        hint: eff ? formatChord(eff, IS_MAC) : undefined,
+      };
+    }),
+    ...toPaletteCommands(plugins),
+  ];
   const runCommand = (id: string) => {
+    const pluginCmd = parsePluginCommandId(id);
+    if (pluginCmd) {
+      void actions.invokePlugin(pluginCmd.plugin, pluginCmd.command);
+      setPaletteOpen(false);
+      return;
+    }
     switch (id) {
       case "open-palette":
         setPaletteOpen((o) => !o);
@@ -287,6 +301,7 @@ export default function App() {
         backlinks={<Backlinks paths={backlinks} onOpen={actions.openNote} />}
       />
       <ErrorToast message={error} onDismiss={actions.dismissError} />
+      <NoticeToast message={notice} onDismiss={actions.dismissNotice} />
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -297,6 +312,7 @@ export default function App() {
           setOverrides(o);
           saveOverrides(o);
         }}
+        plugins={plugins}
       />
       <NewNoteDialog
         open={newNoteOpen}
