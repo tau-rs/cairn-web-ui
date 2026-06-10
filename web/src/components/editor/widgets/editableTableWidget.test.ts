@@ -17,7 +17,11 @@ function mountWidget() {
   });
   const press = (init: KeyboardEventInit) =>
     cell.dispatchEvent(
-      new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }),
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      }),
     );
   return { cell, press, reachedEditor: () => reachedEditor };
 }
