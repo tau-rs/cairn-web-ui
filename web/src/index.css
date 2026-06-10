@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+/* Keep the existing JS theme/plugins (Tailwind v4 loads a v3-style config). */
+@config "../tailwind.config.ts";
 
 @layer base {
   body {
