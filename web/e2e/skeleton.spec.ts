@@ -349,3 +349,38 @@ test("folder tree: nested note shows under its folder; collapse hides it; folder
   await sidebar.getByRole("button", { name: "new note in projects" }).click();
   await expect(page.getByPlaceholder("notes/idea.md")).toHaveValue("projects/");
 });
+
+test("keyboard shortcuts: rebind Open Settings, use it, and persist", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar.getByText("index", { exact: true })).toBeVisible();
+
+  // Open Settings via the gear, then rebind "Open Settings" to a free chord.
+  await page.getByLabel("Settings").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Keyboard shortcuts")).toBeVisible();
+  await dialog.getByRole("button", { name: "rebind Open Settings" }).click();
+  await dialog
+    .getByLabel("press keys for Open Settings")
+    .press("Control+Shift+S"); // Mod+Shift+S — unused by defaults
+  // Close the dialog.
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // The new chord reopens Settings.
+  await page.keyboard.press("Control+Shift+S");
+  await expect(
+    page.getByRole("dialog").getByText("Keyboard shortcuts"),
+  ).toBeVisible();
+
+  // Persisted across reload.
+  await page.reload();
+  await page.getByLabel("Settings").click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "rebind Open Settings" }),
+  ).toHaveText(/⇧S$/);
+});

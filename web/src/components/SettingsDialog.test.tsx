@@ -13,6 +13,8 @@ describe("SettingsDialog", () => {
         onOpenChange={onOpenChange}
         settings={DEFAULT_SETTINGS}
         onChange={vi.fn()}
+        keybindingOverrides={{}}
+        onKeybindingsChange={vi.fn()}
       />,
     );
     expect(screen.getByText(/idle auto-commit/i)).toBeInTheDocument();
