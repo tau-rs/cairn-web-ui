@@ -2,6 +2,8 @@ import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { Settings } from "./Settings";
 import { KeyboardShortcuts } from "./shortcuts/KeyboardShortcuts";
+import { PluginsPanel } from "./plugins/PluginsPanel";
+import type { PluginSummary } from "../contract";
 import type { Overrides } from "./shortcuts/commands";
 import type { Settings as SettingsType } from "../store/store";
 
@@ -12,6 +14,7 @@ export function SettingsDialog({
   onChange,
   keybindingOverrides,
   onKeybindingsChange,
+  plugins,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -19,6 +22,7 @@ export function SettingsDialog({
   onChange: (patch: Partial<SettingsType>) => void;
   keybindingOverrides: Overrides;
   onKeybindingsChange: (o: Overrides) => void;
+  plugins: PluginSummary[];
 }) {
   return (
     <Modal open={open} onClose={() => onOpenChange(false)} title="Settings">
@@ -28,6 +32,8 @@ export function SettingsDialog({
         overrides={keybindingOverrides}
         onChange={onKeybindingsChange}
       />
+      <div className="my-3 border-t border-border" />
+      <PluginsPanel plugins={plugins} />
       <div className="mt-3 flex justify-end">
         <Button variant="secondary" onClick={() => onOpenChange(false)}>
           Done
