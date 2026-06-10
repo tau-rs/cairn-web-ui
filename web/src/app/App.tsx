@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { GraphView } from "../components/GraphView";
 import { Shell } from "../components/Shell";
-import { NoteList } from "../components/NoteList";
+import { FolderTree } from "../components/tree/FolderTreeView";
 import { Editor } from "../components/Editor";
 import { TabStrip } from "../components/tabs/TabStrip";
 import { Backlinks } from "../components/Backlinks";
@@ -70,6 +70,7 @@ export default function App() {
   const [view, setView] = useState<"editor" | "graph">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [newNoteInitial, setNewNoteInitial] = useState("");
   const [commitOpen, setCommitOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Store action functions are stable for the store's lifetime (Zustand never
@@ -91,6 +92,7 @@ export default function App() {
   const runCommand = (id: string) => {
     switch (id) {
       case "new-note":
+        setNewNoteInitial("");
         setNewNoteOpen(true);
         break;
       case "commit":
@@ -173,12 +175,19 @@ export default function App() {
           </div>
         }
         list={
-          <NoteList
+          <FolderTree
             paths={notePaths}
             activePath={activePath}
             onOpen={actions.openNote}
-            onRequestNew={() => setNewNoteOpen(true)}
             onDelete={actions.deleteNote}
+            onRequestNew={() => {
+              setNewNoteInitial("");
+              setNewNoteOpen(true);
+            }}
+            onRequestNewInFolder={(folder) => {
+              setNewNoteInitial(folder + "/");
+              setNewNoteOpen(true);
+            }}
           />
         }
         editor={
@@ -246,6 +255,7 @@ export default function App() {
       <NewNoteDialog
         open={newNoteOpen}
         onOpenChange={setNewNoteOpen}
+        initialPath={newNoteInitial}
         onCreate={actions.createNote}
       />
       <CommitDialog

@@ -46,8 +46,21 @@ describe("NewNoteDialog", () => {
     expect(input).toHaveValue("draft.md");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCreate).not.toHaveBeenCalled();
-    // Reopen
+    // Reopen — the field re-seeds to its initial value (empty here).
     act(() => externalSetOpen(true));
     expect(screen.getByPlaceholderText("notes/idea.md")).toHaveValue("");
+  });
+  it("seeds the input from initialPath when opened", () => {
+    render(
+      <NewNoteDialog
+        open={true}
+        initialPath="projects/"
+        onOpenChange={vi.fn()}
+        onCreate={vi.fn()}
+      />,
+    );
+    expect(screen.getByPlaceholderText("notes/idea.md")).toHaveValue(
+      "projects/",
+    );
   });
 });

@@ -2,13 +2,14 @@ import { test, expect } from "@playwright/test";
 
 test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   await page.goto("/");
+  const sidebar = page.locator("aside").first();
 
   // Fixture notes are listed.
-  await expect(page.getByText("index.md")).toBeVisible();
-  await expect(page.getByText("ideas.md")).toBeVisible();
+  await expect(sidebar.getByText("index", { exact: true })).toBeVisible();
+  await expect(sidebar.getByText("ideas", { exact: true })).toBeVisible();
 
   // Open a note; its backlinks show (index.md links to ideas).
-  await page.getByRole("button", { name: "ideas.md" }).click();
+  await sidebar.getByRole("button", { name: "ideas", exact: true }).click();
   await expect(page.getByText("Backlinks")).toBeVisible();
   await expect(
     page.locator("aside").last().getByRole("button", { name: "index.md" }),
@@ -43,7 +44,7 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   await results.getByRole("button", { name: "fresh.md" }).click();
 
   // ideas.md now has fresh.md as a backlink.
-  await page.getByRole("button", { name: "ideas.md" }).click();
+  await sidebar.getByRole("button", { name: "ideas", exact: true }).click();
   await expect(
     page.locator("aside").last().getByRole("button", { name: "fresh.md" }),
   ).toBeVisible();
@@ -60,7 +61,8 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
 
 test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("ideas.md")).toBeVisible(); // app loaded (mock fixture)
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar.getByText("ideas", { exact: true })).toBeVisible(); // app loaded (mock fixture)
 
   await page.getByRole("button", { name: /^graph$/i }).click();
 
@@ -82,8 +84,9 @@ test("graph local mode: open a note, switch to Local, canvas renders", async ({
   page,
 }) => {
   await page.goto("/");
+  const sidebar = page.locator("aside").first();
   // Open a note so the graph has a root.
-  await page.getByRole("button", { name: "index.md" }).click();
+  await sidebar.getByRole("button", { name: "index", exact: true }).click();
   // Switch to the graph view.
   await page.getByRole("button", { name: /^graph$/i }).click();
   // Toggle to Local — the canvas (now the index.md neighborhood) still renders.
@@ -99,7 +102,8 @@ test("live preview: heading styled, wikilink opens note, source toggle shows raw
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "index.md" }).click();
+  const sidebar = page.locator("aside").first();
+  await sidebar.getByRole("button", { name: "index", exact: true }).click();
 
   // Heading is styled in live preview (the "# " marker is hidden).
   await expect(page.locator(".cm-lp-h1")).toBeVisible();
@@ -117,7 +121,10 @@ test("document live-preview: blocks render, checkbox toggles, code reveals raw",
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const sidebar = page.locator("aside").first();
+  await sidebar
+    .getByRole("button", { name: "kitchensink", exact: true })
+    .click();
 
   // Block elements render in live preview (load-bearing: the StateField-based
   // block table widget must render in a real browser without throwing).
@@ -152,7 +159,10 @@ test("click-to-edit: blockquote, code block, and image reveal raw on click", asy
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const sidebar = page.locator("aside").first();
+  await sidebar
+    .getByRole("button", { name: "kitchensink", exact: true })
+    .click();
   const content = page.locator(".cm-content");
 
   // Blockquote: clicking its text reveals the raw "> " marker.
@@ -174,7 +184,10 @@ test("table editor: click to edit a cell and commit on click-away", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const sidebar = page.locator("aside").first();
+  await sidebar
+    .getByRole("button", { name: "kitchensink", exact: true })
+    .click();
   const content = page.locator(".cm-content");
 
   // Click the rendered table → it becomes editable.
@@ -198,7 +211,10 @@ test("table editor: add a row and a column, commit on click-away", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const sidebar = page.locator("aside").first();
+  await sidebar
+    .getByRole("button", { name: "kitchensink", exact: true })
+    .click();
 
   await page.locator(".cm-lp-table").first().click();
   const rowsBefore = await page
@@ -231,7 +247,10 @@ test("table editor: add a row and a column, commit on click-away", async ({
 
 test("table editor: Tab moves between cells", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "kitchensink.md" }).click();
+  const sidebar = page.locator("aside").first();
+  await sidebar
+    .getByRole("button", { name: "kitchensink", exact: true })
+    .click();
   await page.locator(".cm-lp-table").first().click();
   const cells = page.locator(
     ".cm-lp-table.editing th, .cm-lp-table.editing td",
@@ -246,7 +265,8 @@ test("command palette: ⌘K quick-opens a note and runs a command", async ({
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByText("ideas.md")).toBeVisible(); // app loaded
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar.getByText("ideas", { exact: true })).toBeVisible(); // app loaded
 
   // Open the palette (Control+k works on CI; the app listener accepts meta or ctrl).
   await page.keyboard.press("Control+k");
@@ -271,18 +291,17 @@ test("editor tabs: preview replaces, edit pins, close focuses, reload restores",
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByText("index.md")).toBeVisible(); // app loaded
-
   // Note-list lives in the first aside; scope source clicks there so they
   // don't collide with backlink/tab buttons of the same name.
   const noteList = page.locator("aside").first();
+  await expect(noteList.getByText("index", { exact: true })).toBeVisible(); // app loaded
 
   // Open index → a single preview tab.
-  await noteList.getByRole("button", { name: "index.md" }).click();
+  await noteList.getByRole("button", { name: "index", exact: true }).click();
   await expect(page.getByRole("tab", { name: /index/ })).toBeVisible();
 
   // Open ideas → the preview tab is REPLACED (index tab gone).
-  await noteList.getByRole("button", { name: "ideas.md" }).click();
+  await noteList.getByRole("button", { name: "ideas", exact: true }).click();
   await expect(page.getByRole("tab", { name: /ideas/ })).toBeVisible();
   await expect(page.getByRole("tab", { name: /index/ })).toHaveCount(0);
 
@@ -291,7 +310,7 @@ test("editor tabs: preview replaces, edit pins, close focuses, reload restores",
   await cm.click();
   await page.keyboard.type(" edited");
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 5000 });
-  await noteList.getByRole("button", { name: "todo.md" }).click();
+  await noteList.getByRole("button", { name: "todo", exact: true }).click();
   await expect(page.getByRole("tab", { name: /ideas/ })).toBeVisible();
   await expect(page.getByRole("tab", { name: /todo/ })).toBeVisible();
 
@@ -304,4 +323,29 @@ test("editor tabs: preview replaces, edit pins, close focuses, reload restores",
   await page.reload();
   await expect(page.getByRole("tab", { name: /ideas/ })).toBeVisible();
   await expect(page.getByRole("tab", { name: /todo/ })).toHaveCount(0);
+});
+
+test("folder tree: nested note shows under its folder; collapse hides it; folder + pre-fills", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const sidebar = page.locator("aside").first();
+  await expect(
+    sidebar.getByRole("button", { name: "projects", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("button", { name: "demo", exact: true }),
+  ).toBeVisible();
+
+  // Collapsing the folder hides its child.
+  await sidebar.getByRole("button", { name: "projects", exact: true }).click();
+  await expect(
+    sidebar.getByRole("button", { name: "demo", exact: true }),
+  ).toHaveCount(0);
+
+  // Re-expand, then the folder + opens the dialog pre-filled with "projects/".
+  await sidebar.getByRole("button", { name: "projects", exact: true }).click();
+  await sidebar.getByRole("button", { name: "projects", exact: true }).hover();
+  await sidebar.getByRole("button", { name: "new note in projects" }).click();
+  await expect(page.getByPlaceholder("notes/idea.md")).toHaveValue("projects/");
 });
