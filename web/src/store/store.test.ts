@@ -318,4 +318,60 @@ describe("cairn store", () => {
     await store.getState().openNote("a.md"); // reopen → fetched fresh
     expect(store.getState().activeContents).toBe("changed");
   });
+
+  it("loadTags populates the tag list", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({
+      "a.md": "---\ntags: [rust, ideas]\n---\nx",
+      "b.md": "---\ntags: [rust]\n---\ny",
+    });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    expect(store.getState().tags).toEqual([
+      { tag: "ideas", count: 1 },
+      { tag: "rust", count: 2 },
+    ]);
+  });
+  it("filterByTag fills the results overlay and sets activeTag", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({
+      "a.md": "---\ntags: [rust]\n---\nx",
+      "b.md": "---\ntags: [ideas]\n---\ny",
+    });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().filterByTag("rust");
+    expect(store.getState().searchResults).toEqual(["a.md"]);
+    expect(store.getState().activeTag).toBe("rust");
+  });
+  it("a search clears activeTag; closeSearch clears both", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "---\ntags: [rust]\n---\nx" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().filterByTag("rust");
+    await store.getState().runSearch("a");
+    expect(store.getState().activeTag).toBeNull();
+    store.getState().closeSearch();
+    expect(store.getState().searchResults).toBeNull();
+    expect(store.getState().activeTag).toBeNull();
+  });
+  it("refreshes the tag list on a note event", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "---\ntags: [rust]\n---\nx" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
+    await client.sendCommand({
+      type: "write_note",
+      path: "b.md",
+      contents: "---\ntags: [rust, ideas]\n---\ny",
+    });
+    await vi.waitFor(() =>
+      expect(store.getState().tags).toEqual([
+        { tag: "ideas", count: 1 },
+        { tag: "rust", count: 2 },
+      ]),
+    );
+  });
 });
