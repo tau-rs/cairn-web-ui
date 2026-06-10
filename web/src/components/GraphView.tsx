@@ -93,7 +93,7 @@ export function GraphView(props: {
   const data = localData ?? globalData;
   const adjacency = localAdj ?? globalAdj;
 
-  const fgRef = useRef<ForceGraphMethods<RFNode, GLink>>();
+  const fgRef = useRef<ForceGraphMethods<RFNode, GLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverRef = useRef<string | null>(null);
   const fittedRef = useRef(false);
