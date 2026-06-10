@@ -167,4 +167,39 @@ describe("MockClient", () => {
       paths: ["a.md", "z.md"],
     });
   });
+  it("rename_note moves the note and rewrites [[wikilinks]] when the stem changes", async () => {
+    const c = new MockClient({
+      "a.md": "# A",
+      "x.md": "see [[a]] and [[a|alias]]",
+    });
+    await c.sendCommand({ type: "rename_note", from: "a.md", to: "c.md" });
+    expect(await c.runQuery({ type: "get_note", path: "c.md" })).toEqual({
+      type: "note",
+      contents: "# A",
+    });
+    await expect(
+      c.runQuery({ type: "get_note", path: "a.md" }),
+    ).rejects.toEqual({ type: "not_found", what: "a.md" });
+    expect(await c.runQuery({ type: "get_note", path: "x.md" })).toEqual({
+      type: "note",
+      contents: "see [[c]] and [[c|alias]]",
+    });
+  });
+  it("rename_note keeps links when only the folder changes (stem unchanged)", async () => {
+    const c = new MockClient({ "a.md": "# A", "x.md": "see [[a]]" });
+    await c.sendCommand({ type: "rename_note", from: "a.md", to: "sub/a.md" });
+    expect(await c.runQuery({ type: "get_note", path: "x.md" })).toEqual({
+      type: "note",
+      contents: "see [[a]]",
+    });
+  });
+  it("rename_note errors on a missing source and an existing target", async () => {
+    const c = new MockClient({ "a.md": "x", "b.md": "y" });
+    await expect(
+      c.sendCommand({ type: "rename_note", from: "missing.md", to: "z.md" }),
+    ).rejects.toEqual({ type: "not_found", what: "missing.md" });
+    await expect(
+      c.sendCommand({ type: "rename_note", from: "a.md", to: "b.md" }),
+    ).rejects.toMatchObject({ type: "invalid_request" });
+  });
 });

@@ -142,6 +142,13 @@ export class EditableTableWidget extends WidgetType {
       } else if (e.key === "Escape") {
         e.preventDefault();
         cell.blur(); // focus leaves the table → focusout commit
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
+        // Keep select-all scoped to this cell. Without this the keydown
+        // bubbles to CodeMirror, whose keymap binds Mod-a to a whole-document
+        // selectAll — a subsequent keystroke would then replace the ENTIRE
+        // document (data loss). Stop propagation but NOT the default, so the
+        // browser still selects the cell's own text.
+        e.stopPropagation();
       }
     });
   }

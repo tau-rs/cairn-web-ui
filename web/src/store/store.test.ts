@@ -398,4 +398,35 @@ describe("cairn store", () => {
       ]),
     );
   });
+  it("applyRenames moves an open note's tab + activePath to the new path", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "A", "b.md": "B" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().pinTab("a.md");
+    await store.getState().applyRenames([{ from: "a.md", to: "c.md" }]);
+    expect(store.getState().activePath).toBe("c.md");
+    expect(store.getState().tabs.map((t) => t.path)).toContain("c.md");
+    expect(store.getState().tabs.map((t) => t.path)).not.toContain("a.md");
+    expect(store.getState().openNotes["c.md"]).toBeDefined();
+    expect(store.getState().openNotes["a.md"]).toBeUndefined();
+  });
+  it("applyRenames stops on the first error (no further commands)", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "A" });
+    const spy = vi.spyOn(client, "sendCommand");
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().applyRenames([
+      { from: "missing.md", to: "z.md" },
+      { from: "a.md", to: "y.md" },
+    ]);
+    expect(store.getState().error).toBeTruthy();
+    const renameCalls = spy.mock.calls.filter(
+      ([cmd]) => cmd.type === "rename_note",
+    );
+    expect(renameCalls.length).toBe(1);
+    expect(store.getState().notePaths).toContain("a.md");
+  });
 });
