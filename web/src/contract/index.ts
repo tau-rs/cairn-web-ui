@@ -8,4 +8,6 @@ export type { NoteSummary } from "./NoteSummary";
 export type { TagCount } from "./TagCount";
 export type { GraphEdge } from "./GraphEdge";
 export type { SearchResult } from "./SearchResult";
+export type { PluginSummary } from "./PluginSummary";
+export type { PluginCommandSummary } from "./PluginCommandSummary";
 export { CONTRACT_SOURCE_COMMIT } from "./source";

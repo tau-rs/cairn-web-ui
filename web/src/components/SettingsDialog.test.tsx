@@ -15,6 +15,7 @@ describe("SettingsDialog", () => {
         onChange={vi.fn()}
         keybindingOverrides={{}}
         onKeybindingsChange={vi.fn()}
+        plugins={[]}
       />,
     );
     expect(screen.getByText(/idle auto-commit/i)).toBeInTheDocument();
