@@ -382,5 +382,6 @@ test("keyboard shortcuts: rebind Open Settings, use it, and persist", async ({
     page
       .getByRole("dialog")
       .getByRole("button", { name: "rebind Open Settings" }),
-  ).toHaveText(/⇧S$/);
+    // Renders "⌘⇧S" on macOS, "Ctrl+Shift+S" elsewhere — accept either.
+  ).toHaveText(/(⇧S|Shift\+S)$/);
 });
