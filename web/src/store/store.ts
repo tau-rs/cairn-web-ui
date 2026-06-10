@@ -14,6 +14,7 @@ import {
 } from "../components/tabs/tabsModel";
 import { loadTabs, saveTabs } from "../components/tabs/tabsPersistence";
 import type { SearchSnippet } from "../components/searchHighlight";
+import type { Rename } from "../components/tree/treeMoves";
 
 export interface Settings {
   autosaveMs: number;
@@ -71,6 +72,7 @@ export interface CairnState {
   saveNote(path: string): Promise<void>;
   createNote(path: string): Promise<void>;
   deleteNote(path: string): Promise<void>;
+  applyRenames(ops: Rename[]): Promise<void>;
   selectTab(path: string): void;
   closeTab(path: string): void;
   closeActiveTab(): void;
@@ -347,6 +349,33 @@ export function createCairnStore(
         } catch (err) {
           set({ error: errMsg(err) });
         }
+      },
+
+      async applyRenames(ops) {
+        for (const { from, to } of ops) {
+          try {
+            await client.sendCommand({ type: "rename_note", from, to });
+          } catch (err) {
+            set({ error: errMsg(err) });
+            break;
+          }
+          set((s) => {
+            const openNotes = { ...s.openNotes };
+            if (from in openNotes) {
+              openNotes[to] = openNotes[from];
+              delete openNotes[from];
+            }
+            return {
+              openNotes,
+              tabs: s.tabs.map((t) =>
+                t.path === from ? { ...t, path: to } : t,
+              ),
+              activePath: s.activePath === from ? to : s.activePath,
+            };
+          });
+        }
+        persist();
+        if (get().activePath) void get().refreshBacklinks();
       },
 
       selectTab(path) {
