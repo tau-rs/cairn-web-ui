@@ -7,6 +7,7 @@ import type {
   ContractError,
   NoteSummary,
   GraphEdge,
+  SearchResult,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import { extractLinks, stem } from "./wikilink";
@@ -124,15 +125,31 @@ export class MockClient implements CairnClient {
       }
       case "search": {
         const needle = q.query.toLowerCase();
-        const paths = [...this.notes.entries()]
-          .filter(
-            ([path, raw]) =>
-              splitFrontmatter(raw).body.toLowerCase().includes(needle) ||
-              path.toLowerCase().includes(needle),
-          )
-          .map(([path]) => path)
-          .sort();
-        return { type: "paths", paths };
+        const results: SearchResult[] = [];
+        for (const [path, raw] of this.notes) {
+          const body = splitFrontmatter(raw).body;
+          const lowerBody = body.toLowerCase();
+          const idx = lowerBody.indexOf(needle);
+          const pathMatch = path.toLowerCase().includes(needle);
+          if (idx === -1 && !pathMatch) continue;
+          let snippet: string;
+          let highlights: [number, number][];
+          if (idx !== -1) {
+            const start = Math.max(0, idx - 20);
+            const end = Math.min(body.length, idx + needle.length + 20);
+            snippet = body.slice(start, end);
+            highlights = [[idx - start, idx - start + needle.length]];
+          } else {
+            snippet = body.slice(0, 40);
+            highlights = [];
+          }
+          const score = lowerBody.split(needle).length - 1;
+          results.push({ path, score, snippet, highlights });
+        }
+        results.sort((a, b) =>
+          a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+        );
+        return { type: "search_results", results };
       }
       case "get_backlinks": {
         const byStem = this.stemIndex();
