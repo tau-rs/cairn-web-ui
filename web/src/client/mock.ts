@@ -186,6 +186,25 @@ export class MockClient implements CairnClient {
         );
         return { type: "graph", nodes, edges };
       }
+      case "list_tags": {
+        const counts = new Map<string, number>();
+        for (const raw of this.notes.values()) {
+          for (const tag of extractTags(raw)) {
+            counts.set(tag, (counts.get(tag) ?? 0) + 1);
+          }
+        }
+        const tags = [...counts.entries()]
+          .map(([tag, count]) => ({ tag, count }))
+          .sort((a, b) => (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0));
+        return { type: "tags", tags };
+      }
+      case "notes_by_tag": {
+        const paths = [...this.notes.entries()]
+          .filter(([, raw]) => extractTags(raw).includes(q.tag))
+          .map(([path]) => path)
+          .sort();
+        return { type: "paths", paths };
+      }
       default: {
         throw new Error(`mock: unsupported query ${q.type}`);
       }

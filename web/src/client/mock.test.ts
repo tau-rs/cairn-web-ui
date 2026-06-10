@@ -131,6 +131,32 @@ describe("MockClient", () => {
       "a.md": "---\ntags: [x, y]\n---\nbody #z",
       "b.md": "plain",
     });
-    expect(await c.noteTags()).toEqual({ "a.md": ["x", "y", "z"], "b.md": [] });
+    expect(await c.noteTags()).toEqual({ "a.md": ["x", "y"], "b.md": [] });
+  });
+
+  it("list_tags counts distinct frontmatter tags, sorted", async () => {
+    const c = new MockClient({
+      "a.md": "---\ntags: [rust, ideas]\n---\nx",
+      "b.md": "---\ntags: [rust]\n---\ny",
+      "c.md": "no tags",
+    });
+    expect(await c.runQuery({ type: "list_tags" })).toEqual({
+      type: "tags",
+      tags: [
+        { tag: "ideas", count: 1 },
+        { tag: "rust", count: 2 },
+      ],
+    });
+  });
+  it("notes_by_tag returns matching paths, sorted", async () => {
+    const c = new MockClient({
+      "a.md": "---\ntags: [rust]\n---\nx",
+      "b.md": "---\ntags: [ideas]\n---\ny",
+      "z.md": "---\ntags: [rust]\n---\nz",
+    });
+    expect(await c.runQuery({ type: "notes_by_tag", tag: "rust" })).toEqual({
+      type: "paths",
+      paths: ["a.md", "z.md"],
+    });
   });
 });
