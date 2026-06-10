@@ -42,7 +42,7 @@ jobs:
         run: |
           echo "## Mutation report" >> "$GITHUB_STEP_SUMMARY"
           echo "HTML report uploaded as an artifact (reports/mutation/)." >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutation-report
