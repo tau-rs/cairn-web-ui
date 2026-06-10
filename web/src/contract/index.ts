@@ -5,5 +5,7 @@ export type { CommandResponse } from "./CommandResponse";
 export type { QueryResponse } from "./QueryResponse";
 export type { ContractError } from "./ContractError";
 export type { NoteSummary } from "./NoteSummary";
+export type { TagCount } from "./TagCount";
 export type { GraphEdge } from "./GraphEdge";
+export type { SearchResult } from "./SearchResult";
 export { CONTRACT_SOURCE_COMMIT } from "./source";

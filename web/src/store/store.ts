@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient } from "../client/types";
-import type { ContractError } from "../contract";
+import type { ContractError, TagCount } from "../contract";
 import { debounce, type Debounced } from "../util/timer";
 import {
   openOrPreview,
@@ -13,6 +13,7 @@ import {
   type TabsState,
 } from "../components/tabs/tabsModel";
 import { loadTabs, saveTabs } from "../components/tabs/tabsPersistence";
+import type { SearchSnippet } from "../components/searchHighlight";
 
 export interface Settings {
   autosaveMs: number;
@@ -52,9 +53,12 @@ export interface CairnState {
   committing: boolean;
   query: string;
   searchResults: string[] | null;
+  searchSnippets: Record<string, SearchSnippet> | null;
   backlinks: string[];
   graph: { nodes: string[]; edges: { from: string; to: string }[] } | null;
   noteTags: Record<string, string[]>;
+  tags: TagCount[];
+  activeTag: string | null;
   settings: Settings;
   error: string | null;
 
@@ -74,6 +78,8 @@ export interface CairnState {
   jumpToTab(n: number): void;
   pinTab(path: string): void;
   runSearch(query: string): Promise<void>;
+  loadTags(): Promise<void>;
+  filterByTag(tag: string): Promise<void>;
   setQuery(query: string): void;
   closeSearch(): void;
   refreshBacklinks(): Promise<void>;
@@ -163,9 +169,12 @@ export function createCairnStore(
       committing: false,
       query: "",
       searchResults: null,
+      searchSnippets: null,
       backlinks: [],
       graph: null,
       noteTags: {},
+      tags: [],
+      activeTag: null,
       settings: DEFAULT_SETTINGS,
       error: null,
 
@@ -178,7 +187,11 @@ export function createCairnStore(
         client.subscribe((e) => {
           if (e.type === "note_changed" || e.type === "note_deleted") {
             void get().refreshNotePaths();
-            if (get().searchResults !== null) void get().runSearch(get().query);
+            void get().loadTags();
+            const tag = get().activeTag;
+            if (tag) void get().filterByTag(tag);
+            else if (get().searchResults !== null)
+              void get().runSearch(get().query);
             if (get().activePath) void get().refreshBacklinks();
             if (get().graph !== null) void get().loadGraph();
           } else if (e.type === "committed") {
@@ -187,6 +200,7 @@ export function createCairnStore(
         });
         if (path !== null) {
           await get().refreshNotePaths();
+          await get().loadTags();
           // Restore persisted pinned tabs; skip any that no longer load.
           const persisted = loadTabs(get().notePaths);
           for (const p of persisted.pinned) {
@@ -217,6 +231,9 @@ export function createCairnStore(
             dirty: false,
             saving: false,
             backlinks: [],
+            tags: [],
+            activeTag: null,
+            searchSnippets: null,
           });
           await get().refreshNotePaths();
           get().rearmInterval();
@@ -377,7 +394,42 @@ export function createCairnStore(
       async runSearch(query) {
         try {
           const res = await client.runQuery({ type: "search", query });
-          if (res.type === "paths") set({ query, searchResults: res.paths });
+          if (res.type === "search_results") {
+            set({
+              query,
+              searchResults: res.results.map((r) => r.path),
+              searchSnippets: Object.fromEntries(
+                res.results.map((r) => [
+                  r.path,
+                  { snippet: r.snippet, highlights: r.highlights },
+                ]),
+              ),
+              activeTag: null,
+            });
+          }
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      async loadTags() {
+        try {
+          const res = await client.runQuery({ type: "list_tags" });
+          if (res.type === "tags") set({ tags: res.tags });
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      async filterByTag(tag) {
+        try {
+          const res = await client.runQuery({ type: "notes_by_tag", tag });
+          if (res.type === "paths")
+            set({
+              searchResults: res.paths,
+              searchSnippets: null,
+              activeTag: tag,
+            });
         } catch (err) {
           set({ error: errMsg(err) });
         }
@@ -388,7 +440,7 @@ export function createCairnStore(
       },
 
       closeSearch() {
-        set({ searchResults: null });
+        set({ searchResults: null, searchSnippets: null, activeTag: null });
       },
 
       async refreshBacklinks() {

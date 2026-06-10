@@ -318,4 +318,84 @@ describe("cairn store", () => {
     await store.getState().openNote("a.md"); // reopen → fetched fresh
     expect(store.getState().activeContents).toBe("changed");
   });
+
+  it("loadTags populates the tag list", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({
+      "a.md": "---\ntags: [rust, ideas]\n---\nx",
+      "b.md": "---\ntags: [rust]\n---\ny",
+    });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    expect(store.getState().tags).toEqual([
+      { tag: "ideas", count: 1 },
+      { tag: "rust", count: 2 },
+    ]);
+  });
+  it("filterByTag fills the results overlay and sets activeTag", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({
+      "a.md": "---\ntags: [rust]\n---\nx",
+      "b.md": "---\ntags: [ideas]\n---\ny",
+    });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().filterByTag("rust");
+    expect(store.getState().searchResults).toEqual(["a.md"]);
+    expect(store.getState().activeTag).toBe("rust");
+  });
+  it("a search clears activeTag; closeSearch clears both", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "---\ntags: [rust]\n---\nx" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().filterByTag("rust");
+    await store.getState().runSearch("a");
+    expect(store.getState().activeTag).toBeNull();
+    store.getState().closeSearch();
+    expect(store.getState().searchResults).toBeNull();
+    expect(store.getState().activeTag).toBeNull();
+  });
+  it("runSearch stores ranked paths + snippets keyed by path", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "the quick brown fox" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().runSearch("quick");
+    expect(store.getState().searchResults).toEqual(["a.md"]);
+    expect(store.getState().searchSnippets?.["a.md"].snippet).toContain(
+      "quick",
+    );
+    expect(store.getState().searchSnippets?.["a.md"].highlights.length).toBe(1);
+  });
+  it("filterByTag leaves searchSnippets null; closeSearch clears it", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "---\ntags: [rust]\n---\nx" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().filterByTag("rust");
+    expect(store.getState().searchSnippets).toBeNull();
+    await store.getState().runSearch("x");
+    store.getState().closeSearch();
+    expect(store.getState().searchSnippets).toBeNull();
+    expect(store.getState().searchResults).toBeNull();
+  });
+  it("refreshes the tag list on a note event", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "---\ntags: [rust]\n---\nx" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
+    await client.sendCommand({
+      type: "write_note",
+      path: "b.md",
+      contents: "---\ntags: [rust, ideas]\n---\ny",
+    });
+    await vi.waitFor(() =>
+      expect(store.getState().tags).toEqual([
+        { tag: "ideas", count: 1 },
+        { tag: "rust", count: 2 },
+      ]),
+    );
+  });
 });

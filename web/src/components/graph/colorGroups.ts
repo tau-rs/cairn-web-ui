@@ -35,17 +35,19 @@ export function saveColorGroups(groups: ColorGroup[]): void {
 
 /** First group that matches the node → its color; else null.
  *  path: case-insensitive substring of the path. tag: exact (case-insensitive)
- *  membership in the note's tags (tags are already lowercased by extractTags). */
+ *  membership in the note's tags (the real engine preserves tag case, so compare
+ *  case-insensitively). */
 export function matchGroupColor(
   path: string,
   tags: string[],
   groups: ColorGroup[],
 ): string | null {
   const lowerPath = path.toLowerCase();
+  const lowerTags = tags.map((t) => t.toLowerCase());
   for (const g of groups) {
     const q = g.query.trim().toLowerCase();
     if (!q) continue;
-    if (g.kind === "path" ? lowerPath.includes(q) : tags.includes(q)) {
+    if (g.kind === "path" ? lowerPath.includes(q) : lowerTags.includes(q)) {
       return g.color;
     }
   }

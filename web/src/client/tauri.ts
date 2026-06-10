@@ -32,9 +32,10 @@ export class TauriClient implements CairnClient {
       unlisten?.();
     };
   }
-  noteTags(): Promise<Record<string, string[]>> {
-    // Stub: the engine does not expose tags yet. Swap for a query when it does.
-    return Promise.resolve({});
+  async noteTags(): Promise<Record<string, string[]>> {
+    const res = await this.runQuery({ type: "list_notes" });
+    if (res.type !== "notes") return {};
+    return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
   }
 }
 

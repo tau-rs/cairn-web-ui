@@ -2,8 +2,10 @@
 export const FIXTURE_NOTES: Record<string, string> = {
   "index.md": "# Index\n\nStart at [[ideas]] or the [[todo]] list.",
   "ideas.md": "# Ideas\n\nA thought that links back to [[index]].",
-  "todo.md": "# Todo\n\n- review [[ideas]]\n- nothing links here yet",
-  "projects/demo.md": "# Demo\n\nA standalone nested note.",
+  "todo.md":
+    "---\ntags: [rust]\n---\n# Todo\n\n- review [[ideas]]\n- nothing links here yet",
+  "projects/demo.md":
+    "---\ntags: [rust, ideas]\n---\n# Demo\n\nA standalone nested note.",
   "kitchensink.md": `# Kitchen sink
 
 A paragraph with **bold** text and a [[ideas]] link.
