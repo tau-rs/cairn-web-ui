@@ -3,6 +3,16 @@ import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient } from "../client/types";
 import type { ContractError } from "../contract";
 import { debounce, type Debounced } from "../util/timer";
+import {
+  openOrPreview,
+  pinTab as pinTabModel,
+  closeTab as closeTabModel,
+  cycle as cycleModel,
+  jumpTo as jumpToModel,
+  type Tab,
+  type TabsState,
+} from "../components/tabs/tabsModel";
+import { loadTabs, saveTabs } from "../components/tabs/tabsPersistence";
 
 export interface Settings {
   autosaveMs: number;
@@ -22,9 +32,17 @@ export const DEFAULT_SETTINGS: Settings = {
   editorMode: "livepreview",
 };
 
+export interface NoteBuffer {
+  contents: string;
+  dirty: boolean;
+  saving: boolean;
+}
+
 export interface CairnState {
   cairnPath: string | null;
   notePaths: string[];
+  openNotes: Record<string, NoteBuffer>;
+  tabs: Tab[];
   activePath: string | null;
   activeContents: string;
   dirty: boolean;
@@ -46,8 +64,15 @@ export interface CairnState {
   openNote(path: string): Promise<void>;
   editBuffer(contents: string): void;
   saveActive(): Promise<void>;
+  saveNote(path: string): Promise<void>;
   createNote(path: string): Promise<void>;
   deleteNote(path: string): Promise<void>;
+  selectTab(path: string): void;
+  closeTab(path: string): void;
+  closeActiveTab(): void;
+  cycleTab(delta: 1 | -1): void;
+  jumpToTab(n: number): void;
+  pinTab(path: string): void;
   runSearch(query: string): Promise<void>;
   setQuery(query: string): void;
   closeSearch(): void;
@@ -65,251 +90,375 @@ export function createCairnStore(
   client: CairnClient,
   host: CairnHost = alwaysOpenHost,
 ): StoreApi<CairnState> {
-  let autosave: Debounced | null = null;
+  const autosaves = new Map<string, Debounced>();
   let idleCommit: Debounced | null = null;
   let started = false;
   let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
-  const store = createStore<CairnState>()((set, get) => ({
-    cairnPath: null,
-    notePaths: [],
-    activePath: null,
-    activeContents: "",
-    dirty: false,
-    saving: false,
-    uncommitted: false,
-    lastCommit: null,
-    committing: false,
-    query: "",
-    searchResults: null,
-    backlinks: [],
-    graph: null,
-    noteTags: {},
-    settings: DEFAULT_SETTINGS,
-    error: null,
+  const store = createStore<CairnState>()((set, get) => {
+    const tabsState = (): TabsState => ({
+      tabs: get().tabs,
+      activePath: get().activePath,
+    });
 
-    async init() {
-      if (started) return;
-      started = true;
-      const path = await host.currentCairn();
-      set({ cairnPath: path });
-      // Subscribe once, for the store's lifetime — NOT inside the `path !== null`
-      // gate below. The event channel is global (not per-cairn), and openCairn()
-      // relies on this subscription already being live. Don't move it.
-      client.subscribe((e) => {
-        if (e.type === "note_changed" || e.type === "note_deleted") {
-          void get().refreshNotePaths();
-          if (get().searchResults !== null) void get().runSearch(get().query);
-          if (get().activePath) void get().refreshBacklinks();
-          if (get().graph !== null) void get().loadGraph();
-        } else if (e.type === "committed") {
-          set({ lastCommit: e.commit, uncommitted: false });
-        }
-      });
-      if (path !== null) {
-        await get().refreshNotePaths();
-        get().rearmInterval();
-      }
-    },
+    const persist = () => saveTabs(tabsState());
 
-    async openCairn() {
-      try {
-        const path = await host.openCairn();
-        if (path === null) return; // cancelled
-        set({
-          cairnPath: path,
-          activePath: null,
-          activeContents: "",
-          backlinks: [],
-        });
-        await get().refreshNotePaths();
-        get().rearmInterval();
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-    },
-
-    async refreshNotePaths() {
-      try {
-        const res = await client.runQuery({ type: "list_notes" });
-        if (res.type === "notes")
-          set({ notePaths: res.notes.map((n) => n.path) });
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-    },
-
-    async openNote(path) {
-      try {
-        const res = await client.runQuery({ type: "get_note", path });
-        if (res.type === "note") {
-          set({ activePath: path, activeContents: res.contents, dirty: false });
-          await get().refreshBacklinks();
-        }
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-    },
-
-    editBuffer(contents) {
-      set({ activeContents: contents, dirty: true });
-      autosave?.cancel();
-      autosave = debounce(
-        () => void get().saveActive(),
-        get().settings.autosaveMs,
-      );
-      autosave();
-      const s = get().settings;
-      if (s.idleAutoCommit) {
-        idleCommit?.cancel();
-        idleCommit = debounce(
-          () => void get().autoCommit(),
-          s.idleAutoCommitMs,
-        );
-        idleCommit();
-      }
-    },
-
-    async saveActive() {
-      const path = get().activePath;
-      if (!path || !get().dirty) return;
-      const snapshot = get().activeContents;
-      set({ saving: true });
-      try {
-        await client.sendCommand({
-          type: "write_note",
-          path,
-          contents: snapshot,
-        });
-        set((s) => ({
+    // Write a note's buffer; if it's the active note, keep the top-level mirror
+    // (activeContents/dirty/saving) in sync so existing consumers are unchanged.
+    const setBuffer = (path: string, patch: Partial<NoteBuffer>) => {
+      set((s) => {
+        const cur = s.openNotes[path] ?? {
+          contents: "",
+          dirty: false,
           saving: false,
-          uncommitted: true,
-          // Stay dirty if the note changed during the write (the pending debounce
-          // will save it); don't touch dirty if the user navigated to another note.
-          dirty:
-            s.activePath === path ? s.activeContents !== snapshot : s.dirty,
-        }));
-      } catch (err) {
-        set({ saving: false, error: errMsg(err) });
-      }
-    },
+        };
+        const buf = { ...cur, ...patch };
+        const mirror =
+          s.activePath === path
+            ? {
+                activeContents: buf.contents,
+                dirty: buf.dirty,
+                saving: buf.saving,
+              }
+            : {};
+        return { openNotes: { ...s.openNotes, [path]: buf }, ...mirror };
+      });
+    };
 
-    async createNote(path) {
-      try {
-        await client.sendCommand({ type: "write_note", path, contents: "" });
-        await get().openNote(path);
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-    },
+    // Apply a new tabs/active selection and swap the active-note mirror.
+    const applyTabs = (next: TabsState) => {
+      const buf = next.activePath
+        ? get().openNotes[next.activePath]
+        : undefined;
+      set({
+        tabs: next.tabs,
+        activePath: next.activePath,
+        activeContents: buf?.contents ?? "",
+        dirty: buf?.dirty ?? false,
+        saving: buf?.saving ?? false,
+      });
+    };
 
-    async deleteNote(path) {
-      try {
-        await client.sendCommand({ type: "delete_note", path });
-        if (get().activePath === path)
+    const dropNote = (path: string) => {
+      autosaves.get(path)?.cancel();
+      autosaves.delete(path);
+      set((s) => {
+        const rest = { ...s.openNotes };
+        delete rest[path];
+        return { openNotes: rest };
+      });
+    };
+
+    return {
+      cairnPath: null,
+      notePaths: [],
+      openNotes: {},
+      tabs: [],
+      activePath: null,
+      activeContents: "",
+      dirty: false,
+      saving: false,
+      uncommitted: false,
+      lastCommit: null,
+      committing: false,
+      query: "",
+      searchResults: null,
+      backlinks: [],
+      graph: null,
+      noteTags: {},
+      settings: DEFAULT_SETTINGS,
+      error: null,
+
+      async init() {
+        if (started) return;
+        started = true;
+        const path = await host.currentCairn();
+        set({ cairnPath: path });
+        // Subscribe once, for the store's lifetime — NOT inside the path gate.
+        client.subscribe((e) => {
+          if (e.type === "note_changed" || e.type === "note_deleted") {
+            void get().refreshNotePaths();
+            if (get().searchResults !== null) void get().runSearch(get().query);
+            if (get().activePath) void get().refreshBacklinks();
+            if (get().graph !== null) void get().loadGraph();
+          } else if (e.type === "committed") {
+            set({ lastCommit: e.commit, uncommitted: false });
+          }
+        });
+        if (path !== null) {
+          await get().refreshNotePaths();
+          // Restore persisted pinned tabs; skip any that no longer load.
+          const persisted = loadTabs(get().notePaths);
+          for (const p of persisted.pinned) {
+            try {
+              await get().openNote(p);
+              get().pinTab(p);
+            } catch {
+              /* skip a tab that won't load */
+            }
+          }
+          if (persisted.activePath && get().openNotes[persisted.activePath]) {
+            get().selectTab(persisted.activePath);
+          }
+          get().rearmInterval();
+        }
+      },
+
+      async openCairn() {
+        try {
+          const path = await host.openCairn();
+          if (path === null) return; // cancelled
           set({
+            cairnPath: path,
+            openNotes: {},
+            tabs: [],
             activePath: null,
             activeContents: "",
-            backlinks: [],
             dirty: false,
             saving: false,
+            backlinks: [],
           });
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-    },
+          await get().refreshNotePaths();
+          get().rearmInterval();
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
 
-    async runSearch(query) {
-      try {
-        const res = await client.runQuery({ type: "search", query });
-        if (res.type === "paths") set({ query, searchResults: res.paths });
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-    },
+      async refreshNotePaths() {
+        try {
+          const res = await client.runQuery({ type: "list_notes" });
+          if (res.type === "notes")
+            set({ notePaths: res.notes.map((n) => n.path) });
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
 
-    setQuery(query) {
-      set({ query });
-    },
+      async openNote(path) {
+        try {
+          if (!get().openNotes[path]) {
+            const res = await client.runQuery({ type: "get_note", path });
+            if (res.type !== "note") return;
+            set((s) => ({
+              openNotes: {
+                ...s.openNotes,
+                [path]: { contents: res.contents, dirty: false, saving: false },
+              },
+            }));
+          }
+          applyTabs(openOrPreview(tabsState(), path));
+          persist();
+          await get().refreshBacklinks();
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
 
-    closeSearch() {
-      set({ searchResults: null });
-    },
-
-    async refreshBacklinks() {
-      const path = get().activePath;
-      if (!path) return set({ backlinks: [] });
-      try {
-        const res = await client.runQuery({ type: "get_backlinks", path });
-        if (res.type === "paths") set({ backlinks: res.paths });
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-    },
-
-    async loadGraph() {
-      try {
-        const res = await client.runQuery({ type: "get_graph" });
-        if (res.type === "graph")
-          set({ graph: { nodes: res.nodes, edges: res.edges } });
-      } catch (err) {
-        set({ error: errMsg(err) });
-      }
-      try {
-        set({ noteTags: await client.noteTags() });
-      } catch {
-        // leave the existing noteTags as-is — stale data beats clearing it
-      }
-    },
-
-    async commitManual(message) {
-      if (get().committing) return;
-      set({ committing: true });
-      try {
-        const res = await client.sendCommand({ type: "commit", message });
-        if (res.type === "committed")
-          set({ lastCommit: res.commit, uncommitted: false });
-      } catch (err) {
-        set({ error: errMsg(err) });
-      } finally {
-        set({ committing: false });
-      }
-    },
-
-    async autoCommit() {
-      if (!get().uncommitted || get().committing) return;
-      const path = get().activePath;
-      const message = path ? `cairn: update ${path}` : "cairn: auto-commit";
-      await get().commitManual(message);
-    },
-
-    rearmInterval() {
-      if (intervalHandle) clearInterval(intervalHandle);
-      intervalHandle = null;
-      const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
-      if (intervalAutoCommit) {
-        intervalHandle = setInterval(
-          () => void get().autoCommit(),
-          intervalAutoCommitMin * 60_000,
+      editBuffer(contents) {
+        const path = get().activePath;
+        if (!path) return;
+        setBuffer(path, { contents, dirty: true });
+        // Editing pins the (possibly preview) active tab.
+        applyTabs(pinTabModel(tabsState(), path));
+        persist();
+        autosaves.get(path)?.cancel();
+        const d = debounce(
+          () => void get().saveNote(path),
+          get().settings.autosaveMs,
         );
-      }
-    },
+        autosaves.set(path, d);
+        d();
+        const s = get().settings;
+        if (s.idleAutoCommit) {
+          idleCommit?.cancel();
+          idleCommit = debounce(
+            () => void get().autoCommit(),
+            s.idleAutoCommitMs,
+          );
+          idleCommit();
+        }
+      },
 
-    setSettings(patch) {
-      set({ settings: { ...get().settings, ...patch } });
-      if ("intervalAutoCommit" in patch || "intervalAutoCommitMin" in patch) {
-        get().rearmInterval();
-      }
-    },
+      saveActive() {
+        return get().saveNote(get().activePath ?? "");
+      },
 
-    dismissError() {
-      set({ error: null });
-    },
+      async saveNote(path) {
+        const buf = get().openNotes[path];
+        if (!buf || !buf.dirty) return;
+        const snapshot = buf.contents;
+        setBuffer(path, { saving: true });
+        try {
+          await client.sendCommand({
+            type: "write_note",
+            path,
+            contents: snapshot,
+          });
+          const cur = get().openNotes[path];
+          setBuffer(path, {
+            saving: false,
+            // Stay dirty if the note changed during the write (the pending
+            // debounce will save it).
+            dirty: cur ? cur.contents !== snapshot : false,
+          });
+          set({ uncommitted: true });
+        } catch (err) {
+          setBuffer(path, { saving: false });
+          set({ error: errMsg(err) });
+        }
+      },
 
-    assetUrl(relPath: string) {
-      return host.assetUrl(relPath);
-    },
-  }));
+      async createNote(path) {
+        try {
+          await client.sendCommand({ type: "write_note", path, contents: "" });
+          await get().openNote(path);
+          get().pinTab(path); // new notes open pinned
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      async deleteNote(path) {
+        try {
+          await client.sendCommand({ type: "delete_note", path });
+          get().closeTab(path);
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      selectTab(path) {
+        if (!get().openNotes[path]) return;
+        applyTabs({ tabs: get().tabs, activePath: path });
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      closeTab(path) {
+        dropNote(path);
+        applyTabs(closeTabModel(tabsState(), path));
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      closeActiveTab() {
+        const path = get().activePath;
+        if (path) get().closeTab(path);
+      },
+
+      cycleTab(delta) {
+        applyTabs(cycleModel(tabsState(), delta));
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      jumpToTab(n) {
+        applyTabs(jumpToModel(tabsState(), n));
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      pinTab(path) {
+        if (!get().openNotes[path]) return; // only pin an actually-open note
+        // Pinning focuses the tab too (used by double-click and createNote).
+        applyTabs(pinTabModel({ tabs: get().tabs, activePath: path }, path));
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      async runSearch(query) {
+        try {
+          const res = await client.runQuery({ type: "search", query });
+          if (res.type === "paths") set({ query, searchResults: res.paths });
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      setQuery(query) {
+        set({ query });
+      },
+
+      closeSearch() {
+        set({ searchResults: null });
+      },
+
+      async refreshBacklinks() {
+        const path = get().activePath;
+        if (!path) return set({ backlinks: [] });
+        try {
+          const res = await client.runQuery({ type: "get_backlinks", path });
+          if (res.type === "paths") set({ backlinks: res.paths });
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+      },
+
+      async loadGraph() {
+        try {
+          const res = await client.runQuery({ type: "get_graph" });
+          if (res.type === "graph")
+            set({ graph: { nodes: res.nodes, edges: res.edges } });
+        } catch (err) {
+          set({ error: errMsg(err) });
+        }
+        try {
+          set({ noteTags: await client.noteTags() });
+        } catch {
+          // leave the existing noteTags as-is — stale data beats clearing it
+        }
+      },
+
+      async commitManual(message) {
+        if (get().committing) return;
+        set({ committing: true });
+        try {
+          const res = await client.sendCommand({ type: "commit", message });
+          if (res.type === "committed")
+            set({ lastCommit: res.commit, uncommitted: false });
+        } catch (err) {
+          set({ error: errMsg(err) });
+        } finally {
+          set({ committing: false });
+        }
+      },
+
+      async autoCommit() {
+        if (!get().uncommitted || get().committing) return;
+        const path = get().activePath;
+        const message = path ? `cairn: update ${path}` : "cairn: auto-commit";
+        await get().commitManual(message);
+      },
+
+      rearmInterval() {
+        if (intervalHandle) clearInterval(intervalHandle);
+        intervalHandle = null;
+        const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
+        if (intervalAutoCommit) {
+          intervalHandle = setInterval(
+            () => void get().autoCommit(),
+            intervalAutoCommitMin * 60_000,
+          );
+        }
+      },
+
+      setSettings(patch) {
+        set({ settings: { ...get().settings, ...patch } });
+        if ("intervalAutoCommit" in patch || "intervalAutoCommitMin" in patch) {
+          get().rearmInterval();
+        }
+      },
+
+      dismissError() {
+        set({ error: null });
+      },
+
+      assetUrl(relPath: string) {
+        return host.assetUrl(relPath);
+      },
+    };
+  });
 
   return store;
 }

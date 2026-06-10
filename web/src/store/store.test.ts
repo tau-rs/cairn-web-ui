@@ -3,6 +3,7 @@ import { createCairnStore, DEFAULT_SETTINGS } from "./store";
 import { MockClient } from "../client/mock";
 
 beforeEach(() => vi.useFakeTimers());
+beforeEach(() => localStorage.clear());
 afterEach(() => vi.useRealTimers());
 
 function setup() {
@@ -198,5 +199,87 @@ describe("cairn store", () => {
     await store.getState().openCairn();
     expect(store.getState().cairnPath).toBe("/tmp/mycairn");
     expect(store.getState().notePaths).toContain("x.md");
+  });
+
+  it("keeps each open note's buffer when switching tabs", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("edited A [[b]]"); // pins a.md, marks dirty
+    await store.getState().openNote("b.md");
+    expect(store.getState().activeContents).toBe("target note");
+    await store.getState().openNote("a.md"); // back to A
+    expect(store.getState().activeContents).toBe("edited A [[b]]");
+    expect(store.getState().dirty).toBe(true);
+  });
+
+  it("editing pins the preview tab", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    expect(store.getState().tabs).toEqual([{ path: "a.md", preview: true }]);
+    store.getState().editBuffer("x [[b]]");
+    expect(store.getState().tabs).toEqual([{ path: "a.md", preview: false }]);
+  });
+
+  it("browsing notes (preview) does not write to disk", async () => {
+    const { client, store } = setup();
+    const spy = vi.spyOn(client, "sendCommand");
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    await store.getState().openNote("b.md"); // replaces the preview tab
+    await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs);
+    expect(spy.mock.calls.some(([c]) => c.type === "write_note")).toBe(false);
+    expect(store.getState().tabs).toEqual([{ path: "b.md", preview: true }]);
+  });
+
+  it("closeTab focuses a neighbour; closing the last clears the editor", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().pinTab("a.md");
+    await store.getState().openNote("b.md");
+    store.getState().pinTab("b.md");
+    store.getState().selectTab("a.md");
+    store.getState().closeTab("a.md");
+    expect(store.getState().activePath).toBe("b.md"); // neighbour focused
+    store.getState().closeTab("b.md");
+    expect(store.getState().activePath).toBeNull();
+    expect(store.getState().activeContents).toBe("");
+    expect(store.getState().tabs).toEqual([]);
+  });
+
+  it("deleteNote closes the note's tab", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "A", "b.md": "B" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().pinTab("a.md");
+    await store.getState().openNote("b.md");
+    store.getState().pinTab("b.md");
+    await store.getState().deleteNote("b.md");
+    expect(store.getState().tabs.map((t) => t.path)).toEqual(["a.md"]);
+    expect(store.getState().activePath).toBe("a.md");
+  });
+
+  it("restores persisted pinned tabs on init, skipping missing notes", async () => {
+    vi.useRealTimers();
+    localStorage.clear();
+    // First store instance: open + pin two notes, which persists them.
+    const c1 = new MockClient({ "a.md": "A", "b.md": "B" });
+    const s1 = createCairnStore(c1);
+    await s1.getState().init();
+    await s1.getState().openNote("a.md");
+    s1.getState().pinTab("a.md");
+    await s1.getState().openNote("b.md");
+    s1.getState().pinTab("b.md");
+    s1.getState().selectTab("b.md");
+    // Second instance with a fresh client missing b.md → only a.md restored.
+    const c2 = new MockClient({ "a.md": "A" });
+    const s2 = createCairnStore(c2);
+    await s2.getState().init();
+    expect(s2.getState().tabs.map((t) => t.path)).toEqual(["a.md"]);
+    expect(s2.getState().activePath).toBe("a.md");
   });
 });
