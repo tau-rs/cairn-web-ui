@@ -56,6 +56,19 @@ function displayTitle(path: string, raw: string): string {
   return stem(path);
 }
 
+/** Rewrite `[[oldStem]]` / `[[oldStem|alias]]` → newStem (link target only). */
+function rewriteWikilinks(
+  raw: string,
+  oldStem: string,
+  newStem: string,
+): string {
+  const esc = oldStem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return raw.replace(
+    new RegExp(`\\[\\[${esc}(\\]\\]|\\|)`, "g"),
+    `[[${newStem}$1`,
+  );
+}
+
 /** In-memory faithful mock of the cairn engine + cairn-service dispatch. */
 export class MockClient implements CairnClient {
   private notes: Map<string, string>;
@@ -106,6 +119,35 @@ export class MockClient implements CairnClient {
         const commit = `c${String(this.commitSeq).padStart(4, "0")}`;
         this.emit({ type: "committed", commit });
         return { type: "committed", commit };
+      }
+      case "rename_note": {
+        if (!this.notes.has(c.from)) {
+          const err: ContractError = { type: "not_found", what: c.from };
+          throw err;
+        }
+        if (this.notes.has(c.to)) {
+          const err: ContractError = {
+            type: "invalid_request",
+            message: `already exists: ${c.to}`,
+          };
+          throw err;
+        }
+        const body = this.notes.get(c.from) as string;
+        this.notes.delete(c.from);
+        this.notes.set(c.to, body);
+        const oldStem = stem(c.from);
+        const newStem = stem(c.to);
+        if (oldStem !== newStem) {
+          for (const [p, raw] of [...this.notes]) {
+            if (p === c.to) continue;
+            const rewritten = rewriteWikilinks(raw, oldStem, newStem);
+            if (rewritten !== raw) this.notes.set(p, rewritten);
+          }
+        }
+        this.emit({ type: "note_deleted", path: c.from });
+        this.emit({ type: "note_changed", path: c.to });
+        this.emit({ type: "reindexed", count: this.notes.size });
+        return { type: "done" };
       }
       default: {
         throw new Error(`mock: unsupported command ${c.type}`);
