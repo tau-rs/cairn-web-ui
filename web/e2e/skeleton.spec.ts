@@ -5,8 +5,12 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
   const sidebar = page.locator("aside").first();
 
   // Fixture notes are listed.
-  await expect(sidebar.getByText("index", { exact: true })).toBeVisible();
-  await expect(sidebar.getByText("ideas", { exact: true })).toBeVisible();
+  await expect(
+    sidebar.getByRole("button", { name: "index", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("button", { name: "ideas", exact: true }),
+  ).toBeVisible();
 
   // Open a note; its backlinks show (index.md links to ideas).
   await sidebar.getByRole("button", { name: "ideas", exact: true }).click();
@@ -62,7 +66,9 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
 test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
   await page.goto("/");
   const sidebar = page.locator("aside").first();
-  await expect(sidebar.getByText("ideas", { exact: true })).toBeVisible(); // app loaded (mock fixture)
+  await expect(
+    sidebar.getByRole("button", { name: "ideas", exact: true }),
+  ).toBeVisible(); // app loaded (mock fixture)
 
   await page.getByRole("button", { name: /^graph$/i }).click();
 
@@ -266,7 +272,9 @@ test("command palette: ⌘K quick-opens a note and runs a command", async ({
 }) => {
   await page.goto("/");
   const sidebar = page.locator("aside").first();
-  await expect(sidebar.getByText("ideas", { exact: true })).toBeVisible(); // app loaded
+  await expect(
+    sidebar.getByRole("button", { name: "ideas", exact: true }),
+  ).toBeVisible(); // app loaded
 
   // Open the palette (Control+k works on CI; the app listener accepts meta or ctrl).
   await page.keyboard.press("Control+k");
@@ -384,4 +392,28 @@ test("keyboard shortcuts: rebind Open Settings, use it, and persist", async ({
       .getByRole("button", { name: "rebind Open Settings" }),
     // Renders "⌘⇧S" on macOS, "Ctrl+Shift+S" elsewhere — accept either.
   ).toHaveText(/(⇧S|Shift\+S)$/);
+});
+
+test("real tags: the Tags panel lists a tag and filtering shows its notes", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const sidebar = page.locator("aside").first();
+  // Fixtures: todo.md + projects/demo.md are tagged "rust".
+  const rust = sidebar.getByRole("button", { name: "filter by tag rust" });
+  await expect(rust).toBeVisible();
+  await expect(rust).toHaveText(/rust\s*2/);
+
+  // Click the tag → the results overlay lists the tagged notes.
+  await rust.click();
+  const overlay = page.getByTestId("search-results");
+  await expect(overlay).toContainText("Tagged · rust");
+  await expect(overlay.getByRole("button", { name: "todo.md" })).toBeVisible();
+  await expect(
+    overlay.getByRole("button", { name: "projects/demo.md" }),
+  ).toBeVisible();
+
+  // Opening a result closes the overlay.
+  await overlay.getByRole("button", { name: "todo.md" }).click();
+  await expect(page.getByTestId("search-results")).toHaveCount(0);
 });
