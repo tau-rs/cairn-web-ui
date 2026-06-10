@@ -235,6 +235,13 @@ DIAGRAM 4 — canonical building blocks: which rows cairn-ui turns ON
   Adding `lefthook.yml` with a pre-commit hook that runs `just fmt` + `just lint`
   + fast `vitest`/`cargo test` on staged files closes the "passes locally vs
   passes in CI" gap before a push ever happens.
+- **Git hooks stay lightweight.** When lefthook lands here, pre-commit runs
+  **only** the fast `just` verbs — `fmt`, `lint`, and fast staged tests for
+  **both** stacks (eslint/tsc/vitest + clippy/`cargo test`) — seconds, never
+  blocking. No heavy or container-based checks belong in git hooks. Heavy work
+  (full OS matrix, tauri build, e2e, mutation) runs in the T2 `v*`-tag heavy CI
+  tier and the T3 schedules — never on `git commit`/`git push`. A pre-push hook,
+  if present, runs at most a fast `just ci` subset.
 - **B+C** for cairn-ui: keep the four workflow files self-contained, extract the
   repeated pnpm+node and rust-toolchain+cache blocks (copy-pasted across
   `ci.yml`, `nightly.yml`, `coverage.yml`, `mutation-weekly.yml`) into two
@@ -253,7 +260,8 @@ rationale. cosign/SLSA stay optional phase-2.
   **and** cargo fmt/clippy/test/deny. **High** — single source of truth; CI
   cannot diverge from local. *(G1)*
 - [ ] **Add `lefthook.yml`** pre-commit running `just fmt` + `just lint` + fast
-  tests on staged files; document `lefthook install`. **High** — closes the
+  tests on staged files; document `lefthook install`. Pre-commit = fast `just`
+  verbs only; no heavy/container checks in hooks. **High** — closes the
   local↔CI divergence gap; currently nothing runs pre-commit. *(G2)*
 - [ ] **Repoint `ci.yml` `web`/`tauri` jobs at `just` verbs** instead of inline
   pnpm/cargo commands. **High** — makes Diagram 3 real. *(G1)*
