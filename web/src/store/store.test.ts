@@ -282,4 +282,38 @@ describe("cairn store", () => {
     expect(s2.getState().tabs.map((t) => t.path)).toEqual(["a.md"]);
     expect(s2.getState().activePath).toBe("a.md");
   });
+
+  it("flushes a dirty buffer to disk when its tab is closed", async () => {
+    const { client, store } = setup();
+    const spy = vi.spyOn(client, "sendCommand");
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("flushed [[b]]");
+    store.getState().closeTab("a.md"); // close within the autosave window
+    await vi.runAllTimersAsync();
+    expect(
+      spy.mock.calls.some(
+        ([c]) => c.type === "write_note" && c.contents === "flushed [[b]]",
+      ),
+    ).toBe(true);
+    const res = await client.runQuery({ type: "get_note", path: "a.md" });
+    expect(res).toEqual({ type: "note", contents: "flushed [[b]]" });
+  });
+
+  it("does not resurrect a closed note's buffer; reopening shows saved contents", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "orig" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("changed");
+    store.getState().closeTab("a.md");
+    await vi.waitFor(async () => {
+      const r = await client.runQuery({ type: "get_note", path: "a.md" });
+      expect(r).toEqual({ type: "note", contents: "changed" });
+    });
+    expect(store.getState().openNotes["a.md"]).toBeUndefined(); // no phantom buffer
+    await store.getState().openNote("a.md"); // reopen → fetched fresh
+    expect(store.getState().activeContents).toBe("changed");
+  });
 });

@@ -296,15 +296,19 @@ export function createCairnStore(
             contents: snapshot,
           });
           const cur = get().openNotes[path];
-          setBuffer(path, {
-            saving: false,
-            // Stay dirty if the note changed during the write (the pending
-            // debounce will save it).
-            dirty: cur ? cur.contents !== snapshot : false,
-          });
+          // If the note was closed mid-write its buffer is gone — don't resurrect
+          // it; the write still landed, so just mark the repo uncommitted.
+          if (cur) {
+            setBuffer(path, {
+              saving: false,
+              // Stay dirty if the note changed during the write (the pending
+              // debounce will save it).
+              dirty: cur.contents !== snapshot,
+            });
+          }
           set({ uncommitted: true });
         } catch (err) {
-          setBuffer(path, { saving: false });
+          if (get().openNotes[path]) setBuffer(path, { saving: false });
           set({ error: errMsg(err) });
         }
       },
@@ -336,6 +340,9 @@ export function createCairnStore(
       },
 
       closeTab(path) {
+        // Flush any pending edit before the buffer is dropped (saveNote snapshots
+        // contents synchronously and is a no-op when not dirty).
+        void get().saveNote(path);
         dropNote(path);
         applyTabs(closeTabModel(tabsState(), path));
         persist();
