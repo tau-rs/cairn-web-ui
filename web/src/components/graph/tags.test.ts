@@ -16,14 +16,11 @@ describe("extractTags", () => {
       extractTags("---\ntags:\n  - one\n  - two\ntitle: x\n---\nbody"),
     ).toEqual(["one", "two"]);
   });
-  it("reads inline #tags from the body, lowercased and deduped", () => {
-    expect(extractTags("see #Idea and #idea and #graph-view here")).toEqual([
-      "idea",
-      "graph-view",
-    ]);
+  it("ignores inline #tags in the body (engine reads frontmatter only)", () => {
+    expect(extractTags("see #Idea and #graph-view here")).toEqual([]);
   });
-  it("combines frontmatter + inline and returns [] when none", () => {
-    expect(extractTags("---\ntags: [x]\n---\nbody #y")).toEqual(["x", "y"]);
+  it("reads only frontmatter tags; returns [] when none", () => {
+    expect(extractTags("---\ntags: [x]\n---\nbody #y")).toEqual(["x"]);
     expect(extractTags("plain note, no tags")).toEqual([]);
   });
 });

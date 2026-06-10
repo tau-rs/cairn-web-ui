@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { GraphView } from "../components/GraphView";
 import { Shell } from "../components/Shell";
 import { FolderTree } from "../components/tree/FolderTreeView";
+import { TagsPanel } from "../components/tags/TagsPanel";
 import { Editor } from "../components/Editor";
 import { TabStrip } from "../components/tabs/TabStrip";
 import { Backlinks } from "../components/Backlinks";
@@ -88,6 +89,8 @@ export default function App() {
   const noteTags = useCairn((s) => s.noteTags);
   const tabs = useCairn((s) => s.tabs);
   const openNotes = useCairn((s) => s.openNotes);
+  const tags = useCairn((s) => s.tags);
+  const activeTag = useCairn((s) => s.activeTag);
   const [view, setView] = useState<"editor" | "graph">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newNoteOpen, setNewNoteOpen] = useState(false);
@@ -202,25 +205,33 @@ export default function App() {
           </div>
         }
         list={
-          <FolderTree
-            paths={notePaths}
-            activePath={activePath}
-            onOpen={actions.openNote}
-            onDelete={actions.deleteNote}
-            onRequestNew={() => {
-              setNewNoteInitial("");
-              setNewNoteOpen(true);
-            }}
-            onRequestNewInFolder={(folder) => {
-              setNewNoteInitial(folder + "/");
-              setNewNoteOpen(true);
-            }}
-          />
+          <>
+            <FolderTree
+              paths={notePaths}
+              activePath={activePath}
+              onOpen={actions.openNote}
+              onDelete={actions.deleteNote}
+              onRequestNew={() => {
+                setNewNoteInitial("");
+                setNewNoteOpen(true);
+              }}
+              onRequestNewInFolder={(folder) => {
+                setNewNoteInitial(folder + "/");
+                setNewNoteOpen(true);
+              }}
+            />
+            <TagsPanel
+              tags={tags}
+              activeTag={activeTag}
+              onSelect={actions.filterByTag}
+            />
+          </>
         }
         editor={
           <div className="relative h-full">
             <SearchResults
               results={searchResults}
+              title={activeTag ? `Tagged · ${activeTag}` : undefined}
               onOpen={(p) => {
                 void actions.openNote(p);
                 actions.closeSearch();

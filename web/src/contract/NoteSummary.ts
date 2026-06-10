@@ -12,4 +12,8 @@ export type NoteSummary = {
    * Display title (frontmatter title, first heading, or filename).
    */
   title: string;
+  /**
+   * Frontmatter tags of the note.
+   */
+  tags: Array<string>;
 };
