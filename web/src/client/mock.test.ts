@@ -53,9 +53,9 @@ describe("MockClient", () => {
     expect(await c.runQuery({ type: "list_notes" })).toEqual({
       type: "notes",
       notes: [
-        { path: "a.md", title: "Alpha" },
-        { path: "b.md", title: "Heading B" },
-        { path: "c.md", title: "c" },
+        { path: "a.md", title: "Alpha", tags: [] },
+        { path: "b.md", title: "Heading B", tags: [] },
+        { path: "c.md", title: "c", tags: [] },
       ],
     });
   });

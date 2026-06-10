@@ -10,6 +10,13 @@ DEST="web/src/contract"
 mkdir -p "$DEST"
 # Copy every generated binding (the set grows as the contract evolves).
 cp "$BINDINGS"/*.ts "$DEST/"
+# Copy nested bindings too (e.g. serde_json/JsonValue.ts referenced by
+# Command/CommandResponse). The set of subdirs grows as the contract evolves.
+find "$BINDINGS" -mindepth 1 -type d | while read -r dir; do
+  rel="${dir#"$BINDINGS"/}"
+  mkdir -p "$DEST/$rel"
+  cp "$dir"/*.ts "$DEST/$rel/"
+done
 
 COMMIT="$(git -C "$SRC" rev-parse HEAD)"
 cat > "$DEST/source.ts" <<EOF

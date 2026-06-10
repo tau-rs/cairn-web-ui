@@ -106,6 +106,9 @@ export class MockClient implements CairnClient {
         this.emit({ type: "committed", commit });
         return { type: "committed", commit };
       }
+      default: {
+        throw new Error(`mock: unsupported command ${c.type}`);
+      }
     }
   }
 
@@ -148,7 +151,11 @@ export class MockClient implements CairnClient {
       }
       case "list_notes": {
         const notes: NoteSummary[] = [...this.notes.entries()]
-          .map(([path, raw]) => ({ path, title: displayTitle(path, raw) }))
+          .map(([path, raw]) => ({
+            path,
+            title: displayTitle(path, raw),
+            tags: extractTags(raw),
+          }))
           .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
         return { type: "notes", notes };
       }
@@ -178,6 +185,9 @@ export class MockClient implements CairnClient {
               : 1,
         );
         return { type: "graph", nodes, edges };
+      }
+      default: {
+        throw new Error(`mock: unsupported query ${q.type}`);
       }
     }
   }
