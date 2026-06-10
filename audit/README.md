@@ -77,4 +77,7 @@ of the project history.
 plugin/notice dead code) → U1/U2/U3 (a11y + loading/error UX) → the DX/Low items.
 
 See `security.md`, `design.md`, and `diagnostics.md` for the full set with
-`path:line` evidence, impact, and concrete recommendations.
+`path:line` evidence, impact, and concrete recommendations. See `devops.md` for
+the CI/CD & DevOps audit: the canonical pipeline model applied to this Tauri
+repo, current-state gaps with `path:line`, and an ordered implementation
+checklist (justfile + lefthook, SHA-pinned actions, a `v*`-tag heavy tier, SBOM).
