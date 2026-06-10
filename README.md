@@ -1,5 +1,7 @@
 # cairn-web-ui
 
+[![CI](https://github.com/tau-rs/cairn-web-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/tau-rs/cairn-web-ui/actions/workflows/ci.yml)
+
 Web-tech UI for [Cairn](https://github.com/tau-rs/cairn) — an open-source,
 git-backed, Obsidian-class note app. Part of the [`tau-rs`](https://github.com/tau-rs) org.
 

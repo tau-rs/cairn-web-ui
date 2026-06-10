@@ -1,0 +1,120 @@
+# Dependabot configuration.
+#
+# Manages dependency updates for the three ecosystems in this repo:
+# GitHub Actions (workflows), the npm web app (web/), and the Tauri
+# Rust shell (src-tauri/). Each opens PRs against `main` on the schedule
+# below; every PR runs through the standard CI gate (and gets an AI
+# review — claude-review.yml allows the `dependabot` bot actor) before
+# merge. Mirrors the engine repo's (tau) Dependabot policy, adapted to
+# this frontend-first repo's ecosystems.
+
+version: 2
+updates:
+  # GitHub Actions versions used in .github/workflows/.
+  # Weekly cadence balances signal (timely patch updates) against PR
+  # noise. Auto-bumps `uses: <owner>/<action>@<ref>` entries — works for
+  # both tag refs (e.g. @v4) and SHA pins.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
+
+  # The npm web app. Weekly to cap PR noise; groups bundle the families
+  # whose packages move in lockstep into one PR each (a single React or
+  # CodeMirror bump fans out across several packages otherwise). Major
+  # bumps outside these families still open one PR each.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      # React core + its type packages release together.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      # CodeMirror 6 ships as many @codemirror/* + @lezer/* packages that
+      # pin to each other's minors — bump them together or get a broken
+      # editor build.
+      codemirror:
+        patterns:
+          - "@codemirror/*"
+          - "@lezer/*"
+          - "@uiw/react-codemirror"
+      radix:
+        patterns:
+          - "@radix-ui/*"
+      tauri:
+        patterns:
+          - "@tauri-apps/*"
+      # Test + e2e toolchain (vitest, testing-library, playwright, jsdom).
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@testing-library/*"
+          - "@playwright/test"
+          - "jsdom"
+      # Lint + format toolchain.
+      lint:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "@typescript-eslint/*"
+          - "prettier"
+      # Tailwind + the PostCSS pipeline it drives.
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "autoprefixer"
+          - "postcss"
+
+  # The Tauri Rust shell. Registry crates only — the cairn-* workspace
+  # deps are git-pinned by rev and Dependabot does not bump git
+  # dependencies, so this covers tauri, its plugins, serde, and log.
+  # Group the tauri crates so the framework + its plugins move together.
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    labels:
+      - dependencies
+      - rust
+    groups:
+      tauri:
+        patterns:
+          - "tauri"
+          - "tauri-*"
+      serde:
+        patterns:
+          - "serde*"

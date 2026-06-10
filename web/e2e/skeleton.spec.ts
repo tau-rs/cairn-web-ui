@@ -206,7 +206,14 @@ test("table editor: click to edit a cell and commit on click-away", async ({
   // Edit a body cell, then click away to commit.
   const cell = page.locator(".cm-lp-table.editing td").first();
   await cell.click();
-  await page.keyboard.press("Control+A");
+  await expect(cell).toBeFocused();
+  // Select the cell's text via the Selection API rather than Ctrl+A. The cell
+  // is a contentEditable inside CodeMirror, whose keymap binds Ctrl+A to a
+  // whole-document selectAll; on a slow CI runner that wins the race, so
+  // typing "X1" replaces the ENTIRE document (wiping the "Kitchen sink"
+  // heading, after which the click-away locator times out). selectText()
+  // scopes the selection to the cell, so "X1" only replaces the cell.
+  await cell.selectText();
   await page.keyboard.type("X1");
   await page.getByText("Kitchen sink").click(); // click away
   // The committed value appears in the document source / re-rendered table.
