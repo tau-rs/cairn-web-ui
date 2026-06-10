@@ -6,10 +6,11 @@ import { filterItems } from "./fuzzy";
 export interface PaletteCommand {
   id: string;
   label: string;
+  hint?: string;
 }
 
 type Item =
-  | { kind: "command"; id: string; label: string }
+  | { kind: "command"; id: string; label: string; hint?: string }
   | { kind: "note"; id: string; label: string; path: string };
 
 const EMPTY_NOTE_CAP = 6;
@@ -38,6 +39,7 @@ export function CommandPalette(props: {
       kind: "command",
       id: c.id,
       label: c.label,
+      hint: c.hint,
     }));
     const noteItems: Item[] = props.notes.map((p) => ({
       kind: "note",
@@ -117,6 +119,9 @@ export function CommandPalette(props: {
                     onClick={() => run(item)}
                   >
                     {item.label}
+                    <span className="ml-auto font-mono text-[11px] text-faint">
+                      {item.kind === "command" ? (item.hint ?? "") : ""}
+                    </span>
                   </Row>
                 ))}
               </Group>
