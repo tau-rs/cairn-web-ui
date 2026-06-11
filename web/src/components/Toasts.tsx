@@ -4,11 +4,11 @@ import { NoticeToast } from "./NoticeToast";
 
 export function Toasts() {
   const actions = cairnStore.getState();
-  const error = useCairn((s) => s.error);
+  const errors = useCairn((s) => s.errors);
   const notice = useCairn((s) => s.notice);
   return (
     <>
-      <ErrorToast message={error} onDismiss={actions.dismissError} />
+      <ErrorToast errors={errors} onDismiss={actions.dismissError} />
       <NoticeToast message={notice} onDismiss={actions.dismissNotice} />
     </>
   );

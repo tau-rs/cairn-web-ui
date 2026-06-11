@@ -9,6 +9,7 @@ import { EditorPane } from "../components/EditorPane";
 import { BacklinksPane } from "../components/BacklinksPane";
 import { DialogHost } from "../components/DialogHost";
 import { Toasts } from "../components/Toasts";
+import { LiveUpdatesBanner } from "../components/LiveUpdatesBanner";
 import { useCommands } from "./useCommands";
 import { useGlobalKeys } from "../components/shortcuts/useGlobalKeys";
 
@@ -18,6 +19,7 @@ export default function App() {
   }, []);
 
   const cairnPath = useCairn((s) => s.cairnPath);
+  const liveUpdates = useCairn((s) => s.liveUpdates);
   const { commands, chordMap, runCommand } = useCommands();
   useGlobalKeys(chordMap, runCommand);
 
@@ -36,6 +38,10 @@ export default function App() {
       />
       <DialogHost commands={commands} onRunCommand={runCommand} />
       <Toasts />
+      <LiveUpdatesBanner
+        status={liveUpdates}
+        onRefresh={() => void cairnStore.getState().refreshAll()}
+      />
     </>
   );
 }

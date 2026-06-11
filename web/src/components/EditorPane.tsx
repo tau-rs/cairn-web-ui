@@ -7,6 +7,7 @@ import { TabStrip } from "./tabs/TabStrip";
 import { SearchResults } from "./SearchResults";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Button } from "./ui/Button";
+import { Spinner } from "./ui/Spinner";
 
 export function EditorPane() {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export function EditorPane() {
   const noteTags = useCairn((s) => s.noteTags);
   const tabs = useCairn((s) => s.tabs);
   const openNotes = useCairn((s) => s.openNotes);
+  const loading = useCairn((s) => s.loading);
   const view = isGraph(location) ? "graph" : "editor";
 
   const tabViews = tabs.map((t) => ({
@@ -56,6 +58,7 @@ export function EditorPane() {
       <div className="relative h-full">
         <SearchResults
           results={searchResults}
+          loading={loading.search}
           snippets={searchSnippets ?? undefined}
           title={activeTag ? `Tagged · ${activeTag}` : undefined}
           onOpen={(p) => navigate(noteUrl(p))}
@@ -77,6 +80,7 @@ export function EditorPane() {
             edges={graph?.edges ?? []}
             tagsByNote={noteTags}
             activePath={activePath}
+            loading={loading.graph}
             onOpenNote={(p) => navigate(noteUrl(p))}
           />
         ) : (
@@ -88,7 +92,12 @@ export function EditorPane() {
               onPin={actions.pinTab}
               onClose={actions.closeTab}
             />
-            <div className="min-h-0 flex-1">
+            <div className="relative min-h-0 flex-1">
+              {loading.note && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-bg/50">
+                  <Spinner label="Loading note" />
+                </div>
+              )}
               <Editor
                 path={activePath}
                 value={activeContents}

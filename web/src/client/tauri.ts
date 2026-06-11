@@ -20,14 +20,25 @@ export class TauriClient implements CairnClient {
   runQuery(query: Query): Promise<QueryResponse> {
     return invoke<QueryResponse>("run_query", { query });
   }
-  subscribe(cb: (e: Event) => void): Unsubscribe {
+  subscribe(
+    cb: (e: Event) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe {
     const pending = listen<Event>("cairn://event", (e) => cb(e.payload));
     let unlisten: (() => void) | null = null;
     let cancelled = false;
-    void pending.then((fn) => {
-      if (cancelled) fn();
-      else unlisten = fn;
-    });
+    pending.then(
+      (fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      },
+      (err) => {
+        // The channel never attached: the whole reactive-refresh model depends
+        // on these push events, so report it rather than leave an unhandled
+        // rejection and a silently-stale UI.
+        if (!cancelled) onError?.(err);
+      },
+    );
     return () => {
       cancelled = true;
       unlisten?.();

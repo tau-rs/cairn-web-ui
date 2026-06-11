@@ -5,7 +5,7 @@ import { SectionLabel } from "../ui/SectionLabel";
 import { buildTree, ancestorFolders, type TreeNode } from "./folderTree";
 import { loadCollapsed, saveCollapsed } from "./treePersistence";
 import {
-  planRenameNote,
+  planRenameNotePath,
   planRenameFolder,
   planMoveNote,
   planMoveFolder,
@@ -84,7 +84,7 @@ export function FolderTree(props: {
     const ops =
       node.kind === "folder"
         ? planRenameFolder(node.path, newName, props.paths)
-        : planRenameNote(node.path, newName);
+        : planRenameNotePath(node.path, newName);
     if (ops.length) props.onApplyRenames(ops);
   };
 
@@ -153,6 +153,12 @@ export function FolderTree(props: {
                   title={node.path}
                   onClick={() => toggle(node.path)}
                   onDoubleClick={() => setEditingPath(node.path)}
+                  onKeyDown={(e) => {
+                    if (e.key === "F2") {
+                      e.preventDefault();
+                      setEditingPath(node.path);
+                    }
+                  }}
                 >
                   <span aria-hidden="true" className="text-faint">
                     {isCollapsed ? "▸" : "▾"}
@@ -199,6 +205,12 @@ export function FolderTree(props: {
               title={node.path}
               onClick={() => props.onOpen(node.path)}
               onDoubleClick={() => setEditingPath(node.path)}
+              onKeyDown={(e) => {
+                if (e.key === "F2") {
+                  e.preventDefault();
+                  setEditingPath(node.path);
+                }
+              }}
             >
               {node.name}
             </button>

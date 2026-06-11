@@ -16,7 +16,13 @@ export type Unsubscribe = () => void;
 export interface CairnClient {
   sendCommand(c: Command): Promise<CommandResponse>;
   runQuery(q: Query): Promise<QueryResponse>;
-  subscribe(cb: (e: Event) => void): Unsubscribe;
+  /** Subscribe to push events. `onError` fires if the channel fails to attach,
+   *  so the UI can surface a degraded "live updates unavailable" state and
+   *  offer a manual refresh. The mock never errors. */
+  subscribe(
+    cb: (e: Event) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe;
   /** All notes' tags (path → tags). Client-level capability (not a contract
    *  Query): the mock parses note content; Tauri stubs {} until the engine
    *  exposes tags. */

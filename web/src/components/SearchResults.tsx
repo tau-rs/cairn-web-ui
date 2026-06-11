@@ -1,15 +1,21 @@
 import { IconButton } from "./ui/IconButton";
 import { SectionLabel } from "./ui/SectionLabel";
+import { Spinner } from "./ui/Spinner";
 import { splitSnippet, type SearchSnippet } from "./searchHighlight";
 
 export function SearchResults(props: {
   results: string[] | null;
+  loading?: boolean;
   onOpen: (path: string) => void;
   onClose: () => void;
   title?: string;
   snippets?: Record<string, SearchSnippet>;
 }) {
-  if (props.results === null) return null;
+  // Show the overlay while a fresh search is in flight (results still null), so
+  // a slow transport reads as "searching" rather than a frozen, absent panel.
+  if (props.results === null && !props.loading) return null;
+  const results = props.results ?? [];
+  const showSpinner = props.loading && results.length === 0;
   return (
     <div
       data-testid="search-results"
@@ -17,17 +23,22 @@ export function SearchResults(props: {
     >
       <div className="mb-1 flex items-center justify-between">
         <SectionLabel>
-          {props.title ?? "Results"} ({props.results.length})
+          {props.title ?? "Results"}
+          {props.results ? ` (${results.length})` : ""}
         </SectionLabel>
         <IconButton label="close" onClick={props.onClose}>
           ✕
         </IconButton>
       </div>
-      {props.results.length === 0 ? (
+      {showSpinner ? (
+        <span className="flex items-center gap-2 text-sm text-faint">
+          <Spinner label="Searching" /> Searching…
+        </span>
+      ) : results.length === 0 ? (
         <span className="text-sm text-faint">No matches</span>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {props.results.map((path) => {
+          {results.map((path) => {
             const snip = props.snippets?.[path];
             return (
               <button

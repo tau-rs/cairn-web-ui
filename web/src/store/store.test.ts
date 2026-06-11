@@ -1,10 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createCairnStore, DEFAULT_SETTINGS } from "./store";
+import { createCairnStore, DEFAULT_SETTINGS, ERROR_TOAST_MS } from "./store";
 import { MockClient } from "../client/mock";
 import {
   loadOverrides,
   saveOverrides,
 } from "../components/shortcuts/keybindingPersistence";
+import type { QueryResponse } from "../contract";
+import { saveTabs } from "../components/tabs/tabsPersistence";
+import type { Event } from "../contract";
+
+// Stub `subscribe` so it immediately reports an attach failure and delivers no
+// events — simulating a channel that never came up (a dead push stream).
+const failingSubscribe = (
+  _cb: (e: Event) => void,
+  onError?: (err: unknown) => void,
+) => {
+  onError?.(new Error("attach failed"));
+  return () => {};
+};
 
 beforeEach(() => vi.useFakeTimers());
 beforeEach(() => localStorage.clear());
@@ -84,7 +97,53 @@ describe("cairn store", () => {
     vi.spyOn(client, "sendCommand").mockRejectedValueOnce(new Error("boom"));
     await store.getState().init();
     await store.getState().commitManual("x");
-    expect(store.getState().error).toBe("boom");
+    expect(store.getState().errors[0].message).toContain("boom");
+  });
+
+  it("surfaces a degraded state when the event channel fails to attach", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "subscribe").mockImplementation(failingSubscribe);
+    await store.getState().init();
+    expect(store.getState().liveUpdates).toBe("down");
+  });
+
+  it("refreshAll re-pulls note paths and clears the degraded state", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    // Stub the channel so pushed events never reach the store (a dead stream):
+    // the note list goes stale until a manual refresh.
+    vi.spyOn(client, "subscribe").mockImplementation(failingSubscribe);
+    await store.getState().init();
+    await client.sendCommand({
+      type: "write_note",
+      path: "c.md",
+      contents: "hi",
+    });
+    expect(store.getState().notePaths).not.toContain("c.md"); // stale: no live event
+    await store.getState().refreshAll();
+    expect(store.getState().notePaths).toContain("c.md");
+    expect(store.getState().liveUpdates).toBe("ok");
+  });
+
+  it("refreshAll reconciles the active tag filter (matching the live path)", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({
+      "a.md": "---\ntags: [keep]\n---\nfirst",
+    });
+    const store = createCairnStore(client);
+    vi.spyOn(client, "subscribe").mockImplementation(failingSubscribe);
+    await store.getState().init();
+    await store.getState().filterByTag("keep");
+    expect(store.getState().searchResults).toEqual(["a.md"]);
+    // A second tagged note arrives, but the dead stream delivers no event.
+    await client.sendCommand({
+      type: "write_note",
+      path: "b.md",
+      contents: "---\ntags: [keep]\n---\nsecond",
+    });
+    expect(store.getState().searchResults).toEqual(["a.md"]); // stale filter view
+    await store.getState().refreshAll();
+    expect(store.getState().searchResults).toEqual(["a.md", "b.md"]);
   });
 
   it("surfaces an error if loading the note list fails", async () => {
@@ -94,7 +153,45 @@ describe("cairn store", () => {
       message: "boom",
     });
     await store.getState().init();
-    expect(store.getState().error).toBe("boom");
+    expect(store.getState().errors[0].message).toContain("boom");
+  });
+
+  it("queues multiple errors instead of clobbering", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
+    await store.getState().init();
+    await store.getState().commitManual("one");
+    await store.getState().commitManual("two");
+    expect(store.getState().errors).toHaveLength(2);
+  });
+
+  it("auto-dismisses a queued error after the timeout", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
+    await store.getState().init();
+    await store.getState().commitManual("x");
+    expect(store.getState().errors).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(ERROR_TOAST_MS);
+    expect(store.getState().errors).toHaveLength(0);
+  });
+
+  it("logs caught errors to console.error with operation context", async () => {
+    const { client, store } = setup();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(client, "runQuery").mockRejectedValueOnce({
+      type: "internal",
+      message: "boom",
+    });
+    await store.getState().init();
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("List notes"),
+      expect.objectContaining({
+        operation: "List notes",
+        error: expect.objectContaining({ type: "internal" }),
+      }),
+    );
+    expect(store.getState().errors[0].message).toContain("List notes");
+    spy.mockRestore();
   });
 
   it("keeps the buffer dirty if edited while a slow save is in flight", async () => {
@@ -207,6 +304,36 @@ describe("cairn store", () => {
     await store.getState().openCairn();
     expect(store.getState().cairnPath).toBe("/tmp/mycairn");
     expect(store.getState().notePaths).toContain("x.md");
+  });
+
+  it("openCairn reloads tags + plugins, restores tabs, and resets the graph", async () => {
+    vi.useRealTimers();
+    localStorage.clear();
+    const client = new MockClient({
+      "a.md": "---\ntags: [rust]\n---\nlinks [[b]]",
+      "b.md": "B",
+    });
+    const host = {
+      currentCairn: () => Promise.resolve<string | null>(null),
+      openCairn: () => Promise.resolve<string | null>("/tmp/second"),
+      assetUrl: (p: string) => p,
+    };
+    // A pinned tab persisted from a prior session of this cairn.
+    saveTabs({ tabs: [{ path: "b.md", preview: false }], activePath: "b.md" });
+    const store = createCairnStore(client, host);
+    await store.getState().init(); // currentCairn null -> nothing loaded yet
+    await store.getState().loadGraph(); // graph now non-null (cairn-specific)
+
+    await store.getState().openCairn();
+
+    // Tags + plugins must reload, not stay empty until an unrelated event.
+    expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
+    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo"]);
+    // Persisted pinned tabs restore for the freshly opened cairn.
+    expect(store.getState().tabs.map((t) => t.path)).toEqual(["b.md"]);
+    expect(store.getState().activePath).toBe("b.md");
+    // Derived graph is reset consistently (will reload when its panel asks).
+    expect(store.getState().graph).toBeNull();
   });
 
   it("keeps each open note's buffer when switching tabs", async () => {
@@ -438,7 +565,7 @@ describe("cairn store", () => {
       { from: "missing.md", to: "z.md" },
       { from: "a.md", to: "y.md" },
     ]);
-    expect(store.getState().error).toBeTruthy();
+    expect(store.getState().errors.length).toBeGreaterThan(0);
     const renameCalls = spy.mock.calls.filter(
       ([cmd]) => cmd.type === "rename_note",
     );
@@ -540,6 +667,61 @@ describe("cairn store", () => {
     // ...and b.md's backlinks would reflect a.md (targeted refresh still runs).
     await store.getState().openNote("b.md");
     expect(store.getState().backlinks).toContain("a.md");
+  });
+
+  it("starts with all loading flags false", () => {
+    const { store } = setup();
+    expect(store.getState().loading).toEqual({
+      search: false,
+      graph: false,
+      backlinks: false,
+      note: false,
+    });
+  });
+
+  it("exposes loading.search while a search is in flight, clearing when it lands", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    let resolve!: (v: QueryResponse) => void;
+    vi.spyOn(client, "runQuery").mockReturnValueOnce(
+      new Promise<QueryResponse>((r) => (resolve = r)),
+    );
+    const p = store.getState().runSearch("x");
+    expect(store.getState().loading.search).toBe(true);
+    resolve({ type: "search_results", results: [] });
+    await p;
+    expect(store.getState().loading.search).toBe(false);
+  });
+
+  it("exposes loading.note while a note's contents load", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    let resolve!: (v: QueryResponse) => void;
+    vi.spyOn(client, "runQuery").mockReturnValueOnce(
+      new Promise<QueryResponse>((r) => (resolve = r)),
+    );
+    const p = store.getState().openNote("a.md");
+    expect(store.getState().loading.note).toBe(true);
+    resolve({ type: "note", contents: "hi" });
+    await p;
+    expect(store.getState().loading.note).toBe(false);
+  });
+
+  it("exposes loading.graph while the graph loads", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    let resolve!: (v: QueryResponse) => void;
+    vi.spyOn(client, "runQuery").mockReturnValueOnce(
+      new Promise<QueryResponse>((r) => (resolve = r)),
+    );
+    const p = store.getState().loadGraph();
+    expect(store.getState().loading.graph).toBe(true);
+    resolve({ type: "graph", nodes: [], edges: [] });
+    await p;
+    expect(store.getState().loading.graph).toBe(false);
   });
 });
 
