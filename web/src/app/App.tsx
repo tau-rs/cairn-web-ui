@@ -86,6 +86,7 @@ export default function App() {
   const activePath = useCairn((s) => s.activePath);
   const activeContents = useCairn((s) => s.activeContents);
   const editorMode = useCairn((s) => s.settings.editorMode);
+  const loadRemoteImages = useCairn((s) => s.settings.loadRemoteImages);
   const settings = useCairn((s) => s.settings);
   const backlinks = useCairn((s) => s.backlinks);
   const query = useCairn((s) => s.query);
@@ -317,6 +318,7 @@ export default function App() {
                       mode={editorMode}
                       notePaths={notePaths}
                       assetUrl={actions.assetUrl}
+                      loadRemoteImages={loadRemoteImages}
                       onChange={actions.editBuffer}
                       onOpenNote={(p) => navigate(noteUrl(p))}
                       onToggleMode={() =>

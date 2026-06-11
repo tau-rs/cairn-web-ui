@@ -9,6 +9,7 @@ const base = {
   notePaths: ["ideas.md"],
   mode: "livepreview" as "livepreview" | "source",
   assetUrl: (p: string) => p,
+  loadRemoteImages: false,
   onChange: vi.fn(),
   onOpenNote: vi.fn(),
   onToggleMode: vi.fn(),

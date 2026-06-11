@@ -178,6 +178,10 @@ describe("cairn store", () => {
     expect(DEFAULT_SETTINGS.editorMode).toBe("livepreview");
   });
 
+  it("defaults loadRemoteImages to off (no auto-fetch of remote images)", () => {
+    expect(DEFAULT_SETTINGS.loadRemoteImages).toBe(false);
+  });
+
   it("defaults to an always-open cairn (mock) and sets cairnPath on init", async () => {
     const { store } = setup();
     await store.getState().init();

@@ -9,6 +9,7 @@ import type {
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
+import { confineToRoot } from "./vaultPath";
 
 /** Talks to the Rust backend over Tauri IPC. Rejections are ContractError
  *  (the Err payload of the Rust command), matching MockClient. */
@@ -53,7 +54,8 @@ export class TauriHost implements CairnHost {
   assetUrl(relPath: string): string {
     if (/^(https?:|data:)/i.test(relPath)) return relPath;
     if (!this.root) return relPath;
-    const sep = this.root.endsWith("/") ? "" : "/";
-    return convertFileSrc(`${this.root}${sep}${relPath}`);
+    const full = confineToRoot(this.root, relPath);
+    if (full === null) return ""; // path escapes the vault — refuse to resolve
+    return convertFileSrc(full);
   }
 }
