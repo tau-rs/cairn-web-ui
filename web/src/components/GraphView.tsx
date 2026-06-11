@@ -8,6 +8,7 @@ import {
   type GLink,
 } from "./graph/graphData";
 import { IconButton } from "./ui/IconButton";
+import { Spinner } from "./ui/Spinner";
 import { GraphForcesPanel } from "./graph/GraphForcesPanel";
 import {
   type ForceSettings,
@@ -47,6 +48,7 @@ export function GraphView(props: {
   edges: { from: string; to: string }[];
   tagsByNote: Record<string, string[]>; // path → tags, for color-group matching
   activePath: string | null;
+  loading?: boolean;
   onOpenNote: (path: string) => void;
 }) {
   const [local, setLocal] = useState<LocalGraphSettings>(loadLocalGraph);
@@ -230,6 +232,11 @@ export function GraphView(props: {
   // ForceGraph2D mounts once the container has a measured size.
   return (
     <div ref={containerRef} className="relative h-full w-full">
+      {props.loading && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-bg/50">
+          <Spinner label="Loading graph" />
+        </div>
+      )}
       <div className="absolute left-2 top-2 z-10 flex overflow-hidden rounded-md border border-border text-[11px]">
         {(["local", "global"] as const).map((m) => {
           const isLocal = m === "local";

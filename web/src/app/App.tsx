@@ -31,6 +31,7 @@ import { noteUrl, tagUrl, tagFromLocation, isGraph } from "./routes";
 import { cairnStore, useCairn } from "./cairnStore";
 import { Logo } from "../components/ui/Logo";
 import { Button } from "../components/ui/Button";
+import { Spinner } from "../components/ui/Spinner";
 import {
   COMMAND_DEFS,
   effectiveBinding,
@@ -107,6 +108,7 @@ export default function App() {
   const activeTag = useCairn((s) => s.activeTag);
   const plugins = useCairn((s) => s.plugins);
   const notice = useCairn((s) => s.notice);
+  const loading = useCairn((s) => s.loading);
   const view = isGraph(location) ? "graph" : "editor";
   // Where the Graph/Editor toggle should navigate: into the graph, or back to
   // the active note (root if none). Used by both the command and the top-bar button.
@@ -279,6 +281,7 @@ export default function App() {
             <div className="relative h-full">
               <SearchResults
                 results={searchResults}
+                loading={loading.search}
                 snippets={searchSnippets ?? undefined}
                 title={activeTag ? `Tagged · ${activeTag}` : undefined}
                 onOpen={(p) => navigate(noteUrl(p))}
@@ -300,6 +303,7 @@ export default function App() {
                   edges={graph?.edges ?? []}
                   tagsByNote={noteTags}
                   activePath={activePath}
+                  loading={loading.graph}
                   onOpenNote={(p) => navigate(noteUrl(p))}
                 />
               ) : (
@@ -311,7 +315,12 @@ export default function App() {
                     onPin={actions.pinTab}
                     onClose={actions.closeTab}
                   />
-                  <div className="min-h-0 flex-1">
+                  <div className="relative min-h-0 flex-1">
+                    {loading.note && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-bg/50">
+                        <Spinner label="Loading note" />
+                      </div>
+                    )}
                     <Editor
                       path={activePath}
                       value={activeContents}
@@ -337,7 +346,11 @@ export default function App() {
           </ErrorBoundary>
         }
         backlinks={
-          <Backlinks paths={backlinks} onOpen={(p) => navigate(noteUrl(p))} />
+          <Backlinks
+            paths={backlinks}
+            loading={loading.backlinks}
+            onOpen={(p) => navigate(noteUrl(p))}
+          />
         }
       />
       <ErrorToast message={error} onDismiss={actions.dismissError} />
