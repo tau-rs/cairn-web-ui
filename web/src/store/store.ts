@@ -43,6 +43,9 @@ export interface NoteBuffer {
 
 export interface CairnState {
   cairnPath: string | null;
+  // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
+  // waits for this so its URL<->store reconciliation can't race the restore.
+  ready: boolean;
   notePaths: string[];
   openNotes: Record<string, NoteBuffer>;
   tabs: Tab[];
@@ -175,6 +178,7 @@ export function createCairnStore(
 
     return {
       cairnPath: null,
+      ready: false,
       notePaths: [],
       openNotes: {},
       tabs: [],
@@ -255,6 +259,11 @@ export function createCairnStore(
           }
           get().rearmInterval();
         }
+        // Restore is complete: RouteSync may now reconcile URL <-> store. Setting
+        // this last means a /note/* deep link in the URL is opened by RouteSync
+        // *after* (and so wins over) the persisted-tab restore above, without the
+        // two racing during startup.
+        set({ ready: true });
       },
 
       async openCairn() {
@@ -278,6 +287,9 @@ export function createCairnStore(
           });
           await get().refreshNotePaths();
           get().rearmInterval();
+          // Opening a vault from the picker has no tabs to restore, but RouteSync
+          // still gates on this — flip it so reconciliation can run.
+          set({ ready: true });
         } catch (err) {
           set({ error: errMsg(err) });
         }

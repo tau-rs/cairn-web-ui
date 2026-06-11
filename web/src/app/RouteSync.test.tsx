@@ -6,9 +6,10 @@ import { cairnStore } from "./cairnStore";
 
 beforeEach(() => {
   localStorage.clear();
-  // Seed a known, vault-open state without running full init().
+  // Seed a known, ready (restore-complete) state without running full init().
   cairnStore.setState({
     cairnPath: "/mock",
+    ready: true,
     notePaths: ["index.md", "ideas.md"],
     activePath: null,
     activeTag: null,
@@ -31,14 +32,14 @@ describe("RouteSync", () => {
     );
   });
 
-  it("stays inert until a vault is open", async () => {
-    cairnStore.setState({ cairnPath: null });
+  it("stays inert until init finishes (ready === false)", async () => {
+    cairnStore.setState({ ready: false });
     render(
       <MemoryRouter initialEntries={["/note/ideas.md"]}>
         <RouteSync />
       </MemoryRouter>,
     );
-    // give effects a tick; nothing should open
+    // give effects a tick; nothing should open while the restore is in flight
     await new Promise((r) => setTimeout(r, 0));
     expect(cairnStore.getState().activePath).toBeNull();
   });

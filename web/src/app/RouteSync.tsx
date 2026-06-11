@@ -13,7 +13,11 @@ export function RouteSync(): null {
   const location = useLocation();
   const navigate = useNavigate();
   const activePath = useCairn((s) => s.activePath);
-  const cairnPath = useCairn((s) => s.cairnPath);
+  // Gate on `ready` (not `cairnPath`): cairnPath is set early in init() while the
+  // persisted-tab restore is still running, which would let the lanes race that
+  // restore. `ready` flips only after restore finishes, so a /note/* deep link is
+  // opened here *after* — and thus wins over — the restored active tab.
+  const ready = useCairn((s) => s.ready);
 
   // Current location read by Lane B without making it a dependency.
   const locationRef = useRef(location);
@@ -23,7 +27,7 @@ export function RouteSync(): null {
 
   // Lane A: URL -> store
   useEffect(() => {
-    if (cairnPath === null) return;
+    if (!ready) return;
     const st = cairnStore.getState();
     const effects = urlToStore({
       location,
@@ -37,20 +41,20 @@ export function RouteSync(): null {
       else if (e.kind === "loadGraph") void st.loadGraph();
       else if (e.kind === "openNote") void st.openNote(e.path);
     }
-  }, [location, cairnPath]);
+  }, [location, ready]);
 
   // Lane B: store -> URL
   useEffect(() => {
     const prev = prevActiveRef.current;
     prevActiveRef.current = activePath;
-    if (cairnPath === null) return;
+    if (!ready) return;
     const eff = storeToUrl({
       location: locationRef.current,
       activePath,
       prevActivePath: prev,
     });
     if (eff.kind === "navigate") navigate(eff.to, { replace: true });
-  }, [activePath, cairnPath, navigate]);
+  }, [activePath, ready, navigate]);
 
   return null;
 }
