@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createCairnStore, DEFAULT_SETTINGS } from "./store";
 import { MockClient } from "../client/mock";
+import type { QueryResponse } from "../contract";
 
 beforeEach(() => vi.useFakeTimers());
 beforeEach(() => localStorage.clear());
@@ -536,5 +537,60 @@ describe("cairn store", () => {
     // ...and b.md's backlinks would reflect a.md (targeted refresh still runs).
     await store.getState().openNote("b.md");
     expect(store.getState().backlinks).toContain("a.md");
+  });
+
+  it("starts with all loading flags false", () => {
+    const { store } = setup();
+    expect(store.getState().loading).toEqual({
+      search: false,
+      graph: false,
+      backlinks: false,
+      note: false,
+    });
+  });
+
+  it("exposes loading.search while a search is in flight, clearing when it lands", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    let resolve!: (v: QueryResponse) => void;
+    vi.spyOn(client, "runQuery").mockReturnValueOnce(
+      new Promise<QueryResponse>((r) => (resolve = r)),
+    );
+    const p = store.getState().runSearch("x");
+    expect(store.getState().loading.search).toBe(true);
+    resolve({ type: "search_results", results: [] });
+    await p;
+    expect(store.getState().loading.search).toBe(false);
+  });
+
+  it("exposes loading.note while a note's contents load", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    let resolve!: (v: QueryResponse) => void;
+    vi.spyOn(client, "runQuery").mockReturnValueOnce(
+      new Promise<QueryResponse>((r) => (resolve = r)),
+    );
+    const p = store.getState().openNote("a.md");
+    expect(store.getState().loading.note).toBe(true);
+    resolve({ type: "note", contents: "hi" });
+    await p;
+    expect(store.getState().loading.note).toBe(false);
+  });
+
+  it("exposes loading.graph while the graph loads", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    await store.getState().init();
+    let resolve!: (v: QueryResponse) => void;
+    vi.spyOn(client, "runQuery").mockReturnValueOnce(
+      new Promise<QueryResponse>((r) => (resolve = r)),
+    );
+    const p = store.getState().loadGraph();
+    expect(store.getState().loading.graph).toBe(true);
+    resolve({ type: "graph", nodes: [], edges: [] });
+    await p;
+    expect(store.getState().loading.graph).toBe(false);
   });
 });
