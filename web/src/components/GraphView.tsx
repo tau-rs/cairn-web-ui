@@ -36,7 +36,6 @@ import {
   saveLocalGraph,
 } from "./graph/localGraph";
 
-
 export function GraphView(props: {
   nodes: string[];
   edges: { from: string; to: string }[];
