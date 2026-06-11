@@ -28,10 +28,7 @@ export function planRenameNote(notePath: string, newName: string): Rename[] {
  *  (delegates to planRenameNote); a path with slashes re-homes the note to that
  *  folder. A trailing `.md` and leading `/` are stripped. [] when empty/no-op. */
 export function planRenameNotePath(notePath: string, input: string): Rename[] {
-  const trimmed = input
-    .trim()
-    .replace(/^\/+/, "")
-    .replace(/\.md$/, "");
+  const trimmed = input.trim().replace(/^\/+/, "").replace(/\.md$/, "");
   if (!trimmed) return [];
   if (!trimmed.includes("/")) return planRenameNote(notePath, trimmed);
   const to = `${trimmed}.md`;

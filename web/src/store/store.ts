@@ -76,7 +76,12 @@ export interface CairnState {
   // Per-area pending flags so consumers can show a spinner/skeleton distinct
   // from an empty result. Set around each async call; a superseded request never
   // clears a newer one's flag (token-guarded).
-  loading: { search: boolean; graph: boolean; backlinks: boolean; note: boolean };
+  loading: {
+    search: boolean;
+    graph: boolean;
+    backlinks: boolean;
+    note: boolean;
+  };
 
   init(): Promise<void>;
   openCairn(): Promise<void>;
