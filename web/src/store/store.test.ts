@@ -447,4 +447,82 @@ describe("cairn store", () => {
     store.getState().dismissNotice();
     expect(store.getState().notice).toBeNull();
   });
+
+  it("a slow backlinks response for the previous note does not overwrite the current note", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({
+      "a.md": "x", // no backlinks
+      "b.md": "x",
+      "links-to-b.md": "see [[b]]", // b.md has one backlink
+    });
+    let releaseA = () => {};
+    const gateA = new Promise<void>((r) => (releaseA = r));
+    const orig = client.runQuery.bind(client);
+    vi.spyOn(client, "runQuery").mockImplementation(async (q) => {
+      if (q.type === "get_backlinks" && q.path === "a.md") await gateA;
+      return orig(q);
+    });
+    const store = createCairnStore(client);
+    await store.getState().init();
+
+    const openA = store.getState().openNote("a.md"); // backlinks query gated
+    const openB = store.getState().openNote("b.md"); // resolves immediately
+    await openB;
+    expect(store.getState().activePath).toBe("b.md");
+    expect(store.getState().backlinks).toEqual(["links-to-b.md"]);
+
+    releaseA();
+    await openA;
+    // a.md's stale (empty) backlinks must NOT have overwritten b.md's.
+    expect(store.getState().backlinks).toEqual(["links-to-b.md"]);
+  });
+
+  it("a self-write (autosave) does not trigger the expensive index-wide refresh storm", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({ "a.md": "orig [[b]]", "b.md": "B" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().loadGraph(); // graph non-null -> would rebuild
+    await store.getState().openNote("a.md"); // activePath set
+    const spy = vi.spyOn(client, "runQuery");
+
+    store.getState().editBuffer("orig [[b]] more");
+    await store.getState().saveActive(); // write_note -> echoed note_changed
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Guard against a trivial pass: the write must actually have happened
+    // (saveNote only sets uncommitted on a real successful write).
+    expect(store.getState().uncommitted).toBe(true);
+    // The storm — the index-wide list/tags refresh and the whole-graph rebuild —
+    // must NOT fire for our own write.
+    const storm = spy.mock.calls.filter(([q]) =>
+      ["list_notes", "list_tags", "get_graph"].includes(q.type),
+    );
+    expect(storm).toEqual([]);
+  });
+
+  it("a self-write still refreshes the active note's targeted views (backlinks + open search)", async () => {
+    vi.useRealTimers();
+    // b.md does not yet match "needle" nor link to a.md.
+    const client = new MockClient({ "a.md": "A", "b.md": "B" });
+    const store = createCairnStore(client);
+    await store.getState().init();
+    await store.getState().openNote("a.md"); // a.md is active
+    await store.getState().runSearch("needle"); // open search, no matches yet
+    expect(store.getState().searchResults).toEqual([]);
+
+    // Edit a.md so it now links to b.md AND contains the search term, then save.
+    store.getState().editBuffer("A now links [[b]] and has a needle");
+    await store.getState().saveActive(); // self-write -> echoed note_changed
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.waitFor(() => {
+      // The active search re-ran off the self-write and now finds a.md...
+      expect(store.getState().searchResults).toContain("a.md");
+    });
+    // ...and b.md's backlinks would reflect a.md (targeted refresh still runs).
+    await store.getState().openNote("b.md");
+    expect(store.getState().backlinks).toContain("a.md");
+  });
 });

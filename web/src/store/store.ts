@@ -109,6 +109,16 @@ export function createCairnStore(
   let started = false;
   let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
+  // Monotonic request tokens: a slow response only applies if no newer request
+  // of the same kind has started since. runSearch + filterByTag share `results`
+  // because both write the search overlay, so the newest of either wins.
+  const seq = { backlinks: 0, results: 0, graph: 0 };
+
+  // Paths the client itself just wrote, awaiting their note_changed echo. The
+  // echo of our own write must not trigger the refresh cascade (autosave storm);
+  // a per-path count tolerates several rapid self-writes to the same note.
+  const pendingSelfWrites = new Map<string, number>();
+
   const store = createStore<CairnState>()((set, get) => {
     const tabsState = (): TabsState => ({
       tabs: get().tabs,
@@ -196,14 +206,32 @@ export function createCairnStore(
         // Subscribe once, for the store's lifetime — NOT inside the path gate.
         client.subscribe((e) => {
           if (e.type === "note_changed" || e.type === "note_deleted") {
-            void get().refreshNotePaths();
-            void get().loadTags();
+            // Detect the echo of our own just-written note. A debounced autosave
+            // must not fan the full index/graph cascade out on every keystroke
+            // (the refresh storm) — but the *targeted* views that reflect the
+            // edit just made (backlinks, the active search/filter) should still
+            // update. So for a self-write we skip the expensive index-wide work
+            // (note list, tags, and the whole-graph rebuild) and refresh only
+            // the active note's derived data. External changes refresh fully.
+            let selfWrite = false;
+            if (e.type === "note_changed") {
+              const pending = pendingSelfWrites.get(e.path) ?? 0;
+              if (pending > 0) {
+                if (pending === 1) pendingSelfWrites.delete(e.path);
+                else pendingSelfWrites.set(e.path, pending - 1);
+                selfWrite = true;
+              }
+            }
+            if (!selfWrite) {
+              void get().refreshNotePaths();
+              void get().loadTags();
+              if (get().graph !== null) void get().loadGraph();
+            }
             const tag = get().activeTag;
             if (tag) void get().filterByTag(tag);
             else if (get().searchResults !== null)
               void get().runSearch(get().query);
             if (get().activePath) void get().refreshBacklinks();
-            if (get().graph !== null) void get().loadGraph();
           } else if (e.type === "committed") {
             set({ lastCommit: e.commit, uncommitted: false });
           }
@@ -319,6 +347,9 @@ export function createCairnStore(
         if (!buf || !buf.dirty) return;
         const snapshot = buf.contents;
         setBuffer(path, { saving: true });
+        // Mark before sending: the engine echoes note_changed for this write and
+        // the subscribe handler must see the pending mark to suppress it.
+        pendingSelfWrites.set(path, (pendingSelfWrites.get(path) ?? 0) + 1);
         try {
           await client.sendCommand({
             type: "write_note",
@@ -338,6 +369,12 @@ export function createCairnStore(
           }
           set({ uncommitted: true });
         } catch (err) {
+          // The write failed, so no echo is coming — release the pending mark
+          // (else a later external change to this path would be wrongly skipped).
+          pendingSelfWrites.set(
+            path,
+            Math.max(0, (pendingSelfWrites.get(path) ?? 1) - 1),
+          );
           if (get().openNotes[path]) setBuffer(path, { saving: false });
           set({ error: errMsg(err) });
         }
@@ -432,8 +469,10 @@ export function createCairnStore(
       },
 
       async runSearch(query) {
+        const token = ++seq.results;
         try {
           const res = await client.runQuery({ type: "search", query });
+          if (token !== seq.results) return; // a newer search/filter superseded
           if (res.type === "search_results") {
             set({
               query,
@@ -448,6 +487,7 @@ export function createCairnStore(
             });
           }
         } catch (err) {
+          if (token !== seq.results) return;
           set({ error: errMsg(err) });
         }
       },
@@ -462,8 +502,10 @@ export function createCairnStore(
       },
 
       async filterByTag(tag) {
+        const token = ++seq.results;
         try {
           const res = await client.runQuery({ type: "notes_by_tag", tag });
+          if (token !== seq.results) return; // a newer search/filter superseded
           if (res.type === "paths")
             set({
               searchResults: res.paths,
@@ -471,6 +513,7 @@ export function createCairnStore(
               activeTag: tag,
             });
         } catch (err) {
+          if (token !== seq.results) return;
           set({ error: errMsg(err) });
         }
       },
@@ -518,24 +561,32 @@ export function createCairnStore(
       async refreshBacklinks() {
         const path = get().activePath;
         if (!path) return set({ backlinks: [] });
+        const token = ++seq.backlinks;
         try {
           const res = await client.runQuery({ type: "get_backlinks", path });
+          if (token !== seq.backlinks) return; // superseded by a newer request
           if (res.type === "paths") set({ backlinks: res.paths });
         } catch (err) {
+          if (token !== seq.backlinks) return;
           set({ error: errMsg(err) });
         }
       },
 
       async loadGraph() {
+        const token = ++seq.graph;
         try {
           const res = await client.runQuery({ type: "get_graph" });
+          if (token !== seq.graph) return; // superseded by a newer reload
           if (res.type === "graph")
             set({ graph: { nodes: res.nodes, edges: res.edges } });
         } catch (err) {
+          if (token !== seq.graph) return;
           set({ error: errMsg(err) });
         }
         try {
-          set({ noteTags: await client.noteTags() });
+          const tags = await client.noteTags();
+          if (token !== seq.graph) return; // superseded by a newer reload
+          set({ noteTags: tags });
         } catch {
           // leave the existing noteTags as-is — stale data beats clearing it
         }
