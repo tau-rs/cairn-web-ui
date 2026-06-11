@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createCairnStore, DEFAULT_SETTINGS } from "./store";
 import { MockClient } from "../client/mock";
+import { saveTabs } from "../components/tabs/tabsPersistence";
 import type { Event } from "../contract";
 
 // Stub `subscribe` so it immediately reports an attach failure and delivers no
@@ -260,6 +261,36 @@ describe("cairn store", () => {
     await store.getState().openCairn();
     expect(store.getState().cairnPath).toBe("/tmp/mycairn");
     expect(store.getState().notePaths).toContain("x.md");
+  });
+
+  it("openCairn reloads tags + plugins, restores tabs, and resets the graph", async () => {
+    vi.useRealTimers();
+    localStorage.clear();
+    const client = new MockClient({
+      "a.md": "---\ntags: [rust]\n---\nlinks [[b]]",
+      "b.md": "B",
+    });
+    const host = {
+      currentCairn: () => Promise.resolve<string | null>(null),
+      openCairn: () => Promise.resolve<string | null>("/tmp/second"),
+      assetUrl: (p: string) => p,
+    };
+    // A pinned tab persisted from a prior session of this cairn.
+    saveTabs({ tabs: [{ path: "b.md", preview: false }], activePath: "b.md" });
+    const store = createCairnStore(client, host);
+    await store.getState().init(); // currentCairn null -> nothing loaded yet
+    await store.getState().loadGraph(); // graph now non-null (cairn-specific)
+
+    await store.getState().openCairn();
+
+    // Tags + plugins must reload, not stay empty until an unrelated event.
+    expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
+    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo"]);
+    // Persisted pinned tabs restore for the freshly opened cairn.
+    expect(store.getState().tabs.map((t) => t.path)).toEqual(["b.md"]);
+    expect(store.getState().activePath).toBe("b.md");
+    // Derived graph is reset consistently (will reload when its panel asks).
+    expect(store.getState().graph).toBeNull();
   });
 
   it("keeps each open note's buffer when switching tabs", async () => {
