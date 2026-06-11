@@ -45,8 +45,9 @@ export function useGlobalKeys(
         runCommandRef.current(id);
         return;
       }
-      // Built-in tab navigation (parameterized; not rebindable). Also suppressed
-      // in an editable target so Mod+1..9 doesn't fire while typing in search.
+      // Built-in tab navigation (parameterized; not rebindable). Both branches
+      // (Ctrl+Tab and Mod+1..9) are suppressed in an editable target so they
+      // don't fire while typing in search or the editor.
       if (editable) return;
       const st = cairnStore.getState();
       if (e.ctrlKey && e.key === "Tab") {
