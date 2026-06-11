@@ -181,6 +181,47 @@ export function createCairnStore(
       });
     };
 
+    // Load a cairn's derived state from scratch and arm autosave. Resets every
+    // per-cairn view first (so nothing leaks from a previously-open cairn), then
+    // reloads the note list, tags, plugins, and the persisted pinned tabs. Shared
+    // by init() and openCairn() so the two load paths can't drift out of sync.
+    const loadCairn = async () => {
+      set({
+        openNotes: {},
+        tabs: [],
+        activePath: null,
+        activeContents: "",
+        dirty: false,
+        saving: false,
+        backlinks: [],
+        graph: null,
+        noteTags: {},
+        searchResults: null,
+        searchSnippets: null,
+        activeTag: null,
+        tags: [],
+        plugins: [],
+        notice: null,
+      });
+      await get().refreshNotePaths();
+      await get().loadTags();
+      await get().loadPlugins();
+      // Restore persisted pinned tabs; skip any that no longer load.
+      const persisted = loadTabs(get().notePaths);
+      for (const p of persisted.pinned) {
+        try {
+          await get().openNote(p);
+          get().pinTab(p);
+        } catch {
+          /* skip a tab that won't load */
+        }
+      }
+      if (persisted.activePath && get().openNotes[persisted.activePath]) {
+        get().selectTab(persisted.activePath);
+      }
+      get().rearmInterval();
+    };
+
     return {
       cairnPath: null,
       ready: false,
@@ -246,23 +287,7 @@ export function createCairnStore(
           }
         });
         if (path !== null) {
-          await get().refreshNotePaths();
-          await get().loadTags();
-          await get().loadPlugins();
-          // Restore persisted pinned tabs; skip any that no longer load.
-          const persisted = loadTabs(get().notePaths);
-          for (const p of persisted.pinned) {
-            try {
-              await get().openNote(p);
-              get().pinTab(p);
-            } catch {
-              /* skip a tab that won't load */
-            }
-          }
-          if (persisted.activePath && get().openNotes[persisted.activePath]) {
-            get().selectTab(persisted.activePath);
-          }
-          get().rearmInterval();
+          await loadCairn();
         }
         // Restore is complete: RouteSync may now reconcile URL <-> store. Setting
         // this last means a /note/* deep link in the URL is opened by RouteSync
@@ -275,25 +300,10 @@ export function createCairnStore(
         try {
           const path = await host.openCairn();
           if (path === null) return; // cancelled
-          set({
-            cairnPath: path,
-            openNotes: {},
-            tabs: [],
-            activePath: null,
-            activeContents: "",
-            dirty: false,
-            saving: false,
-            backlinks: [],
-            tags: [],
-            activeTag: null,
-            searchSnippets: null,
-            plugins: [],
-            notice: null,
-          });
-          await get().refreshNotePaths();
-          get().rearmInterval();
-          // Opening a vault from the picker has no tabs to restore, but RouteSync
-          // still gates on this — flip it so reconciliation can run.
+          set({ cairnPath: path });
+          await loadCairn();
+          // The freshly loaded cairn is restored; RouteSync gates on this — flip
+          // it so URL <-> store reconciliation can run.
           set({ ready: true });
         } catch (err) {
           set({ error: errMsg(err) });
