@@ -34,12 +34,12 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+      - uses: extractions/setup-just@v3
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm format:check
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
+      # Single source of truth: `just web-ci` reproduces the web gate verbatim
+      # (lint, format:check, typecheck, test, build). See justfile / docs/ci.md.
+      - run: just web-ci
+        working-directory: ${{ github.workspace }}
 
   e2e:
     name: e2e
@@ -85,9 +85,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - uses: extractions/setup-just@v3
+      # Single source of truth: `just rust-ci` reproduces the tauri gate verbatim
+      # (cargo fmt --check, clippy -D warnings, test). See justfile / docs/ci.md.
+      - run: just rust-ci
 
   ci-summary:
     # Single aggregated status for branch protection: require this one
