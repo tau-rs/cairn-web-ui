@@ -17,6 +17,15 @@ import { loadTabs, saveTabs } from "../components/tabs/tabsPersistence";
 import type { SearchSnippet } from "../components/searchHighlight";
 import type { Rename } from "../components/tree/treeMoves";
 
+/** A queued, auto-dismissing error notification. */
+export interface Toast {
+  id: number;
+  message: string;
+}
+
+/** How long a queued error toast stays before auto-dismissing (ms). */
+export const ERROR_TOAST_MS = 6000;
+
 export interface Settings {
   autosaveMs: number;
   idleAutoCommit: boolean;
@@ -72,7 +81,7 @@ export interface CairnState {
   plugins: PluginSummary[];
   notice: string | null;
   settings: Settings;
-  error: string | null;
+  errors: Toast[];
   // "down" when the push-event channel failed to attach — the reactive refresh
   // model is degraded and data may be stale until a manual refresh.
   liveUpdates: "ok" | "down";
@@ -107,7 +116,7 @@ export interface CairnState {
   autoCommit(): Promise<void>;
   rearmInterval(): void;
   setSettings(patch: Partial<Settings>): void;
-  dismissError(): void;
+  dismissError(id: number): void;
   refreshAll(): Promise<void>;
   assetUrl(relPath: string): string;
 }
@@ -126,6 +135,9 @@ export function createCairnStore(
   // of the same kind has started since. runSearch + filterByTag share `results`
   // because both write the search overlay, so the newest of either wins.
   const seq = { backlinks: 0, results: 0, graph: 0 };
+
+  // Monotonic id for queued error toasts (auto-dismiss keys off it).
+  let errorSeq = 0;
 
   // Paths the client itself just wrote, awaiting their note_changed echo. The
   // echo of our own write must not trigger the refresh cascade (autosave storm);
@@ -174,6 +186,32 @@ export function createCairnStore(
         dirty: buf?.dirty ?? false,
         saving: buf?.saving ?? false,
       });
+    };
+
+    // Funnel for every caught command/query error. Logs a structured diagnostic
+    // (operation + context + typed ContractError) for devs, surfaces an
+    // operation-prefixed toast for users, and auto-dismisses it. Appends via a
+    // functional set() so concurrent errors during a refresh storm queue up
+    // instead of clobbering one another.
+    const pushError = (
+      operation: string,
+      err: unknown,
+      context: Record<string, unknown> = {},
+    ) => {
+      console.error(`[cairn] ${operation} failed`, {
+        operation,
+        ...context,
+        error: err,
+      });
+      const id = ++errorSeq;
+      const message = `${operation}: ${errMsg(err)}`;
+      set((s) => ({ errors: [...s.errors, { id, message }] }));
+      // Fire-and-forget: the store is a singleton for the page lifetime, so the
+      // pending timer can't outlive a torn-down store. Manual dismiss is the
+      // common case; this is just the auto-expiry backstop.
+      setTimeout(() => {
+        set((s) => ({ errors: s.errors.filter((t) => t.id !== id) }));
+      }, ERROR_TOAST_MS);
     };
 
     const dropNote = (path: string) => {
@@ -294,7 +332,7 @@ export function createCairnStore(
       plugins: [],
       notice: null,
       settings: DEFAULT_SETTINGS,
-      error: null,
+      errors: [],
       liveUpdates: "ok",
 
       async init() {
@@ -325,7 +363,7 @@ export function createCairnStore(
           // it so URL <-> store reconciliation can run.
           set({ ready: true });
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Open vault", err);
         }
       },
 
@@ -335,7 +373,7 @@ export function createCairnStore(
           if (res.type === "notes")
             set({ notePaths: res.notes.map((n) => n.path) });
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("List notes", err);
         }
       },
 
@@ -355,7 +393,7 @@ export function createCairnStore(
           persist();
           await get().refreshBacklinks();
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Open note", err, { path });
         }
       },
 
@@ -422,7 +460,7 @@ export function createCairnStore(
             Math.max(0, (pendingSelfWrites.get(path) ?? 1) - 1),
           );
           if (get().openNotes[path]) setBuffer(path, { saving: false });
-          set({ error: errMsg(err) });
+          pushError("Save note", err, { path });
         }
       },
 
@@ -432,7 +470,7 @@ export function createCairnStore(
           await get().openNote(path);
           get().pinTab(path); // new notes open pinned
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Create note", err, { path });
         }
       },
 
@@ -441,7 +479,7 @@ export function createCairnStore(
           await client.sendCommand({ type: "delete_note", path });
           get().closeTab(path);
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Delete note", err, { path });
         }
       },
 
@@ -450,7 +488,7 @@ export function createCairnStore(
           try {
             await client.sendCommand({ type: "rename_note", from, to });
           } catch (err) {
-            set({ error: errMsg(err) });
+            pushError("Rename note", err, { from, to });
             break;
           }
           set((s) => {
@@ -534,7 +572,7 @@ export function createCairnStore(
           }
         } catch (err) {
           if (token !== seq.results) return;
-          set({ error: errMsg(err) });
+          pushError("Search", err, { query });
         }
       },
 
@@ -543,7 +581,7 @@ export function createCairnStore(
           const res = await client.runQuery({ type: "list_tags" });
           if (res.type === "tags") set({ tags: res.tags });
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Load tags", err);
         }
       },
 
@@ -560,7 +598,7 @@ export function createCairnStore(
             });
         } catch (err) {
           if (token !== seq.results) return;
-          set({ error: errMsg(err) });
+          pushError("Filter notes by tag", err, { tag });
         }
       },
 
@@ -569,7 +607,7 @@ export function createCairnStore(
           const res = await client.runQuery({ type: "list_plugins" });
           if (res.type === "plugins") set({ plugins: res.plugins });
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Load plugins", err);
         }
       },
 
@@ -588,7 +626,7 @@ export function createCairnStore(
             });
           }
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Run plugin command", err, { plugin, command });
         }
       },
 
@@ -614,7 +652,7 @@ export function createCairnStore(
           if (res.type === "paths") set({ backlinks: res.paths });
         } catch (err) {
           if (token !== seq.backlinks) return;
-          set({ error: errMsg(err) });
+          pushError("Load backlinks", err, { path });
         }
       },
 
@@ -627,7 +665,7 @@ export function createCairnStore(
             set({ graph: { nodes: res.nodes, edges: res.edges } });
         } catch (err) {
           if (token !== seq.graph) return;
-          set({ error: errMsg(err) });
+          pushError("Load graph", err);
         }
         try {
           const tags = await client.noteTags();
@@ -646,7 +684,7 @@ export function createCairnStore(
           if (res.type === "committed")
             set({ lastCommit: res.commit, uncommitted: false });
         } catch (err) {
-          set({ error: errMsg(err) });
+          pushError("Commit", err);
         } finally {
           set({ committing: false });
         }
@@ -678,8 +716,8 @@ export function createCairnStore(
         }
       },
 
-      dismissError() {
-        set({ error: null });
+      dismissError(id) {
+        set((s) => ({ errors: s.errors.filter((t) => t.id !== id) }));
       },
 
       async refreshAll() {
