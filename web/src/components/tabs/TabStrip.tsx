@@ -17,15 +17,14 @@ export function TabStrip(props: {
   const tabRefs = useRef<(HTMLDivElement | null)[]>([]);
   if (props.tabs.length === 0) return null;
 
-  // WAI-ARIA tabs: arrows move focus between tabs (wrapping) and activate the
-  // landed tab; Enter/Space activate the focused tab. Roving tabindex keeps a
-  // single tab in the Tab order.
+  // WAI-ARIA tabs, manual activation: arrows just move focus between tabs
+  // (wrapping); Enter/Space activate the focused tab. Manual (not automatic)
+  // activation is the pattern's recommendation when activating a tab is
+  // expensive — here it navigates and can trigger a note load. Roving tabindex
+  // keeps a single tab in the Tab order.
   const onTabKeyDown = (e: React.KeyboardEvent, index: number) => {
     const tabs = props.tabs;
-    const focusAt = (i: number) => {
-      tabRefs.current[i]?.focus();
-      props.onSelect(tabs[i].path);
-    };
+    const focusAt = (i: number) => tabRefs.current[i]?.focus();
     switch (e.key) {
       case "ArrowRight":
         e.preventDefault();

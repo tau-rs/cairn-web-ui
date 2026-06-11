@@ -72,19 +72,21 @@ describe("TabStrip", () => {
     fireEvent.keyDown(screen.getByRole("tab", { name: /ideas/ }), { key: " " });
     expect(props.onSelect).toHaveBeenCalledWith("ideas.md");
   });
-  it("moves selection to the next tab on ArrowRight (wrapping)", () => {
+  it("moves focus (not selection) to the next tab on ArrowRight (wrapping)", () => {
     const props = setup(); // active = a.md (index 0)
     fireEvent.keyDown(screen.getByRole("tab", { name: /a$/ }), {
       key: "ArrowRight",
     });
-    expect(props.onSelect).toHaveBeenCalledWith("ideas.md");
+    expect(screen.getByRole("tab", { name: /ideas/ })).toHaveFocus();
+    expect(props.onSelect).not.toHaveBeenCalled(); // manual activation
   });
-  it("moves selection to the previous tab on ArrowLeft (wrapping to last)", () => {
+  it("moves focus to the previous tab on ArrowLeft (wrapping to last)", () => {
     const props = setup(); // active = a.md (index 0) -> wraps to ideas.md
     fireEvent.keyDown(screen.getByRole("tab", { name: /a$/ }), {
       key: "ArrowLeft",
     });
-    expect(props.onSelect).toHaveBeenCalledWith("ideas.md");
+    expect(screen.getByRole("tab", { name: /ideas/ })).toHaveFocus();
+    expect(props.onSelect).not.toHaveBeenCalled();
   });
   it("renders nothing when there are no tabs", () => {
     const { container } = render(

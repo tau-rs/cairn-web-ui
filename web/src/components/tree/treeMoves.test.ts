@@ -46,6 +46,9 @@ describe("planRenameNotePath", () => {
     expect(planRenameNotePath("a.md", "  ")).toEqual([]);
     expect(planRenameNotePath("dir/a.md", "dir/a")).toEqual([]);
   });
+  it("returns [] when the final segment is empty (trailing slash)", () => {
+    expect(planRenameNotePath("a.md", "dir/")).toEqual([]);
+  });
 });
 
 describe("planRenameFolder", () => {

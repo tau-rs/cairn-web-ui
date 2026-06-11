@@ -23,14 +23,17 @@ export function planRenameNote(notePath: string, newName: string): Rename[] {
   return to === notePath ? [] : [{ from: notePath, to }];
 }
 
-/** Rename or move a note via a typed relative path — the keyboard equivalent of
- *  drag-to-move. A bare name (no slash) renames within the current folder
- *  (delegates to planRenameNote); a path with slashes re-homes the note to that
- *  folder. A trailing `.md` and leading `/` are stripped. [] when empty/no-op. */
+/** Rename or move a note via a typed vault-relative path — the keyboard
+ *  equivalent of drag-to-move. A bare name (no slash) renames within the current
+ *  folder (delegates to planRenameNote); a path with slashes re-homes the note
+ *  to that folder (relative to the vault root). A trailing `.md` and leading `/`
+ *  are stripped. [] when empty, a no-op, or the final segment is empty. */
 export function planRenameNotePath(notePath: string, input: string): Rename[] {
   const trimmed = input.trim().replace(/^\/+/, "").replace(/\.md$/, "");
   if (!trimmed) return [];
   if (!trimmed.includes("/")) return planRenameNote(notePath, trimmed);
+  // Reject an empty final segment (e.g. "dir/") — there is no filename.
+  if (trimmed.endsWith("/")) return [];
   const to = `${trimmed}.md`;
   return to === notePath ? [] : [{ from: notePath, to }];
 }
