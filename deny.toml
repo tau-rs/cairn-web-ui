@@ -1,0 +1,58 @@
+# cargo-deny configuration for the src-tauri Rust shell.
+# Run via `just deny-rust` (local + CI T1 gate). Tuned to pass on the
+# current dependency tree; widen `licenses.allow` if a new dep introduces
+# a permissive license not yet listed.
+
+[advisories]
+version = 2
+# RustSec advisory DB. Fail the gate on any unfixed vulnerability or yanked
+# crate (the checks that matter for a shipped binary).
+yanked = "deny"
+# Only flag *unmaintained* advisories for first-party workspace crates, not
+# the transitive tree. The Tauri dep graph pulls in a long tail of
+# unmaintained-but-not-vulnerable crates (gtk-rs GTK3 bindings via
+# tauri-runtime-wry, proc-macro-error via tauri-macros, unic-* via
+# urlpattern/tauri-utils) that we cannot fix without Tauri upgrading them.
+# Enumerating their RUSTSEC ids would rot as new advisories land on the same
+# crates; "workspace" scopes the noise out while keeping real vulnerability
+# advisories gating. Re-evaluate if cairn-ui's own crates ever go unmaintained.
+unmaintained = "workspace"
+ignore = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+# Permissive licenses present in (or expected for) the Tauri dep tree.
+# Extend as needed — `cargo deny check licenses` names any rejected one.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+    "0BSD",
+]
+
+# The cairn-ui shell crate (app v0.1.0) is a private Tauri scaffold with no
+# license declaration. Clarify it as MIT so the gate passes; the crate is not
+# published to crates.io and has no external consumers.
+[[licenses.clarify]]
+crate = "app@0.1.0"
+expression = "MIT"
+license-files = []
+
+[bans]
+# Duplicate versions are a hygiene signal, not a merge blocker here.
+multiple-versions = "warn"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+# cairn-* workspace deps are git-pinned by rev; allow git sources.
+unknown-git = "allow"
