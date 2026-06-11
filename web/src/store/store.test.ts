@@ -283,6 +283,14 @@ describe("cairn store", () => {
     expect(s2.getState().activePath).toBe("a.md");
   });
 
+  it("init flips ready true only after the restore completes", async () => {
+    const { store } = setup();
+    expect(store.getState().ready).toBe(false); // fresh store is not ready
+    await store.getState().init();
+    // ready is set last, so the persisted-tab restore has already run by now.
+    expect(store.getState().ready).toBe(true);
+  });
+
   it("flushes a dirty buffer to disk when its tab is closed", async () => {
     const { client, store } = setup();
     const spy = vi.spyOn(client, "sendCommand");

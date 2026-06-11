@@ -25,6 +25,9 @@ import {
   type PaletteCommand,
 } from "../components/command-palette/CommandPalette";
 import { OpenCairn } from "../components/OpenCairn";
+import { useLocation, useNavigate } from "react-router-dom";
+import { RouteSync } from "./RouteSync";
+import { noteUrl, tagUrl, tagFromLocation, isGraph } from "./routes";
 import { cairnStore, useCairn } from "./cairnStore";
 import { Logo } from "../components/ui/Logo";
 import { Button } from "../components/ui/Button";
@@ -48,6 +51,9 @@ export default function App() {
   useEffect(() => {
     void cairnStore.getState().init();
   }, []);
+
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [overrides, setOverrides] = useState<Overrides>(() => loadOverrides());
   const chordMap = useMemo(() => chordToId(overrides), [overrides]);
@@ -100,7 +106,11 @@ export default function App() {
   const activeTag = useCairn((s) => s.activeTag);
   const plugins = useCairn((s) => s.plugins);
   const notice = useCairn((s) => s.notice);
-  const [view, setView] = useState<"editor" | "graph">("editor");
+  const view = isGraph(location) ? "graph" : "editor";
+  // Where the Graph/Editor toggle should navigate: into the graph, or back to
+  // the active note (root if none). Used by both the command and the top-bar button.
+  const toggleViewTarget = () =>
+    isGraph(location) ? (activePath ? noteUrl(activePath) : "/") : "/graph";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newNoteOpen, setNewNoteOpen] = useState(false);
   const [newNoteInitial, setNewNoteInitial] = useState("");
@@ -147,11 +157,7 @@ export default function App() {
         actions.closeActiveTab();
         break;
       case "toggle-view":
-        setView((v) => {
-          const next = v === "graph" ? "editor" : "graph";
-          if (next === "graph") void actions.loadGraph();
-          return next;
-        });
+        navigate(toggleViewTarget());
         break;
       case "open-settings":
         setSettingsOpen(true);
@@ -160,6 +166,12 @@ export default function App() {
         actions.setSettings({
           editorMode: editorMode === "livepreview" ? "source" : "livepreview",
         });
+        break;
+      case "nav-back":
+        navigate(-1);
+        break;
+      case "nav-forward":
+        navigate(1);
         break;
     }
     setPaletteOpen(false);
@@ -174,6 +186,7 @@ export default function App() {
 
   return (
     <>
+      <RouteSync />
       <Shell
         topBar={
           <div className="flex w-full items-center gap-3">
@@ -186,11 +199,7 @@ export default function App() {
             />
             <Button
               variant="ghost"
-              onClick={() => {
-                const next = view === "graph" ? "editor" : "graph";
-                setView(next);
-                if (next === "graph") void actions.loadGraph();
-              }}
+              onClick={() => navigate(toggleViewTarget())}
             >
               {view === "graph" ? "Editor" : "Graph"}
             </Button>
@@ -225,7 +234,7 @@ export default function App() {
             <FolderTree
               paths={notePaths}
               activePath={activePath}
-              onOpen={actions.openNote}
+              onOpen={(p) => navigate(noteUrl(p))}
               onDelete={actions.deleteNote}
               onRequestNew={() => {
                 setNewNoteInitial("");
@@ -240,7 +249,7 @@ export default function App() {
             <TagsPanel
               tags={tags}
               activeTag={activeTag}
-              onSelect={actions.filterByTag}
+              onSelect={(t) => navigate(tagUrl(t))}
             />
           </>
         }
@@ -271,11 +280,18 @@ export default function App() {
                 results={searchResults}
                 snippets={searchSnippets ?? undefined}
                 title={activeTag ? `Tagged · ${activeTag}` : undefined}
-                onOpen={(p) => {
-                  void actions.openNote(p);
-                  actions.closeSearch();
+                onOpen={(p) => navigate(noteUrl(p))}
+                onClose={() => {
+                  // A tag filter is URL-owned (we're on /tags/:tag), so dismiss it
+                  // by navigating away; RouteSync then clears the overlay. A plain
+                  // text search is a store-only overlay with no route, so close it
+                  // in the store directly.
+                  if (tagFromLocation(location) !== null) {
+                    navigate(activePath ? noteUrl(activePath) : "/");
+                  } else {
+                    actions.closeSearch();
+                  }
                 }}
-                onClose={actions.closeSearch}
               />
               {view === "graph" ? (
                 <GraphView
@@ -283,17 +299,14 @@ export default function App() {
                   edges={graph?.edges ?? []}
                   tagsByNote={noteTags}
                   activePath={activePath}
-                  onOpenNote={(p) => {
-                    void actions.openNote(p);
-                    setView("editor");
-                  }}
+                  onOpenNote={(p) => navigate(noteUrl(p))}
                 />
               ) : (
                 <div className="flex h-full flex-col">
                   <TabStrip
                     tabs={tabViews}
                     activePath={activePath}
-                    onSelect={actions.selectTab}
+                    onSelect={(p) => navigate(noteUrl(p))}
                     onPin={actions.pinTab}
                     onClose={actions.closeTab}
                   />
@@ -305,7 +318,7 @@ export default function App() {
                       notePaths={notePaths}
                       assetUrl={actions.assetUrl}
                       onChange={actions.editBuffer}
-                      onOpenNote={actions.openNote}
+                      onOpenNote={(p) => navigate(noteUrl(p))}
                       onToggleMode={() =>
                         actions.setSettings({
                           editorMode:
@@ -321,7 +334,9 @@ export default function App() {
             </div>
           </ErrorBoundary>
         }
-        backlinks={<Backlinks paths={backlinks} onOpen={actions.openNote} />}
+        backlinks={
+          <Backlinks paths={backlinks} onOpen={(p) => navigate(noteUrl(p))} />
+        }
       />
       <ErrorToast message={error} onDismiss={actions.dismissError} />
       <NoticeToast message={notice} onDismiss={actions.dismissNotice} />
@@ -356,8 +371,7 @@ export default function App() {
         notes={notePaths}
         onRunCommand={runCommand}
         onOpenNote={(p) => {
-          void actions.openNote(p);
-          setView("editor");
+          navigate(noteUrl(p));
           setPaletteOpen(false);
         }}
       />

@@ -14,7 +14,10 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
 
   // Open a note; its backlinks show (index.md links to ideas).
   await sidebar.getByRole("button", { name: "ideas", exact: true }).click();
-  await expect(page.getByText("Backlinks")).toBeVisible();
+  // Exact match: the panel heading is "Backlinks"; a substring match would also
+  // hit the "No backlinks" empty-state span and strict-mode-violate while the
+  // backlinks are still loading.
+  await expect(page.getByText("Backlinks", { exact: true })).toBeVisible();
   await expect(
     page.locator("aside").last().getByRole("button", { name: "index.md" }),
   ).toBeVisible();
