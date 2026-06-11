@@ -2,6 +2,23 @@ import { useEffect, useRef } from "react";
 import { cairnStore } from "../../app/cairnStore";
 import { eventToChord } from "./keybinding";
 
+/** Commands that must still fire even while focus is in an editable target —
+ *  the global affordances a user reaches for mid-edit. */
+const ALLOW_IN_EDITABLE = new Set(["open-palette", "commit"]);
+
+/** True when a keydown target is somewhere typing/selection should win over a
+ *  global chord: a form control, a contentEditable region, inside CodeMirror,
+ *  or inside an open dialog. */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (target.isContentEditable) return true;
+  if (target.closest(".cm-editor")) return true; // CodeMirror
+  if (target.closest('[role="dialog"]')) return true; // open dialog
+  return false;
+}
+
 /**
  * Global keydown dispatch: maps a chord to a command id via `chordMap` and runs
  * it through `runCommand`, plus the built-in (non-rebindable) tab navigation
@@ -17,14 +34,20 @@ export function useGlobalKeys(
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const editable = isEditableTarget(e.target);
       const chord = eventToChord(e);
       const id = chord ? chordMap[chord] : undefined;
       if (id) {
+        // In an editable target, only the allowlist (palette/commit) fires; a
+        // bare Mod+E / Mod+W must not steal focus mid-edit.
+        if (editable && !ALLOW_IN_EDITABLE.has(id)) return;
         e.preventDefault();
         runCommandRef.current(id);
         return;
       }
-      // Built-in tab navigation (parameterized; not rebindable).
+      // Built-in tab navigation (parameterized; not rebindable). Also suppressed
+      // in an editable target so Mod+1..9 doesn't fire while typing in search.
+      if (editable) return;
       const st = cairnStore.getState();
       if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
