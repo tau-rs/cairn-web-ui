@@ -5,6 +5,9 @@ dist/
 .vite/
 test-results/
 playwright-report/
+# pnpm repo — keep stray npm/yarn lockfiles out
+package-lock.json
+yarn.lock
 
 # Rust (gateway crate, if/when added)
 target/
