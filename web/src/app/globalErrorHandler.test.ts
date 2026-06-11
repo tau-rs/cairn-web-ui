@@ -6,6 +6,7 @@ describe("installGlobalRejectionHandler", () => {
   afterEach(() => {
     dispose?.();
     dispose = null;
+    vi.restoreAllMocks(); // restore console spies even if an expect threw
   });
 
   it("invokes the sink with the rejection reason", () => {
@@ -35,7 +36,6 @@ describe("installGlobalRejectionHandler", () => {
       "[cairn] unhandled promise rejection",
       expect.objectContaining({ error: reason }),
     );
-    spy.mockRestore();
   });
 
   it("stops handling after dispose", () => {
