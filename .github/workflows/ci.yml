@@ -18,8 +18,57 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # Detect which stack a PR touches so single-stack PRs skip the other
+    # stack and keep the gate under budget. paths-filter runs ONLY on
+    # pull_request: it has no reliable diff base on push, and historically
+    # errors on merge_group (dorny/paths-filter#280). For push/merge_group
+    # the decide step forces BOTH stacks on, so the merge queue always runs
+    # the full gate. This job ALWAYS runs and succeeds, so it never breaks
+    # the merge queue — and a real failure here (e.g. checkout) surfaces as
+    # a `changes` failure that ci-summary catches, never a silent green skip.
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      web: ${{ steps.decide.outputs.web }}
+      rust: ${{ steps.decide.outputs.rust }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            web:
+              - 'web/**'
+              - '.github/workflows/ci.yml'
+              - 'justfile'
+            rust:
+              - 'src-tauri/**'
+              - '.github/workflows/ci.yml'
+              - 'justfile'
+              - 'deny.toml'
+      - id: decide
+        # On pull_request use the filter result; on push/merge_group force
+        # both stacks on (full gate). Never depends on skipped-needs
+        # semantics — this job always runs.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "web=${{ steps.filter.outputs.web }}" >> "$GITHUB_OUTPUT"
+            echo "rust=${{ steps.filter.outputs.rust }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          fi
+
   web:
     name: web
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -27,6 +76,9 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
+        with:
+          tool: just
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 10.14.0
@@ -41,9 +93,13 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Supply-chain audit (npm)
+        run: just deny-web
 
   e2e:
     name: e2e
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -73,6 +129,8 @@ jobs:
 
   tauri:
     name: tauri
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -88,16 +146,23 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: src-tauri
+      - uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
+        with:
+          tool: just,cargo-deny
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Supply-chain audit (cargo-deny)
+        run: just deny-rust
+      - name: Compile the Tauri shell (T1 link/bundle check)
+        run: just build-rust
 
   ci-summary:
     # Single aggregated status for branch protection: require this one
     # check. It is green only when every real job succeeded (or skipped).
     name: ci-summary
     if: always()
-    needs: [web, e2e, tauri]
+    needs: [changes, web, e2e, tauri]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
