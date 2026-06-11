@@ -32,6 +32,21 @@ describe("ImageWidget", () => {
     expect(el.outerHTML).not.toContain("attacker.example");
   });
 
+  it("renders a no-load placeholder (no <img>) for an invalid image path", () => {
+    const w = new ImageWidget(
+      { kind: "invalid", src: "../../etc/passwd" },
+      "alt",
+      false,
+      0,
+      vi.fn(),
+    );
+    const el = w.toDOM();
+    expect(el).not.toBeInstanceOf(HTMLImageElement);
+    expect(el.querySelector("img")).toBeNull();
+    // No empty <img src=""> is emitted, and there is no way to force-load it.
+    expect(el.querySelector(".cm-lp-img-blocked-load")).toBeNull();
+  });
+
   it("loads the blocked image in place when its Load button is clicked", () => {
     const w = new ImageWidget(
       { kind: "blocked", src: "https://x/y.png" },

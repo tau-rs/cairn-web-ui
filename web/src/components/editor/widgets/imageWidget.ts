@@ -20,8 +20,14 @@ export class ImageWidget extends WidgetType {
     );
   }
   toDOM(): HTMLElement {
-    if (this.image.kind === "blocked") return this.placeholder(this.image.src);
-    return this.imageEl(this.image.url);
+    switch (this.image.kind) {
+      case "ready":
+        return this.imageEl(this.image.url);
+      case "blocked":
+        return this.placeholder(this.image.src);
+      case "invalid":
+        return this.placeholder(null);
+    }
   }
   private imageEl(url: string): HTMLImageElement {
     const img = document.createElement("img");
@@ -34,33 +40,39 @@ export class ImageWidget extends WidgetType {
     });
     return img;
   }
-  /** Click-to-load placeholder for a remote/`data:` image that has not been
-   *  opted into. Loading is per-image and ephemeral (does not touch settings):
-   *  clicking "Load" swaps in the real <img> in place. */
-  private placeholder(src: string): HTMLElement {
+  /** Placeholder for an image that isn't being loaded. When `src` is given the
+   *  image is external/`data:` and merely opt-in-gated, so a "Load" button is
+   *  offered — loading is per-image and ephemeral (does not touch settings),
+   *  swapping in the real <img> in place. When `src` is null the path was
+   *  refused (escapes the vault); no load affordance is offered. */
+  private placeholder(src: string | null): HTMLElement {
     const box = document.createElement("span");
     box.className = this.block
       ? "cm-lp-img-blocked block"
       : "cm-lp-img-blocked";
     const label = document.createElement("span");
     label.className = "cm-lp-img-blocked-label";
-    label.textContent = "Remote image blocked";
-    const load = document.createElement("button");
-    load.type = "button";
-    load.className = "cm-lp-img-blocked-load";
-    load.textContent = "Load";
-    load.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      box.replaceWith(this.imageEl(src));
-    });
+    label.textContent =
+      src === null ? "Image path not allowed" : "External image blocked";
+    box.append(label);
+    if (src !== null) {
+      const load = document.createElement("button");
+      load.type = "button";
+      load.className = "cm-lp-img-blocked-load";
+      load.textContent = "Load";
+      load.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        box.replaceWith(this.imageEl(src));
+      });
+      box.append(load);
+    }
     // Clicking the placeholder body (not the button) reveals raw markdown,
     // matching a rendered image's edit affordance.
     box.addEventListener("mousedown", (e) => {
       e.preventDefault();
       this.onEdit(this.from);
     });
-    box.append(label, load);
     return box;
   }
   ignoreEvent(): boolean {
@@ -69,8 +81,8 @@ export class ImageWidget extends WidgetType {
 }
 
 function sameImage(a: ResolvedImage, b: ResolvedImage): boolean {
-  if (a.kind !== b.kind) return false;
-  return a.kind === "blocked"
-    ? a.src === (b as { src: string }).src
-    : a.url === (b as { url: string }).url;
+  if (a.kind === "ready" && b.kind === "ready") return a.url === b.url;
+  if (a.kind === "blocked" && b.kind === "blocked") return a.src === b.src;
+  if (a.kind === "invalid" && b.kind === "invalid") return a.src === b.src;
+  return false;
 }

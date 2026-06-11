@@ -1,9 +1,13 @@
 export type AssetUrl = (relPath: string) => string;
 
-/** A resolved image: either safe to load now, or blocked pending opt-in. */
+/** A resolved image: safe to load now (`ready`), withheld pending opt-in
+ *  (`blocked`), or refused outright (`invalid` — e.g. a local path the host
+ *  rejected for escaping the vault). `invalid` never loads and offers no
+ *  opt-in. */
 export type ResolvedImage =
   | { kind: "ready"; url: string }
-  | { kind: "blocked"; src: string };
+  | { kind: "blocked"; src: string }
+  | { kind: "invalid"; src: string };
 
 export type ImageResolver = (src: string) => ResolvedImage;
 
@@ -11,7 +15,9 @@ export type ImageResolver = (src: string) => ResolvedImage;
  *  `data:` srcs are `blocked` unless `loadRemote` is set — they are tracking /
  *  exfil beacons that must not fire on note-open without explicit opt-in. Local
  *  relative paths are resolved through the host's `assetUrl` (itself confined
- *  to the vault root) and are always `ready`. */
+ *  to the vault root); a host that returns `""` is refusing the path (it
+ *  escapes the vault), which surfaces as `invalid` rather than a broken
+ *  `<img src="">`. */
 export function makeImageResolver(
   assetUrl: AssetUrl,
   opts?: { loadRemote?: boolean },
@@ -23,6 +29,8 @@ export function makeImageResolver(
         ? { kind: "ready", url: src }
         : { kind: "blocked", src };
     }
-    return { kind: "ready", url: assetUrl(src) };
+    const url = assetUrl(src);
+    if (url === "") return { kind: "invalid", src }; // host refused the path
+    return { kind: "ready", url };
   };
 }

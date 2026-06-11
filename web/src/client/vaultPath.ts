@@ -6,6 +6,9 @@
  *  This is the guard that must run BEFORE a local image path reaches the
  *  Tauri asset protocol, where an unconfined path is local-file disclosure. */
 export function confineToRoot(root: string, relPath: string): string | null {
+  // NUL/control characters never belong in a legitimate vault path.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f]/.test(relPath)) return null;
   // Absolute: leading slash/backslash, `X:\`/`X:/` drive, or `\\` UNC.
   if (/^([/\\]|[a-zA-Z]:[/\\]|\\\\)/.test(relPath)) return null;
   const stack: string[] = [];

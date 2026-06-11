@@ -33,4 +33,8 @@ describe("confineToRoot", () => {
   it("treats backslashes as separators when confining", () => {
     expect(confineToRoot("/vault", "img\\..\\..\\secret")).toBeNull();
   });
+  it("rejects a path containing a NUL or control character", () => {
+    expect(confineToRoot("/vault", "img/\0/passwd")).toBeNull();
+    expect(confineToRoot("/vault", "img/\x07x.png")).toBeNull();
+  });
 });

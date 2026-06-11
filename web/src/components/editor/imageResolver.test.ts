@@ -34,4 +34,13 @@ describe("makeImageResolver", () => {
     });
     expect(assetUrl).toHaveBeenCalledWith("img/logo.png");
   });
+  it("marks a local path the host refuses (empty url) as invalid, never ready", () => {
+    // The host (TauriHost.assetUrl) returns "" when a path escapes the vault.
+    const assetUrl = vi.fn().mockReturnValue("");
+    const r = makeImageResolver(assetUrl);
+    expect(r("../../etc/passwd")).toEqual({
+      kind: "invalid",
+      src: "../../etc/passwd",
+    });
+  });
 });
