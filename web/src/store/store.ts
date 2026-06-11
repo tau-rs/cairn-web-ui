@@ -253,6 +253,19 @@ export function createCairnStore(
       }, ERROR_TOAST_MS);
     };
 
+    // A query/command came back with a variant we don't handle. Narrowing on
+    // `res.type` and silently no-opping would leave the view stale with no
+    // diagnostic; route the surprise through the same error channel instead.
+    const unexpected = (
+      operation: string,
+      res: { type: string },
+      context: Record<string, unknown> = {},
+    ) =>
+      pushError(operation, new Error(`unexpected response: ${res.type}`), {
+        ...context,
+        response: res.type,
+      });
+
     const dropNote = (path: string) => {
       autosaves.get(path)?.cancel();
       autosaves.delete(path);
@@ -417,6 +430,7 @@ export function createCairnStore(
           const res = await client.runQuery({ type: "list_notes" });
           if (res.type === "notes")
             set({ notePaths: res.notes.map((n) => n.path) });
+          else unexpected("List notes", res);
         } catch (err) {
           pushError("List notes", err);
         }
@@ -428,7 +442,10 @@ export function createCairnStore(
             setLoading("note", true);
             try {
               const res = await client.runQuery({ type: "get_note", path });
-              if (res.type !== "note") return;
+              if (res.type !== "note") {
+                unexpected("Open note", res, { path });
+                return;
+              }
               set((s) => ({
                 openNotes: {
                   ...s.openNotes,
@@ -458,12 +475,17 @@ export function createCairnStore(
         // Editing pins the (possibly preview) active tab.
         applyTabs(pinTabModel(tabsState(), path));
         persist();
-        autosaves.get(path)?.cancel();
-        const d = debounce(
-          () => void get().saveNote(path),
-          get().settings.autosaveMs,
-        );
-        autosaves.set(path, d);
+        // One persistent debounce per open note, re-triggered on each keystroke
+        // rather than reconstructed — the delay thunk re-reads autosaveMs so a
+        // settings change still applies on the next edit.
+        let d = autosaves.get(path);
+        if (!d) {
+          d = debounce(
+            () => void get().saveNote(path),
+            () => get().settings.autosaveMs,
+          );
+          autosaves.set(path, d);
+        }
         d();
         const s = get().settings;
         if (s.idleAutoCommit) {
@@ -624,7 +646,7 @@ export function createCairnStore(
               ),
               activeTag: null,
             });
-          }
+          } else unexpected("Search", res, { query });
         } catch (err) {
           if (token !== seq.results) return;
           pushError("Search", err, { query });
@@ -639,6 +661,7 @@ export function createCairnStore(
         try {
           const res = await client.runQuery({ type: "list_tags" });
           if (res.type === "tags") set({ tags: res.tags });
+          else unexpected("Load tags", res);
         } catch (err) {
           pushError("Load tags", err);
         }
@@ -656,6 +679,7 @@ export function createCairnStore(
               searchSnippets: null,
               activeTag: tag,
             });
+          else unexpected("Filter notes by tag", res, { tag });
         } catch (err) {
           if (token !== seq.results) return;
           pushError("Filter notes by tag", err, { tag });
@@ -668,6 +692,7 @@ export function createCairnStore(
         try {
           const res = await client.runQuery({ type: "list_plugins" });
           if (res.type === "plugins") set({ plugins: res.plugins });
+          else unexpected("Load plugins", res);
         } catch (err) {
           pushError("Load plugins", err);
         }
@@ -686,7 +711,7 @@ export function createCairnStore(
               notice:
                 typeof res.result === "string" ? res.result : `Ran ${command}`,
             });
-          }
+          } else unexpected("Run plugin command", res, { plugin, command });
         } catch (err) {
           pushError("Run plugin command", err, { plugin, command });
         }
@@ -716,6 +741,7 @@ export function createCairnStore(
           const res = await client.runQuery({ type: "get_backlinks", path });
           if (token !== seq.backlinks) return; // superseded by a newer request
           if (res.type === "paths") set({ backlinks: res.paths });
+          else unexpected("Load backlinks", res, { path });
         } catch (err) {
           if (token !== seq.backlinks) return;
           pushError("Load backlinks", err, { path });
@@ -733,6 +759,7 @@ export function createCairnStore(
             if (token !== seq.graph) return; // superseded by a newer reload
             if (res.type === "graph")
               set({ graph: { nodes: res.nodes, edges: res.edges } });
+            else unexpected("Load graph", res);
           } catch (err) {
             if (token !== seq.graph) return;
             pushError("Load graph", err);
@@ -756,6 +783,7 @@ export function createCairnStore(
           const res = await client.sendCommand({ type: "commit", message });
           if (res.type === "committed")
             set({ lastCommit: res.commit, uncommitted: false });
+          else unexpected("Commit", res);
         } catch (err) {
           pushError("Commit", err);
         } finally {

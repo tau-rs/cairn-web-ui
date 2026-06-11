@@ -8,6 +8,7 @@ import {
 import type { QueryResponse } from "../contract";
 import { saveTabs } from "../components/tabs/tabsPersistence";
 import type { Event } from "../contract";
+import * as timer from "../util/timer";
 
 // Stub `subscribe` so it immediately reports an attach failure and delivers no
 // events — simulating a channel that never came up (a dead push stream).
@@ -707,6 +708,57 @@ describe("cairn store", () => {
     resolve({ type: "note", contents: "hi" });
     await p;
     expect(store.getState().loading.note).toBe(false);
+  });
+
+  it("surfaces an error (not a silent no-op) when a query returns an unexpected variant", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    const before = store.getState().notePaths;
+    // A valid response shape, but the wrong variant for list_notes. The old code
+    // silently dropped it, leaving the list stale with no diagnostic.
+    vi.spyOn(client, "runQuery").mockResolvedValueOnce({
+      type: "tags",
+      tags: [],
+    });
+    await store.getState().refreshNotePaths();
+    expect(store.getState().notePaths).toEqual(before); // not silently mutated
+    expect(
+      store.getState().errors.some((e) => e.message.includes("List notes")),
+    ).toBe(true);
+  });
+
+  it("logs an unexpected query variant through the existing error channel", async () => {
+    const { client, store } = setup();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await store.getState().init();
+    vi.spyOn(client, "runQuery").mockResolvedValueOnce({
+      type: "notes",
+      notes: [],
+    });
+    await store.getState().loadTags(); // expects "tags", gets "notes"
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("Load tags"),
+      expect.objectContaining({ operation: "Load tags" }),
+    );
+    spy.mockRestore();
+  });
+
+  it("reuses one persistent autosave debounce across rapid keystrokes, saving once", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    store.getState().setSettings({ idleAutoCommit: false }); // isolate the autosave debounce
+    await store.getState().openNote("a.md");
+    const construct = vi.spyOn(timer, "debounce");
+    const send = vi.spyOn(client, "sendCommand");
+    store.getState().editBuffer("a1 [[b]]");
+    store.getState().editBuffer("a2 [[b]]");
+    store.getState().editBuffer("a3 [[b]]");
+    // One persistent per-path debounce, merely re-triggered — not one per keystroke.
+    expect(construct).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs);
+    const writes = send.mock.calls.filter(([c]) => c.type === "write_note");
+    expect(writes).toHaveLength(1);
+    expect(writes[0][0]).toMatchObject({ path: "a.md", contents: "a3 [[b]]" });
   });
 
   it("exposes loading.graph while the graph loads", async () => {

@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useCairn, cairnStore } from "../app/cairnStore";
+import { useCairn, useActions, cairnStore } from "../app/cairnStore";
 import { isGraph, toggleViewTarget } from "../app/routes";
 import { SearchBar } from "./SearchBar";
 import { CommitBar } from "./CommitBar";
@@ -10,7 +10,7 @@ import { Button } from "./ui/Button";
 export function TopBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const actions = cairnStore.getState();
+  const actions = useActions();
   const query = useCairn((s) => s.query);
   const saving = useCairn((s) => s.saving);
   const dirty = useCairn((s) => s.dirty);
