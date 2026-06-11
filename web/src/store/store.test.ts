@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createCairnStore, DEFAULT_SETTINGS } from "./store";
+import { createCairnStore, DEFAULT_SETTINGS, ERROR_TOAST_MS } from "./store";
 import { MockClient } from "../client/mock";
 
 beforeEach(() => vi.useFakeTimers());
@@ -80,7 +80,7 @@ describe("cairn store", () => {
     vi.spyOn(client, "sendCommand").mockRejectedValueOnce(new Error("boom"));
     await store.getState().init();
     await store.getState().commitManual("x");
-    expect(store.getState().error).toBe("boom");
+    expect(store.getState().errors[0].message).toContain("boom");
   });
 
   it("surfaces an error if loading the note list fails", async () => {
@@ -90,7 +90,45 @@ describe("cairn store", () => {
       message: "boom",
     });
     await store.getState().init();
-    expect(store.getState().error).toBe("boom");
+    expect(store.getState().errors[0].message).toContain("boom");
+  });
+
+  it("queues multiple errors instead of clobbering", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
+    await store.getState().init();
+    await store.getState().commitManual("one");
+    await store.getState().commitManual("two");
+    expect(store.getState().errors).toHaveLength(2);
+  });
+
+  it("auto-dismisses a queued error after the timeout", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
+    await store.getState().init();
+    await store.getState().commitManual("x");
+    expect(store.getState().errors).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(ERROR_TOAST_MS);
+    expect(store.getState().errors).toHaveLength(0);
+  });
+
+  it("logs caught errors to console.error with operation context", async () => {
+    const { client, store } = setup();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(client, "runQuery").mockRejectedValueOnce({
+      type: "internal",
+      message: "boom",
+    });
+    await store.getState().init();
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("List notes"),
+      expect.objectContaining({
+        operation: "List notes",
+        error: expect.objectContaining({ type: "internal" }),
+      }),
+    );
+    expect(store.getState().errors[0].message).toContain("List notes");
+    spy.mockRestore();
   });
 
   it("keeps the buffer dirty if edited while a slow save is in flight", async () => {
@@ -434,7 +472,7 @@ describe("cairn store", () => {
       { from: "missing.md", to: "z.md" },
       { from: "a.md", to: "y.md" },
     ]);
-    expect(store.getState().error).toBeTruthy();
+    expect(store.getState().errors.length).toBeGreaterThan(0);
     const renameCalls = spy.mock.calls.filter(
       ([cmd]) => cmd.type === "rename_note",
     );
