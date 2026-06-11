@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   planRenameNote,
+  planRenameNotePath,
   planRenameFolder,
   planMoveNote,
   planMoveFolder,
@@ -22,6 +23,28 @@ describe("planRenameNote", () => {
     expect(planRenameNote("a.md", "a")).toEqual([]);
     expect(planRenameNote("a.md", "")).toEqual([]);
     expect(planRenameNote("a.md", "x/y")).toEqual([]);
+  });
+});
+
+describe("planRenameNotePath", () => {
+  it("renames within the folder when no slash is given", () => {
+    expect(planRenameNotePath("dir/a.md", "b")).toEqual([
+      { from: "dir/a.md", to: "dir/b.md" },
+    ]);
+  });
+  it("moves the note when a path with slashes is given", () => {
+    expect(planRenameNotePath("a.md", "dir/sub/a")).toEqual([
+      { from: "a.md", to: "dir/sub/a.md" },
+    ]);
+  });
+  it("strips a trailing .md and a leading slash", () => {
+    expect(planRenameNotePath("a.md", "/dir/a.md")).toEqual([
+      { from: "a.md", to: "dir/a.md" },
+    ]);
+  });
+  it("returns [] for an empty input or a no-op", () => {
+    expect(planRenameNotePath("a.md", "  ")).toEqual([]);
+    expect(planRenameNotePath("dir/a.md", "dir/a")).toEqual([]);
   });
 });
 

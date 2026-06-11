@@ -23,6 +23,21 @@ export function planRenameNote(notePath: string, newName: string): Rename[] {
   return to === notePath ? [] : [{ from: notePath, to }];
 }
 
+/** Rename or move a note via a typed relative path — the keyboard equivalent of
+ *  drag-to-move. A bare name (no slash) renames within the current folder
+ *  (delegates to planRenameNote); a path with slashes re-homes the note to that
+ *  folder. A trailing `.md` and leading `/` are stripped. [] when empty/no-op. */
+export function planRenameNotePath(notePath: string, input: string): Rename[] {
+  const trimmed = input
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/\.md$/, "");
+  if (!trimmed) return [];
+  if (!trimmed.includes("/")) return planRenameNote(notePath, trimmed);
+  const to = `${trimmed}.md`;
+  return to === notePath ? [] : [{ from: notePath, to }];
+}
+
 /** Replace a folder's last segment → one Rename per descendant note. */
 export function planRenameFolder(
   folderPath: string,
