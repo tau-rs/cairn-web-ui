@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createCairnStore, DEFAULT_SETTINGS, ERROR_TOAST_MS } from "./store";
 import { MockClient } from "../client/mock";
+import {
+  loadOverrides,
+  saveOverrides,
+} from "../components/shortcuts/keybindingPersistence";
 import type { QueryResponse } from "../contract";
 import { saveTabs } from "../components/tabs/tabsPersistence";
 import type { Event } from "../contract";
@@ -718,5 +722,33 @@ describe("cairn store", () => {
     resolve({ type: "graph", nodes: [], edges: [] });
     await p;
     expect(store.getState().loading.graph).toBe(false);
+  });
+});
+
+describe("ui slice", () => {
+  it("setUi patches ui flags without touching others", () => {
+    const { store } = setup();
+    store.getState().setUi({ commitOpen: true });
+    expect(store.getState().ui.commitOpen).toBe(true);
+    store.getState().setUi({ newNoteOpen: true, newNoteInitial: "folder/" });
+    expect(store.getState().ui.newNoteOpen).toBe(true);
+    expect(store.getState().ui.newNoteInitial).toBe("folder/");
+    expect(store.getState().ui.commitOpen).toBe(true); // untouched
+  });
+
+  it("setKeybindingOverrides updates state and persists", () => {
+    const { store } = setup();
+    store.getState().setKeybindingOverrides({ "new-note": "Mod+Shift+N" });
+    expect(store.getState().ui.keybindingOverrides).toEqual({
+      "new-note": "Mod+Shift+N",
+    });
+    expect(loadOverrides()).toEqual({ "new-note": "Mod+Shift+N" });
+  });
+
+  it("init seeds keybindingOverrides from persistence", async () => {
+    saveOverrides({ commit: null });
+    const { store } = setup();
+    await store.getState().init();
+    expect(store.getState().ui.keybindingOverrides).toEqual({ commit: null });
   });
 });

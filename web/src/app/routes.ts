@@ -39,3 +39,14 @@ export function tagFromLocation(loc: RouteLocation): string | null {
 export function isGraph(loc: RouteLocation): boolean {
   return loc.pathname === "/graph";
 }
+
+/**
+ * Target URL for the Graph/Editor toggle: from the graph, back to the active
+ * note (root if none); otherwise into the graph.
+ */
+export function toggleViewTarget(
+  loc: RouteLocation,
+  activePath: string | null,
+): string {
+  return isGraph(loc) ? (activePath ? noteUrl(activePath) : "/") : "/graph";
+}

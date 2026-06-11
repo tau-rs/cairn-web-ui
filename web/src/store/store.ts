@@ -4,6 +4,11 @@ import type { CairnClient, Unsubscribe } from "../client/types";
 import type { ContractError, TagCount, Event } from "../contract";
 import type { PluginSummary } from "../contract";
 import { debounce, type Debounced } from "../util/timer";
+import type { Overrides } from "../components/shortcuts/commands";
+import {
+  loadOverrides,
+  saveOverrides,
+} from "../components/shortcuts/keybindingPersistence";
 import {
   openOrPreview,
   pinTab as pinTabModel,
@@ -55,6 +60,25 @@ export interface NoteBuffer {
   saving: boolean;
 }
 
+export interface UiState {
+  settingsOpen: boolean;
+  newNoteOpen: boolean;
+  newNoteInitial: string;
+  commitOpen: boolean;
+  paletteOpen: boolean;
+  /** Per-command keybinding overrides (chord, or null = unbound). Persisted. */
+  keybindingOverrides: Overrides;
+}
+
+export const DEFAULT_UI: UiState = {
+  settingsOpen: false,
+  newNoteOpen: false,
+  newNoteInitial: "",
+  commitOpen: false,
+  paletteOpen: false,
+  keybindingOverrides: {},
+};
+
 export interface CairnState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
@@ -81,6 +105,7 @@ export interface CairnState {
   plugins: PluginSummary[];
   notice: string | null;
   settings: Settings;
+  ui: UiState;
   errors: Toast[];
   // Per-area pending flags so consumers can show a spinner/skeleton distinct
   // from an empty result. Set around each async call; a superseded request never
@@ -125,6 +150,8 @@ export interface CairnState {
   autoCommit(): Promise<void>;
   rearmInterval(): void;
   setSettings(patch: Partial<Settings>): void;
+  setUi(patch: Partial<UiState>): void;
+  setKeybindingOverrides(overrides: Overrides): void;
   dismissError(id: number): void;
   refreshAll(): Promise<void>;
   assetUrl(relPath: string): string;
@@ -345,6 +372,7 @@ export function createCairnStore(
       plugins: [],
       notice: null,
       settings: DEFAULT_SETTINGS,
+      ui: DEFAULT_UI,
       errors: [],
       loading: { search: false, graph: false, backlinks: false, note: false },
       liveUpdates: "ok",
@@ -352,6 +380,9 @@ export function createCairnStore(
       async init() {
         if (started) return;
         started = true;
+        set((s) => ({
+          ui: { ...s.ui, keybindingOverrides: loadOverrides() },
+        }));
         const path = await host.currentCairn();
         set({ cairnPath: path });
         // Attach the push-event channel once, for the store's lifetime — NOT
@@ -756,6 +787,15 @@ export function createCairnStore(
         if ("intervalAutoCommit" in patch || "intervalAutoCommitMin" in patch) {
           get().rearmInterval();
         }
+      },
+
+      setUi(patch) {
+        set((s) => ({ ui: { ...s.ui, ...patch } }));
+      },
+
+      setKeybindingOverrides(overrides) {
+        saveOverrides(overrides);
+        set((s) => ({ ui: { ...s.ui, keybindingOverrides: overrides } }));
       },
 
       dismissError(id) {
