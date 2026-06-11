@@ -15,4 +15,12 @@ describe("Backlinks", () => {
     await userEvent.click(screen.getByText("a.md"));
     expect(onOpen).toHaveBeenCalledWith("a.md");
   });
+
+  it("shows a loading state distinct from the empty state", () => {
+    render(<Backlinks paths={[]} loading onOpen={vi.fn()} />);
+    expect(
+      screen.getByRole("status", { name: /loading/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/no backlinks/i)).toBeNull();
+  });
 });

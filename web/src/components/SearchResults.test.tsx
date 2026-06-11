@@ -54,6 +54,19 @@ describe("SearchResults", () => {
       "the quick fox",
     );
   });
+  it("renders a searching state when loading with no results yet", () => {
+    render(
+      <SearchResults
+        results={null}
+        loading
+        onOpen={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("status", { name: /searching/i }),
+    ).toBeInTheDocument();
+  });
   it("renders path-only when no snippet is provided", () => {
     render(
       <SearchResults results={["a.md"]} onOpen={vi.fn()} onClose={vi.fn()} />,
