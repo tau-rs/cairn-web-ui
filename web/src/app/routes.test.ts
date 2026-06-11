@@ -5,6 +5,7 @@ import {
   tagUrl,
   tagFromLocation,
   isGraph,
+  toggleViewTarget,
 } from "./routes";
 
 const loc = (pathname: string) => ({ pathname });
@@ -47,5 +48,17 @@ describe("isGraph", () => {
     expect(isGraph(loc("/graph"))).toBe(true);
     expect(isGraph(loc("/"))).toBe(false);
     expect(isGraph(loc("/note/x.md"))).toBe(false);
+  });
+});
+
+describe("toggleViewTarget", () => {
+  it("from the graph, targets the active note", () => {
+    expect(toggleViewTarget({ pathname: "/graph" }, "a.md")).toBe("/note/a.md");
+  });
+  it("from the graph with no active note, targets root", () => {
+    expect(toggleViewTarget({ pathname: "/graph" }, null)).toBe("/");
+  });
+  it("from a note, targets the graph", () => {
+    expect(toggleViewTarget({ pathname: "/note/a.md" }, "a.md")).toBe("/graph");
   });
 });
