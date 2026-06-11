@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { stem } from "../../client/wikilink";
 
 export interface TabView {
@@ -13,24 +14,65 @@ export function TabStrip(props: {
   onPin: (path: string) => void;
   onClose: (path: string) => void;
 }) {
+  const tabRefs = useRef<(HTMLDivElement | null)[]>([]);
   if (props.tabs.length === 0) return null;
+
+  // WAI-ARIA tabs: arrows move focus between tabs (wrapping) and activate the
+  // landed tab; Enter/Space activate the focused tab. Roving tabindex keeps a
+  // single tab in the Tab order.
+  const onTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const tabs = props.tabs;
+    const focusAt = (i: number) => {
+      tabRefs.current[i]?.focus();
+      props.onSelect(tabs[i].path);
+    };
+    switch (e.key) {
+      case "ArrowRight":
+        e.preventDefault();
+        focusAt((index + 1) % tabs.length);
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        focusAt((index - 1 + tabs.length) % tabs.length);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusAt(0);
+        break;
+      case "End":
+        e.preventDefault();
+        focusAt(tabs.length - 1);
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        props.onSelect(tabs[index].path);
+        break;
+    }
+  };
+
   return (
     <div
       role="tablist"
       className="flex h-9 shrink-0 items-stretch overflow-x-auto border-b border-border bg-surface"
     >
-      {props.tabs.map((t) => {
+      {props.tabs.map((t, index) => {
         const active = t.path === props.activePath;
         const label = stem(t.path);
         return (
           <div
             key={t.path}
+            ref={(el) => {
+              tabRefs.current[index] = el;
+            }}
             role="tab"
+            tabIndex={active ? 0 : -1}
             aria-selected={active}
             aria-label={label}
             title={t.path}
             onClick={() => props.onSelect(t.path)}
             onDoubleClick={() => props.onPin(t.path)}
+            onKeyDown={(e) => onTabKeyDown(e, index)}
             className={
               "relative flex cursor-pointer items-center gap-2 whitespace-nowrap border-r border-border px-3 text-xs " +
               (active
