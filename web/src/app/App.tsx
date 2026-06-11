@@ -167,6 +167,12 @@ export default function App() {
           editorMode: editorMode === "livepreview" ? "source" : "livepreview",
         });
         break;
+      case "nav-back":
+        navigate(-1);
+        break;
+      case "nav-forward":
+        navigate(1);
+        break;
     }
     setPaletteOpen(false);
   };
