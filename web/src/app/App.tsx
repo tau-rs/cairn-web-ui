@@ -334,7 +334,9 @@ export default function App() {
             </div>
           </ErrorBoundary>
         }
-        backlinks={<Backlinks paths={backlinks} onOpen={(p) => navigate(noteUrl(p))} />}
+        backlinks={
+          <Backlinks paths={backlinks} onOpen={(p) => navigate(noteUrl(p))} />
+        }
       />
       <ErrorToast message={error} onDismiss={actions.dismissError} />
       <NoticeToast message={notice} onDismiss={actions.dismissNotice} />
@@ -368,7 +370,10 @@ export default function App() {
         commands={COMMANDS}
         notes={notePaths}
         onRunCommand={runCommand}
-        onOpenNote={(p) => { navigate(noteUrl(p)); setPaletteOpen(false); }}
+        onOpenNote={(p) => {
+          navigate(noteUrl(p));
+          setPaletteOpen(false);
+        }}
       />
     </>
   );
