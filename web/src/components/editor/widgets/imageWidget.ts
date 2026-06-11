@@ -35,6 +35,17 @@ export class ImageWidget extends WidgetType {
     img.className = this.block ? "cm-lp-img block" : "cm-lp-img";
     img.src = url;
     img.alt = this.alt;
+    // The asset failed to load (missing file, asset protocol disabled/unscoped,
+    // …). Mark the node so CSS renders a clear "unavailable" placeholder; the
+    // browser already paints the `alt` for a broken <img>. We must NOT swap the
+    // widget's DOM here (remove the <img>, insert a span): CodeMirror's
+    // MutationObserver reconciles childList changes in cm-content as text edits
+    // and would delete the markdown. A class/attribute change on the existing
+    // node is safe.
+    img.addEventListener("error", () => {
+      img.classList.add("cm-lp-img-error");
+      img.dataset.cairnUnavailable = "true";
+    });
     img.addEventListener("mousedown", (e) => {
       e.preventDefault();
       this.onEdit(this.from);

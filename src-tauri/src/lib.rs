@@ -101,6 +101,17 @@ fn open_at<R: Runtime>(
     if let Err(e) = persist_path(app, dir) {
         eprintln!("cairn: failed to persist cairn path: {e}"); // non-fatal
     }
+    // Scope the asset protocol to exactly this cairn dir so local note images
+    // (asset://) can load (S4). The static config scope is empty; this is the
+    // only widening, and only ever to a user-chosen cairn root — never $APP or
+    // home. Grants are additive across opens (Tauri's scope API has no per-open
+    // reset), so a prior cairn's dir stays readable for the process lifetime;
+    // acceptable since every grant is a directory the user explicitly opened.
+    // Best-effort: a failure only means images won't render, never that opening
+    // fails.
+    if let Err(e) = app.asset_protocol_scope().allow_directory(dir, true) {
+        eprintln!("cairn: failed to scope asset protocol to {dir:?}: {e}");
+    }
     Ok(())
 }
 

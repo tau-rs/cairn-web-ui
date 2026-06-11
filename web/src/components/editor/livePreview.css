@@ -118,6 +118,19 @@
   display: block;
   margin: 0.6em 0;
 }
+/* An image whose asset failed to load (U5). The browser paints the `alt`
+   inside the broken <img>; this turns it into a clearly-bounded "unavailable"
+   placeholder instead of a bare broken-image glyph. */
+.cm-lp-img-error {
+  min-width: 8em;
+  min-height: 2.5em;
+  padding: 0.25em 0.5em;
+  border: 1px dashed #3a3a45;
+  border-radius: 6px;
+  color: #9a9ba6;
+  font-size: 0.85em;
+  object-fit: contain;
+}
 .cm-lp-img-blocked {
   display: inline-flex;
   align-items: center;

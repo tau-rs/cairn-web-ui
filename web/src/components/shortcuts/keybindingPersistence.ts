@@ -10,7 +10,9 @@ export function loadOverrides(): Overrides {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return {};
     }
-    const out: Overrides = {};
+    // Null-prototype map: a `__proto__` data key (or any inherited member)
+    // can't poison Object.prototype or leak through the override lookup.
+    const out: Overrides = Object.create(null) as Overrides;
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
       if (v === null || typeof v === "string") out[k] = v;
     }
