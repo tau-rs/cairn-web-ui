@@ -4,18 +4,28 @@ import userEvent from "@testing-library/user-event";
 import { ErrorToast } from "./ErrorToast";
 
 describe("ErrorToast", () => {
-  it("renders nothing when message is null", () => {
+  it("renders nothing when there are no errors", () => {
     const { container } = render(
-      <ErrorToast message={null} onDismiss={vi.fn()} />,
+      <ErrorToast errors={[]} onDismiss={vi.fn()} />,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the message and dismisses", async () => {
+  it("shows each error and dismisses by id", async () => {
     const onDismiss = vi.fn();
-    render(<ErrorToast message="boom" onDismiss={onDismiss} />);
+    render(
+      <ErrorToast
+        errors={[
+          { id: 1, message: "boom" },
+          { id: 2, message: "kaboom" },
+        ]}
+        onDismiss={onDismiss}
+      />,
+    );
     expect(screen.getByText("boom")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
-    expect(onDismiss).toHaveBeenCalled();
+    expect(screen.getByText("kaboom")).toBeInTheDocument();
+    const buttons = screen.getAllByRole("button", { name: /dismiss/i });
+    await userEvent.click(buttons[0]);
+    expect(onDismiss).toHaveBeenCalledWith(1);
   });
 });

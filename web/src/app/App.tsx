@@ -99,7 +99,7 @@ export default function App() {
   const lastCommit = useCairn((s) => s.lastCommit);
   const committing = useCairn((s) => s.committing);
   const cairnPath = useCairn((s) => s.cairnPath);
-  const error = useCairn((s) => s.error);
+  const errors = useCairn((s) => s.errors);
   const graph = useCairn((s) => s.graph);
   const noteTags = useCairn((s) => s.noteTags);
   const tabs = useCairn((s) => s.tabs);
@@ -353,7 +353,7 @@ export default function App() {
           />
         }
       />
-      <ErrorToast message={error} onDismiss={actions.dismissError} />
+      <ErrorToast errors={errors} onDismiss={actions.dismissError} />
       <NoticeToast message={notice} onDismiss={actions.dismissNotice} />
       <SettingsDialog
         open={settingsOpen}

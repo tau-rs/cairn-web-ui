@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createCairnStore, DEFAULT_SETTINGS } from "./store";
+import { createCairnStore, DEFAULT_SETTINGS, ERROR_TOAST_MS } from "./store";
 import { MockClient } from "../client/mock";
 import type { QueryResponse } from "../contract";
+import { saveTabs } from "../components/tabs/tabsPersistence";
 
 beforeEach(() => vi.useFakeTimers());
 beforeEach(() => localStorage.clear());
@@ -81,7 +82,7 @@ describe("cairn store", () => {
     vi.spyOn(client, "sendCommand").mockRejectedValueOnce(new Error("boom"));
     await store.getState().init();
     await store.getState().commitManual("x");
-    expect(store.getState().error).toBe("boom");
+    expect(store.getState().errors[0].message).toContain("boom");
   });
 
   it("surfaces an error if loading the note list fails", async () => {
@@ -91,7 +92,45 @@ describe("cairn store", () => {
       message: "boom",
     });
     await store.getState().init();
-    expect(store.getState().error).toBe("boom");
+    expect(store.getState().errors[0].message).toContain("boom");
+  });
+
+  it("queues multiple errors instead of clobbering", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
+    await store.getState().init();
+    await store.getState().commitManual("one");
+    await store.getState().commitManual("two");
+    expect(store.getState().errors).toHaveLength(2);
+  });
+
+  it("auto-dismisses a queued error after the timeout", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
+    await store.getState().init();
+    await store.getState().commitManual("x");
+    expect(store.getState().errors).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(ERROR_TOAST_MS);
+    expect(store.getState().errors).toHaveLength(0);
+  });
+
+  it("logs caught errors to console.error with operation context", async () => {
+    const { client, store } = setup();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(client, "runQuery").mockRejectedValueOnce({
+      type: "internal",
+      message: "boom",
+    });
+    await store.getState().init();
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("List notes"),
+      expect.objectContaining({
+        operation: "List notes",
+        error: expect.objectContaining({ type: "internal" }),
+      }),
+    );
+    expect(store.getState().errors[0].message).toContain("List notes");
+    spy.mockRestore();
   });
 
   it("keeps the buffer dirty if edited while a slow save is in flight", async () => {
@@ -204,6 +243,36 @@ describe("cairn store", () => {
     await store.getState().openCairn();
     expect(store.getState().cairnPath).toBe("/tmp/mycairn");
     expect(store.getState().notePaths).toContain("x.md");
+  });
+
+  it("openCairn reloads tags + plugins, restores tabs, and resets the graph", async () => {
+    vi.useRealTimers();
+    localStorage.clear();
+    const client = new MockClient({
+      "a.md": "---\ntags: [rust]\n---\nlinks [[b]]",
+      "b.md": "B",
+    });
+    const host = {
+      currentCairn: () => Promise.resolve<string | null>(null),
+      openCairn: () => Promise.resolve<string | null>("/tmp/second"),
+      assetUrl: (p: string) => p,
+    };
+    // A pinned tab persisted from a prior session of this cairn.
+    saveTabs({ tabs: [{ path: "b.md", preview: false }], activePath: "b.md" });
+    const store = createCairnStore(client, host);
+    await store.getState().init(); // currentCairn null -> nothing loaded yet
+    await store.getState().loadGraph(); // graph now non-null (cairn-specific)
+
+    await store.getState().openCairn();
+
+    // Tags + plugins must reload, not stay empty until an unrelated event.
+    expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
+    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo"]);
+    // Persisted pinned tabs restore for the freshly opened cairn.
+    expect(store.getState().tabs.map((t) => t.path)).toEqual(["b.md"]);
+    expect(store.getState().activePath).toBe("b.md");
+    // Derived graph is reset consistently (will reload when its panel asks).
+    expect(store.getState().graph).toBeNull();
   });
 
   it("keeps each open note's buffer when switching tabs", async () => {
@@ -435,7 +504,7 @@ describe("cairn store", () => {
       { from: "missing.md", to: "z.md" },
       { from: "a.md", to: "y.md" },
     ]);
-    expect(store.getState().error).toBeTruthy();
+    expect(store.getState().errors.length).toBeGreaterThan(0);
     const renameCalls = spy.mock.calls.filter(
       ([cmd]) => cmd.type === "rename_note",
     );

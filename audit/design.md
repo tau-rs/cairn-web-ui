@@ -76,6 +76,16 @@ missing.
 
 ### D4. Dead / unwired features: plugins panel, notice toast, plugin palette commands
 **Severity: Medium**
+**Status: Resolved** — the "wire them up" recommendation was implemented in
+commit `2d25265` ("feat(plugins): plugin commands in the palette + Plugins panel
++ e2e"), an ancestor of `main` that predates this audit being committed (the
+finding was authored against an earlier snapshot). In current `main`:
+`PluginsPanel` renders in `SettingsDialog.tsx:36`; `NoticeToast` renders next to
+`ErrorToast` in `App.tsx:343-344`; `toPaletteCommands(plugins)` is merged into
+the palette (`App.tsx:137`) and `invokePlugin` is reachable via
+`parsePluginCommandId` → `runCommand` (`App.tsx:140-142`). The full flow has a
+dedicated e2e (`web/e2e/skeleton.spec.ts:465`). No dead code remains.
+
 **Location:** `web/src/components/plugins/PluginsPanel.tsx`, `web/src/components/plugins/pluginCommands.ts` (`toPaletteCommands`), `web/src/components/NoticeToast.tsx`, `web/src/store/store.ts:478-508` (`loadPlugins`/`invokePlugin`/`notice`), `web/src/app/App.tsx`
 
 `App.tsx` renders neither `PluginsPanel` nor `NoticeToast`, and never calls
@@ -203,8 +213,8 @@ engine ref and fails on a diff.
 Nearly every module has a unit test and mutation testing (Stryker) is
 configured — genuinely good. Gap: there is no test that exercises the
 store↔subscribe feedback loop (D2) or the async races (D1), and `App.tsx`'s
-command wiring (including the dead plugin paths, D4) is only lightly covered by
-the single e2e happy-path. These are exactly the integration seams where the
+command wiring is only lightly covered by the single e2e happy-path (the plugin
+paths from D4 now have their own e2e). These are exactly the integration seams where the
 real bugs live.
 
 ---
