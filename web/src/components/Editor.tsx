@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
@@ -34,11 +34,19 @@ export function Editor(props: {
   }, [props.notePaths]);
 
   const onOpenNote = props.onOpenNote;
-  const resolveImage = useMemo(
-    () =>
-      makeImageResolver(props.assetUrl, { loadRemote: props.loadRemoteImages }),
-    [props.assetUrl, props.loadRemoteImages],
-  );
+  // Per-image "Load" opt-ins for blocked external images. Session-scoped and
+  // ephemeral by design (never persisted, never widens the global setting).
+  // Bumping the version remakes the resolver, which rebuilds the decorations
+  // so the approved image re-renders as a real <img>.
+  const approvedImages = useRef<Set<string>>(new Set());
+  const [approvedVersion, setApprovedVersion] = useState(0);
+  const resolveImage = useMemo(() => {
+    void approvedVersion; // rebuilt whenever an image is approved
+    return makeImageResolver(props.assetUrl, {
+      loadRemote: props.loadRemoteImages,
+      isApproved: (src) => approvedImages.current.has(src),
+    });
+  }, [props.assetUrl, props.loadRemoteImages, approvedVersion]);
   const extensions = useMemo(() => {
     const base = markdown({
       base: markdownLanguage,
@@ -58,6 +66,10 @@ export function Editor(props: {
         view.dispatch({ changes: change });
       },
       resolveImage,
+      onLoadImage: (src: string) => {
+        approvedImages.current.add(src);
+        setApprovedVersion((v) => v + 1);
+      },
       onEditImage: (pos: number) => {
         const view = viewRef.current;
         if (!view) return;

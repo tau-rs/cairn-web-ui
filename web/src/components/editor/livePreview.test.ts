@@ -13,6 +13,7 @@ const opts = {
     url: "resolved:" + src,
   }),
   onEditImage: vi.fn(),
+  onLoadImage: vi.fn(),
   onEnterTableEdit: vi.fn(),
   onCommitTable: vi.fn(),
 };

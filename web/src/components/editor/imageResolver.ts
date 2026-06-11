@@ -12,20 +12,22 @@ export type ResolvedImage =
 export type ImageResolver = (src: string) => ResolvedImage;
 
 /** Map an image markdown `src` to a `ResolvedImage`. Remote (`http(s):`) and
- *  `data:` srcs are `blocked` unless `loadRemote` is set — they are tracking /
- *  exfil beacons that must not fire on note-open without explicit opt-in. Local
+ *  `data:` srcs are `blocked` unless `loadRemote` is set or `isApproved(src)`
+ *  says the user clicked Load on that image — they are tracking / exfil
+ *  beacons that must not fire on note-open without explicit opt-in. Local
  *  relative paths are resolved through the host's `assetUrl` (itself confined
  *  to the vault root); a host that returns `""` is refusing the path (it
  *  escapes the vault), which surfaces as `invalid` rather than a broken
  *  `<img src="">`. */
 export function makeImageResolver(
   assetUrl: AssetUrl,
-  opts?: { loadRemote?: boolean },
+  opts?: { loadRemote?: boolean; isApproved?: (src: string) => boolean },
 ): ImageResolver {
   const loadRemote = opts?.loadRemote ?? false;
+  const isApproved = opts?.isApproved ?? (() => false);
   return (src: string): ResolvedImage => {
     if (/^(https?:|data:)/i.test(src)) {
-      return loadRemote
+      return loadRemote || isApproved(src)
         ? { kind: "ready", url: src }
         : { kind: "blocked", src };
     }

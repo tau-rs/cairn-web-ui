@@ -34,6 +34,20 @@ describe("makeImageResolver", () => {
     });
     expect(assetUrl).toHaveBeenCalledWith("img/logo.png");
   });
+  it("passes a remote URL through as ready once individually approved", () => {
+    const approved = new Set(["https://x/y.png"]);
+    const r = makeImageResolver(vi.fn(), {
+      isApproved: (src) => approved.has(src),
+    });
+    expect(r("https://x/y.png")).toEqual({
+      kind: "ready",
+      url: "https://x/y.png",
+    });
+    expect(r("https://x/other.png")).toEqual({
+      kind: "blocked",
+      src: "https://x/other.png",
+    });
+  });
   it("marks a local path the host refuses (empty url) as invalid, never ready", () => {
     // The host (TauriHost.assetUrl) returns "" when a path escapes the vault.
     const assetUrl = vi.fn().mockReturnValue("");

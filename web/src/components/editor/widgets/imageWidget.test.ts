@@ -9,6 +9,7 @@ describe("ImageWidget", () => {
       false,
       0,
       vi.fn(),
+      vi.fn(),
     );
     const el = w.toDOM();
     expect(el).toBeInstanceOf(HTMLImageElement);
@@ -22,6 +23,7 @@ describe("ImageWidget", () => {
       "alt",
       false,
       0,
+      vi.fn(),
       vi.fn(),
     );
     const el = w.toDOM();
@@ -39,6 +41,7 @@ describe("ImageWidget", () => {
       false,
       0,
       vi.fn(),
+      vi.fn(),
     );
     const el = w.toDOM();
     expect(el).not.toBeInstanceOf(HTMLImageElement);
@@ -47,13 +50,15 @@ describe("ImageWidget", () => {
     expect(el.querySelector(".cm-lp-img-blocked-load")).toBeNull();
   });
 
-  it("loads the blocked image in place when its Load button is clicked", () => {
+  it("reports the src via onLoadImage when the Load button is clicked, without touching the DOM", () => {
+    const onLoadImage = vi.fn();
     const w = new ImageWidget(
       { kind: "blocked", src: "https://x/y.png" },
       "alt",
       false,
       0,
       vi.fn(),
+      onLoadImage,
     );
     const box = w.toDOM();
     const parent = document.createElement("div");
@@ -63,9 +68,13 @@ describe("ImageWidget", () => {
     ) as HTMLButtonElement;
     expect(load).not.toBeNull();
     load.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    const img = parent.querySelector("img") as HTMLImageElement;
-    expect(img).not.toBeNull();
-    expect(img.src).toContain("https://x/y.png");
+    expect(onLoadImage).toHaveBeenCalledWith("https://x/y.png");
+    // The widget must NOT mutate its own DOM: CodeMirror's MutationObserver
+    // reconciles foreign mutations inside cm-content as text edits and would
+    // delete the underlying markdown. Rendering switches via decoration
+    // rebuild instead.
+    expect(parent.querySelector("img")).toBeNull();
+    expect(parent.contains(box)).toBe(true);
   });
 
   it("does not call onEdit when the Load button is clicked", () => {
@@ -76,6 +85,7 @@ describe("ImageWidget", () => {
       false,
       3,
       onEdit,
+      vi.fn(),
     );
     const box = w.toDOM();
     document.createElement("div").appendChild(box);
@@ -94,6 +104,7 @@ describe("ImageWidget", () => {
       false,
       7,
       onEdit,
+      vi.fn(),
     );
     const box = w.toDOM();
     box.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));

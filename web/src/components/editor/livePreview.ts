@@ -21,6 +21,7 @@ export interface LivePreviewOptions {
   onToggleCheckbox: (bracketOpen: number) => void;
   resolveImage: (src: string) => ResolvedImage;
   onEditImage: (from: number) => void;
+  onLoadImage: (src: string) => void;
   onEnterTableEdit: (from: number) => void;
   onCommitTable: (from: number, to: number, md: string) => void;
 }
@@ -320,7 +321,14 @@ export function buildLivePreviewDecorations(
     const block = line.text.trim() === im[0];
     decos.push(
       Decoration.replace({
-        widget: new ImageWidget(image, alt, block, from, opts.onEditImage),
+        widget: new ImageWidget(
+          image,
+          alt,
+          block,
+          from,
+          opts.onEditImage,
+          opts.onLoadImage,
+        ),
       }).range(from, to),
     );
   }

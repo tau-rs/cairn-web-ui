@@ -8,6 +8,7 @@ export class ImageWidget extends WidgetType {
     readonly block: boolean,
     readonly from: number,
     readonly onEdit: (from: number) => void,
+    readonly onLoadImage: (src: string) => void,
   ) {
     super();
   }
@@ -42,9 +43,12 @@ export class ImageWidget extends WidgetType {
   }
   /** Placeholder for an image that isn't being loaded. When `src` is given the
    *  image is external/`data:` and merely opt-in-gated, so a "Load" button is
-   *  offered — loading is per-image and ephemeral (does not touch settings),
-   *  swapping in the real <img> in place. When `src` is null the path was
-   *  refused (escapes the vault); no load affordance is offered. */
+   *  offered — clicking it reports the src via `onLoadImage`, and the editor
+   *  re-renders the widget as a real <img> through a decoration rebuild. The
+   *  widget must never swap its own DOM: CodeMirror's MutationObserver would
+   *  reconcile the foreign mutation as a text edit and delete the markdown.
+   *  When `src` is null the path was refused (escapes the vault); no load
+   *  affordance is offered. */
   private placeholder(src: string | null): HTMLElement {
     const box = document.createElement("span");
     box.className = this.block
@@ -63,7 +67,7 @@ export class ImageWidget extends WidgetType {
       load.addEventListener("mousedown", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        box.replaceWith(this.imageEl(src));
+        this.onLoadImage(src);
       });
       box.append(load);
     }
