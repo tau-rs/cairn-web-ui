@@ -60,6 +60,17 @@ describe("TauriClient", () => {
     await Promise.resolve();
     expect(unlisten).toHaveBeenCalled();
   });
+
+  it("subscribe reports a listen-registration failure via onError instead of an unhandled rejection", async () => {
+    const boom = new Error("attach failed");
+    listen.mockImplementationOnce(() => Promise.reject(boom));
+    const c = new TauriClient();
+    const onError = vi.fn();
+    c.subscribe(vi.fn(), onError);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onError).toHaveBeenCalledWith(boom);
+  });
 });
 
 describe("TauriHost", () => {
