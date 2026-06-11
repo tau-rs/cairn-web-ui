@@ -723,6 +723,59 @@ describe("cairn store", () => {
     await p;
     expect(store.getState().loading.graph).toBe(false);
   });
+
+  it("traces the refresh fan-out for an external note_changed (DG5/DX4)", async () => {
+    // Real timers: the mock emits via queueMicrotask and vi.waitFor polls on
+    // real timers (mirrors the note_changed test above).
+    vi.useRealTimers();
+    const events: { type: string; actions: string[] }[] = [];
+    const trace = {
+      event: (type: string, actions: string[]) =>
+        events.push({ type, actions }),
+      time: <T>(_label: string, fn: () => Promise<T>) => fn(),
+    };
+    const client = new MockClient({ "a.md": "links to [[b]]", "b.md": "x" });
+    const store = createCairnStore(client, undefined, trace);
+    await store.getState().init();
+    // An external write (straight to the client, not via store.saveNote) is not
+    // a self-write, so it triggers the full index-wide fan-out.
+    await client.sendCommand({
+      type: "write_note",
+      path: "c.md",
+      contents: "hi",
+    });
+    await vi.waitFor(() =>
+      expect(events.some((e) => e.type === "note_changed")).toBe(true),
+    );
+    const fanout = events.find((e) => e.type === "note_changed")!;
+    expect(fanout.actions).toContain("refreshNotePaths");
+    expect(fanout.actions).toContain("loadTags");
+  });
+
+  it("skips the index-wide fan-out for a self-write echo (DG5/DX4)", async () => {
+    vi.useRealTimers();
+    const events: { type: string; actions: string[] }[] = [];
+    const trace = {
+      event: (type: string, actions: string[]) =>
+        events.push({ type, actions }),
+      time: <T>(_label: string, fn: () => Promise<T>) => fn(),
+    };
+    const client = new MockClient({ "a.md": "body" });
+    const store = createCairnStore(client, undefined, trace);
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    events.length = 0; // ignore the open's backlinks refresh
+    store.getState().editBuffer("body edited");
+    // The debounced autosave writes via the store, marking pendingSelfWrites, so
+    // the echoed note_changed is a self-write: no refreshNotePaths/loadTags.
+    await vi.waitFor(
+      () => expect(events.some((e) => e.type === "note_changed")).toBe(true),
+      { timeout: 3000 },
+    );
+    const echo = events.find((e) => e.type === "note_changed")!;
+    expect(echo.actions).not.toContain("refreshNotePaths");
+    expect(echo.actions).not.toContain("loadTags");
+  });
 });
 
 describe("ui slice", () => {
