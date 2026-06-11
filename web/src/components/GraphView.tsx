@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
+import ForceGraph2D from "react-force-graph-2d";
 import {
   buildGraphData,
   buildAdjacency,
   nodeRadius,
   labelAlpha,
-  type GLink,
 } from "./graph/graphData";
+import {
+  type RFNode,
+  type FG,
+  asGraphData,
+  linkForce,
+} from "./graph/forceGraphTypes";
 import { IconButton } from "./ui/IconButton";
 import { Spinner } from "./ui/Spinner";
 import { GraphForcesPanel } from "./graph/GraphForcesPanel";
@@ -31,17 +36,6 @@ import {
   saveLocalGraph,
 } from "./graph/localGraph";
 
-// react-force-graph mutates node objects (adds x/y/vx/vy) and rewrites
-// link.source/target from id strings into node references at runtime.
-interface RFNode {
-  id: string;
-  label: string;
-  degree: number;
-  x?: number;
-  y?: number;
-  fx?: number; // d3 pin (set to freeze, undefined to release)
-  fy?: number;
-}
 
 export function GraphView(props: {
   nodes: string[];
@@ -94,8 +88,9 @@ export function GraphView(props: {
 
   const data = localData ?? globalData;
   const adjacency = localAdj ?? globalAdj;
+  const rfData = asGraphData(data);
 
-  const fgRef = useRef<ForceGraphMethods<RFNode, GLink> | undefined>(undefined);
+  const fgRef = useRef<FG | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverRef = useRef<string | null>(null);
   const fittedRef = useRef(false);
@@ -137,16 +132,14 @@ export function GraphView(props: {
     const fg = fgRef.current;
     if (!fg) return;
     fg.d3Force("charge")?.strength(forces.repel);
-    const link = fg.d3Force("link") as
-      | { strength: (n: number) => unknown; distance: (n: number) => unknown }
-      | undefined;
+    const link = linkForce(fg);
     link?.strength(forces.linkForce);
     link?.distance(forces.linkDistance);
     fg.d3Force("center")?.strength(forces.center);
 
     // Freeze = pin every node so the layout holds static (hover still repaints);
     // unfreeze clears the pins.
-    for (const n of data.nodes as RFNode[]) {
+    for (const n of rfData.nodes) {
       if (forces.frozen) {
         n.fx = n.x;
         n.fy = n.y;
@@ -156,7 +149,7 @@ export function GraphView(props: {
       }
     }
     if (!forces.frozen) fg.d3ReheatSimulation();
-  }, [forces, data, size.width, size.height]);
+  }, [forces, rfData, size.width, size.height]);
 
   const paintNode = useCallback(
     (node: RFNode, ctx: CanvasRenderingContext2D, scale: number) => {
@@ -322,7 +315,7 @@ export function GraphView(props: {
             ref={fgRef}
             width={size.width}
             height={size.height}
-            graphData={data as { nodes: RFNode[]; links: GLink[] }}
+            graphData={rfData}
             backgroundColor="rgba(0,0,0,0)"
             nodeCanvasObject={paintNode}
             nodePointerAreaPaint={paintPointer}
