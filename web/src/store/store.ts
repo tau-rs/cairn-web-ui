@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
-import type { CairnClient } from "../client/types";
-import type { ContractError, TagCount } from "../contract";
+import type { CairnClient, Unsubscribe } from "../client/types";
+import type { ContractError, TagCount, Event } from "../contract";
 import type { PluginSummary } from "../contract";
 import { debounce, type Debounced } from "../util/timer";
 import {
@@ -91,6 +91,9 @@ export interface CairnState {
     backlinks: boolean;
     note: boolean;
   };
+  // "down" when the push-event channel failed to attach — the reactive refresh
+  // model is degraded and data may be stale until a manual refresh.
+  liveUpdates: "ok" | "down";
 
   init(): Promise<void>;
   openCairn(): Promise<void>;
@@ -123,6 +126,7 @@ export interface CairnState {
   rearmInterval(): void;
   setSettings(patch: Partial<Settings>): void;
   dismissError(id: number): void;
+  refreshAll(): Promise<void>;
   assetUrl(relPath: string): string;
 }
 
@@ -134,6 +138,7 @@ export function createCairnStore(
   let idleCommit: Debounced | null = null;
   let started = false;
   let intervalHandle: ReturnType<typeof setInterval> | null = null;
+  let eventUnsub: Unsubscribe | null = null;
 
   // Monotonic request tokens: a slow response only applies if no newer request
   // of the same kind has started since. runSearch + filterByTag share `results`
@@ -231,6 +236,49 @@ export function createCairnStore(
       });
     };
 
+    // The push-event handler. Extracted so `connectEvents` can (re)attach it.
+    const onEvent = (e: Event) => {
+      if (e.type === "note_changed" || e.type === "note_deleted") {
+        // Detect the echo of our own just-written note. A debounced autosave
+        // must not fan the full index/graph cascade out on every keystroke
+        // (the refresh storm) — but the *targeted* views that reflect the
+        // edit just made (backlinks, the active search/filter) should still
+        // update. So for a self-write we skip the expensive index-wide work
+        // (note list, tags, and the whole-graph rebuild) and refresh only
+        // the active note's derived data. External changes refresh fully.
+        let selfWrite = false;
+        if (e.type === "note_changed") {
+          const pending = pendingSelfWrites.get(e.path) ?? 0;
+          if (pending > 0) {
+            if (pending === 1) pendingSelfWrites.delete(e.path);
+            else pendingSelfWrites.set(e.path, pending - 1);
+            selfWrite = true;
+          }
+        }
+        if (!selfWrite) {
+          void get().refreshNotePaths();
+          void get().loadTags();
+          if (get().graph !== null) void get().loadGraph();
+        }
+        const tag = get().activeTag;
+        if (tag) void get().filterByTag(tag);
+        else if (get().searchResults !== null)
+          void get().runSearch(get().query);
+        if (get().activePath) void get().refreshBacklinks();
+      } else if (e.type === "committed") {
+        set({ lastCommit: e.commit, uncommitted: false });
+      }
+    };
+
+    // (Re)attach the event channel. A failed attach flips liveUpdates to "down"
+    // so the UI can surface the degraded state and offer a manual refresh.
+    const connectEvents = () => {
+      eventUnsub?.();
+      eventUnsub = client.subscribe(onEvent, () =>
+        set({ liveUpdates: "down" }),
+      );
+    };
+
     // Load a cairn's derived state from scratch and arm autosave. Resets every
     // per-cairn view first (so nothing leaks from a previously-open cairn), then
     // reloads the note list, tags, plugins, and the persisted pinned tabs. Shared
@@ -299,45 +347,16 @@ export function createCairnStore(
       settings: DEFAULT_SETTINGS,
       errors: [],
       loading: { search: false, graph: false, backlinks: false, note: false },
+      liveUpdates: "ok",
 
       async init() {
         if (started) return;
         started = true;
         const path = await host.currentCairn();
         set({ cairnPath: path });
-        // Subscribe once, for the store's lifetime — NOT inside the path gate.
-        client.subscribe((e) => {
-          if (e.type === "note_changed" || e.type === "note_deleted") {
-            // Detect the echo of our own just-written note. A debounced autosave
-            // must not fan the full index/graph cascade out on every keystroke
-            // (the refresh storm) — but the *targeted* views that reflect the
-            // edit just made (backlinks, the active search/filter) should still
-            // update. So for a self-write we skip the expensive index-wide work
-            // (note list, tags, and the whole-graph rebuild) and refresh only
-            // the active note's derived data. External changes refresh fully.
-            let selfWrite = false;
-            if (e.type === "note_changed") {
-              const pending = pendingSelfWrites.get(e.path) ?? 0;
-              if (pending > 0) {
-                if (pending === 1) pendingSelfWrites.delete(e.path);
-                else pendingSelfWrites.set(e.path, pending - 1);
-                selfWrite = true;
-              }
-            }
-            if (!selfWrite) {
-              void get().refreshNotePaths();
-              void get().loadTags();
-              if (get().graph !== null) void get().loadGraph();
-            }
-            const tag = get().activeTag;
-            if (tag) void get().filterByTag(tag);
-            else if (get().searchResults !== null)
-              void get().runSearch(get().query);
-            if (get().activePath) void get().refreshBacklinks();
-          } else if (e.type === "committed") {
-            set({ lastCommit: e.commit, uncommitted: false });
-          }
-        });
+        // Attach the push-event channel once, for the store's lifetime — NOT
+        // inside the path gate.
+        connectEvents();
         if (path !== null) {
           await loadCairn();
         }
@@ -741,6 +760,25 @@ export function createCairnStore(
 
       dismissError(id) {
         set((s) => ({ errors: s.errors.filter((t) => t.id !== id) }));
+      },
+
+      async refreshAll() {
+        // The manual-refresh affordance: re-attach the channel (in case it
+        // dropped) and re-pull everything the push events would have. Clearing
+        // the flag is optimistic — if re-attach fails again, connectEvents'
+        // onError flips it back to "down".
+        connectEvents();
+        set({ liveUpdates: "ok" });
+        await get().refreshNotePaths();
+        await get().loadTags();
+        if (get().graph !== null) await get().loadGraph();
+        // Reconcile the active overlay too, mirroring the push handler — else a
+        // refresh while filtered/searching leaves a stale results list.
+        const tag = get().activeTag;
+        if (tag) await get().filterByTag(tag);
+        else if (get().searchResults !== null)
+          await get().runSearch(get().query);
+        if (get().activePath) await get().refreshBacklinks();
       },
 
       assetUrl(relPath: string) {

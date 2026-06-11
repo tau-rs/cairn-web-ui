@@ -88,6 +88,8 @@ export class MockClient implements CairnClient {
     this.notes = new Map(Object.entries(seed));
   }
 
+  // The mock channel never fails to attach, so it ignores the contract's
+  // optional `onError` (a narrower impl still satisfies the wider interface).
   subscribe(cb: (e: Event) => void): Unsubscribe {
     this.subscribers.add(cb);
     return () => this.subscribers.delete(cb);
