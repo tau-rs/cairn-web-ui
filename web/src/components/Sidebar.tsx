@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom";
-import { useCairn, cairnStore } from "../app/cairnStore";
+import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl, tagUrl } from "../app/routes";
 import { FolderTree } from "./tree/FolderTreeView";
 import { TagsPanel } from "./tags/TagsPanel";
 
 export function Sidebar() {
   const navigate = useNavigate();
-  const actions = cairnStore.getState();
+  const actions = useActions();
   const notePaths = useCairn((s) => s.notePaths);
   const activePath = useCairn((s) => s.activePath);
   const tags = useCairn((s) => s.tags);

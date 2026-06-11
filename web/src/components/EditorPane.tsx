@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useCairn, cairnStore } from "../app/cairnStore";
+import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl, isGraph, tagFromLocation } from "../app/routes";
 import { GraphView } from "./GraphView";
 import { Editor } from "./Editor";
@@ -12,7 +12,7 @@ import { Spinner } from "./ui/Spinner";
 export function EditorPane() {
   const navigate = useNavigate();
   const location = useLocation();
-  const actions = cairnStore.getState();
+  const actions = useActions();
   const notePaths = useCairn((s) => s.notePaths);
   const activePath = useCairn((s) => s.activePath);
   const activeContents = useCairn((s) => s.activeContents);

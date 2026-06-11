@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useCairn, cairnStore } from "../app/cairnStore";
+import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl } from "../app/routes";
 import { SettingsDialog } from "./SettingsDialog";
 import { NewNoteDialog } from "./NewNoteDialog";
@@ -14,7 +14,7 @@ export function DialogHost(props: {
   onRunCommand: (id: string) => void;
 }) {
   const navigate = useNavigate();
-  const actions = cairnStore.getState();
+  const actions = useActions();
   const ui = useCairn((s) => s.ui);
   const settings = useCairn((s) => s.settings);
   const plugins = useCairn((s) => s.plugins);
