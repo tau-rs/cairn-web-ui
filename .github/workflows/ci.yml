@@ -21,6 +21,7 @@ jobs:
   web:
     name: web
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
@@ -44,6 +45,7 @@ jobs:
   e2e:
     name: e2e
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -72,6 +74,7 @@ jobs:
   tauri:
     name: tauri
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Install WebKitGTK + build deps
@@ -96,6 +99,7 @@ jobs:
     if: always()
     needs: [web, e2e, tauri]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Require all jobs to have succeeded
         run: |
