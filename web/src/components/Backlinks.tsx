@@ -1,7 +1,9 @@
 import { SectionLabel } from "./ui/SectionLabel";
+import { Spinner } from "./ui/Spinner";
 
 export function Backlinks(props: {
   paths: string[];
+  loading?: boolean;
   onOpen: (path: string) => void;
 }) {
   return (
@@ -9,7 +11,11 @@ export function Backlinks(props: {
       <span className="mb-1">
         <SectionLabel>Backlinks</SectionLabel>
       </span>
-      {props.paths.length === 0 ? (
+      {props.loading ? (
+        <span className="flex items-center gap-2 text-faint">
+          <Spinner label="Loading backlinks" /> Loading…
+        </span>
+      ) : props.paths.length === 0 ? (
         <span className="text-faint">No backlinks</span>
       ) : (
         props.paths.map((path) => (

@@ -82,6 +82,15 @@ export interface CairnState {
   notice: string | null;
   settings: Settings;
   errors: Toast[];
+  // Per-area pending flags so consumers can show a spinner/skeleton distinct
+  // from an empty result. Set around each async call; a superseded request never
+  // clears a newer one's flag (token-guarded).
+  loading: {
+    search: boolean;
+    graph: boolean;
+    backlinks: boolean;
+    note: boolean;
+  };
   // "down" when the push-event channel failed to attach — the reactive refresh
   // model is degraded and data may be stale until a manual refresh.
   liveUpdates: "ok" | "down";
@@ -188,6 +197,9 @@ export function createCairnStore(
       });
     };
 
+    const setLoading = (key: keyof CairnState["loading"], value: boolean) =>
+      set((s) => ({ loading: { ...s.loading, [key]: value } }));
+
     // Funnel for every caught command/query error. Logs a structured diagnostic
     // (operation + context + typed ContractError) for devs, surfaces an
     // operation-prefixed toast for users, and auto-dismisses it. Appends via a
@@ -288,6 +300,7 @@ export function createCairnStore(
         tags: [],
         plugins: [],
         notice: null,
+        loading: { search: false, graph: false, backlinks: false, note: false },
       });
       await get().refreshNotePaths();
       await get().loadTags();
@@ -333,6 +346,7 @@ export function createCairnStore(
       notice: null,
       settings: DEFAULT_SETTINGS,
       errors: [],
+      loading: { search: false, graph: false, backlinks: false, note: false },
       liveUpdates: "ok",
 
       async init() {
@@ -380,14 +394,23 @@ export function createCairnStore(
       async openNote(path) {
         try {
           if (!get().openNotes[path]) {
-            const res = await client.runQuery({ type: "get_note", path });
-            if (res.type !== "note") return;
-            set((s) => ({
-              openNotes: {
-                ...s.openNotes,
-                [path]: { contents: res.contents, dirty: false, saving: false },
-              },
-            }));
+            setLoading("note", true);
+            try {
+              const res = await client.runQuery({ type: "get_note", path });
+              if (res.type !== "note") return;
+              set((s) => ({
+                openNotes: {
+                  ...s.openNotes,
+                  [path]: {
+                    contents: res.contents,
+                    dirty: false,
+                    saving: false,
+                  },
+                },
+              }));
+            } finally {
+              setLoading("note", false);
+            }
           }
           applyTabs(openOrPreview(tabsState(), path));
           persist();
@@ -554,6 +577,7 @@ export function createCairnStore(
 
       async runSearch(query) {
         const token = ++seq.results;
+        setLoading("search", true);
         try {
           const res = await client.runQuery({ type: "search", query });
           if (token !== seq.results) return; // a newer search/filter superseded
@@ -573,6 +597,10 @@ export function createCairnStore(
         } catch (err) {
           if (token !== seq.results) return;
           pushError("Search", err, { query });
+        } finally {
+          // Only the current request clears the flag; a superseded one leaves it
+          // set because the newer request that bumped the token now owns it.
+          if (token === seq.results) setLoading("search", false);
         }
       },
 
@@ -587,6 +615,7 @@ export function createCairnStore(
 
       async filterByTag(tag) {
         const token = ++seq.results;
+        setLoading("search", true);
         try {
           const res = await client.runQuery({ type: "notes_by_tag", tag });
           if (token !== seq.results) return; // a newer search/filter superseded
@@ -599,6 +628,8 @@ export function createCairnStore(
         } catch (err) {
           if (token !== seq.results) return;
           pushError("Filter notes by tag", err, { tag });
+        } finally {
+          if (token === seq.results) setLoading("search", false);
         }
       },
 
@@ -644,8 +675,12 @@ export function createCairnStore(
 
       async refreshBacklinks() {
         const path = get().activePath;
-        if (!path) return set({ backlinks: [] });
+        if (!path) {
+          setLoading("backlinks", false);
+          return set({ backlinks: [] });
+        }
         const token = ++seq.backlinks;
+        setLoading("backlinks", true);
         try {
           const res = await client.runQuery({ type: "get_backlinks", path });
           if (token !== seq.backlinks) return; // superseded by a newer request
@@ -653,26 +688,33 @@ export function createCairnStore(
         } catch (err) {
           if (token !== seq.backlinks) return;
           pushError("Load backlinks", err, { path });
+        } finally {
+          if (token === seq.backlinks) setLoading("backlinks", false);
         }
       },
 
       async loadGraph() {
         const token = ++seq.graph;
+        setLoading("graph", true);
         try {
-          const res = await client.runQuery({ type: "get_graph" });
-          if (token !== seq.graph) return; // superseded by a newer reload
-          if (res.type === "graph")
-            set({ graph: { nodes: res.nodes, edges: res.edges } });
-        } catch (err) {
-          if (token !== seq.graph) return;
-          pushError("Load graph", err);
-        }
-        try {
-          const tags = await client.noteTags();
-          if (token !== seq.graph) return; // superseded by a newer reload
-          set({ noteTags: tags });
-        } catch {
-          // leave the existing noteTags as-is — stale data beats clearing it
+          try {
+            const res = await client.runQuery({ type: "get_graph" });
+            if (token !== seq.graph) return; // superseded by a newer reload
+            if (res.type === "graph")
+              set({ graph: { nodes: res.nodes, edges: res.edges } });
+          } catch (err) {
+            if (token !== seq.graph) return;
+            pushError("Load graph", err);
+          }
+          try {
+            const tags = await client.noteTags();
+            if (token !== seq.graph) return; // superseded by a newer reload
+            set({ noteTags: tags });
+          } catch {
+            // leave the existing noteTags as-is — stale data beats clearing it
+          }
+        } finally {
+          if (token === seq.graph) setLoading("graph", false);
         }
       },
 

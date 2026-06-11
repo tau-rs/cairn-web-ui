@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { FolderTree } from "./FolderTreeView";
 
 beforeEach(() => localStorage.clear());
@@ -63,5 +64,31 @@ describe("FolderTree", () => {
     localStorage.setItem("cairn.folderTree", JSON.stringify(["notes"]));
     setup({ activePath: "notes/ideas.md" });
     expect(screen.getByRole("button", { name: "ideas" })).toBeInTheDocument();
+  });
+
+  it("opens rename on F2 and renames a note within its folder", async () => {
+    const props = setup();
+    const row = screen.getByRole("button", { name: "index" });
+    row.focus();
+    fireEvent.keyDown(row, { key: "F2" });
+    const input = screen.getByDisplayValue("index");
+    await userEvent.clear(input);
+    await userEvent.type(input, "home{Enter}");
+    expect(props.onApplyRenames).toHaveBeenCalledWith([
+      { from: "index.md", to: "home.md" },
+    ]);
+  });
+
+  it("moves a note via F2 when a slashed path is committed (keyboard move)", async () => {
+    const props = setup();
+    const row = screen.getByRole("button", { name: "index" });
+    row.focus();
+    fireEvent.keyDown(row, { key: "F2" });
+    const input = screen.getByDisplayValue("index");
+    await userEvent.clear(input);
+    await userEvent.type(input, "notes/index{Enter}");
+    expect(props.onApplyRenames).toHaveBeenCalledWith([
+      { from: "index.md", to: "notes/index.md" },
+    ]);
   });
 });

@@ -49,6 +49,45 @@ describe("TabStrip", () => {
     expect(props.onClose).toHaveBeenCalledWith("ideas.md");
     expect(props.onSelect).not.toHaveBeenCalled();
   });
+  it("makes the active tab focusable and others not (roving tabindex)", () => {
+    setup();
+    expect(screen.getByRole("tab", { name: /a$/ })).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
+    expect(screen.getByRole("tab", { name: /ideas/ })).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
+  });
+  it("activates a tab on Enter", () => {
+    const props = setup();
+    fireEvent.keyDown(screen.getByRole("tab", { name: /ideas/ }), {
+      key: "Enter",
+    });
+    expect(props.onSelect).toHaveBeenCalledWith("ideas.md");
+  });
+  it("activates a tab on Space", () => {
+    const props = setup();
+    fireEvent.keyDown(screen.getByRole("tab", { name: /ideas/ }), { key: " " });
+    expect(props.onSelect).toHaveBeenCalledWith("ideas.md");
+  });
+  it("moves focus (not selection) to the next tab on ArrowRight (wrapping)", () => {
+    const props = setup(); // active = a.md (index 0)
+    fireEvent.keyDown(screen.getByRole("tab", { name: /a$/ }), {
+      key: "ArrowRight",
+    });
+    expect(screen.getByRole("tab", { name: /ideas/ })).toHaveFocus();
+    expect(props.onSelect).not.toHaveBeenCalled(); // manual activation
+  });
+  it("moves focus to the previous tab on ArrowLeft (wrapping to last)", () => {
+    const props = setup(); // active = a.md (index 0) -> wraps to ideas.md
+    fireEvent.keyDown(screen.getByRole("tab", { name: /a$/ }), {
+      key: "ArrowLeft",
+    });
+    expect(screen.getByRole("tab", { name: /ideas/ })).toHaveFocus();
+    expect(props.onSelect).not.toHaveBeenCalled();
+  });
   it("renders nothing when there are no tabs", () => {
     const { container } = render(
       <TabStrip
