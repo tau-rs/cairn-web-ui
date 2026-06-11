@@ -2,6 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createCairnStore, DEFAULT_SETTINGS, ERROR_TOAST_MS } from "./store";
 import { MockClient } from "../client/mock";
 import { saveTabs } from "../components/tabs/tabsPersistence";
+import type { Event } from "../contract";
+
+// Stub `subscribe` so it immediately reports an attach failure and delivers no
+// events — simulating a channel that never came up (a dead push stream).
+const failingSubscribe = (
+  _cb: (e: Event) => void,
+  onError?: (err: unknown) => void,
+) => {
+  onError?.(new Error("attach failed"));
+  return () => {};
+};
 
 beforeEach(() => vi.useFakeTimers());
 beforeEach(() => localStorage.clear());
@@ -82,6 +93,52 @@ describe("cairn store", () => {
     await store.getState().init();
     await store.getState().commitManual("x");
     expect(store.getState().errors[0].message).toContain("boom");
+  });
+
+  it("surfaces a degraded state when the event channel fails to attach", async () => {
+    const { client, store } = setup();
+    vi.spyOn(client, "subscribe").mockImplementation(failingSubscribe);
+    await store.getState().init();
+    expect(store.getState().liveUpdates).toBe("down");
+  });
+
+  it("refreshAll re-pulls note paths and clears the degraded state", async () => {
+    vi.useRealTimers();
+    const { client, store } = setup();
+    // Stub the channel so pushed events never reach the store (a dead stream):
+    // the note list goes stale until a manual refresh.
+    vi.spyOn(client, "subscribe").mockImplementation(failingSubscribe);
+    await store.getState().init();
+    await client.sendCommand({
+      type: "write_note",
+      path: "c.md",
+      contents: "hi",
+    });
+    expect(store.getState().notePaths).not.toContain("c.md"); // stale: no live event
+    await store.getState().refreshAll();
+    expect(store.getState().notePaths).toContain("c.md");
+    expect(store.getState().liveUpdates).toBe("ok");
+  });
+
+  it("refreshAll reconciles the active tag filter (matching the live path)", async () => {
+    vi.useRealTimers();
+    const client = new MockClient({
+      "a.md": "---\ntags: [keep]\n---\nfirst",
+    });
+    const store = createCairnStore(client);
+    vi.spyOn(client, "subscribe").mockImplementation(failingSubscribe);
+    await store.getState().init();
+    await store.getState().filterByTag("keep");
+    expect(store.getState().searchResults).toEqual(["a.md"]);
+    // A second tagged note arrives, but the dead stream delivers no event.
+    await client.sendCommand({
+      type: "write_note",
+      path: "b.md",
+      contents: "---\ntags: [keep]\n---\nsecond",
+    });
+    expect(store.getState().searchResults).toEqual(["a.md"]); // stale filter view
+    await store.getState().refreshAll();
+    expect(store.getState().searchResults).toEqual(["a.md", "b.md"]);
   });
 
   it("surfaces an error if loading the note list fails", async () => {

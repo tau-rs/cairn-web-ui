@@ -12,6 +12,7 @@ import { CommitBar } from "../components/CommitBar";
 import { ErrorToast } from "../components/ErrorToast";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { NoticeToast } from "../components/NoticeToast";
+import { LiveUpdatesBanner } from "../components/LiveUpdatesBanner";
 import {
   toPaletteCommands,
   parsePluginCommandId,
@@ -107,6 +108,7 @@ export default function App() {
   const activeTag = useCairn((s) => s.activeTag);
   const plugins = useCairn((s) => s.plugins);
   const notice = useCairn((s) => s.notice);
+  const liveUpdates = useCairn((s) => s.liveUpdates);
   const view = isGraph(location) ? "graph" : "editor";
   // Where the Graph/Editor toggle should navigate: into the graph, or back to
   // the active note (root if none). Used by both the command and the top-bar button.
@@ -342,6 +344,10 @@ export default function App() {
       />
       <ErrorToast errors={errors} onDismiss={actions.dismissError} />
       <NoticeToast message={notice} onDismiss={actions.dismissNotice} />
+      <LiveUpdatesBanner
+        status={liveUpdates}
+        onRefresh={() => void actions.refreshAll()}
+      />
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
