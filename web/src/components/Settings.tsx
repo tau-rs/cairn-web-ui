@@ -49,6 +49,19 @@ export function Settings(props: {
           }}
         />
       </label>
+      <span className="mb-1 mt-2">
+        <SectionLabel>Privacy</SectionLabel>
+      </span>
+      <label className="flex items-center gap-2 text-muted">
+        <input
+          type="checkbox"
+          checked={s.loadRemoteImages}
+          onChange={(e) =>
+            props.onChange({ loadRemoteImages: e.target.checked })
+          }
+        />
+        Load remote images
+      </label>
     </div>
   );
 }

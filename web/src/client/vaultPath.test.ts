@@ -6,7 +6,9 @@ describe("confineToRoot", () => {
     expect(confineToRoot("/vault", "img/logo.png")).toBe("/vault/img/logo.png");
   });
   it("tolerates a trailing slash on the root", () => {
-    expect(confineToRoot("/vault/", "img/logo.png")).toBe("/vault/img/logo.png");
+    expect(confineToRoot("/vault/", "img/logo.png")).toBe(
+      "/vault/img/logo.png",
+    );
   });
   it("normalizes interior `.` and `..` that stay inside the root", () => {
     expect(confineToRoot("/vault", "a/../img/./logo.png")).toBe(

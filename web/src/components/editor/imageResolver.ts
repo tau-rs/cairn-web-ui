@@ -19,7 +19,9 @@ export function makeImageResolver(
   const loadRemote = opts?.loadRemote ?? false;
   return (src: string): ResolvedImage => {
     if (/^(https?:|data:)/i.test(src)) {
-      return loadRemote ? { kind: "ready", url: src } : { kind: "blocked", src };
+      return loadRemote
+        ? { kind: "ready", url: src }
+        : { kind: "blocked", src };
     }
     return { kind: "ready", url: assetUrl(src) };
   };

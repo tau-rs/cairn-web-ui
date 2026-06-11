@@ -24,6 +24,10 @@ export interface Settings {
   intervalAutoCommit: boolean;
   intervalAutoCommitMin: number;
   editorMode: "livepreview" | "source";
+  /** Auto-load remote (`http(s):`) and `data:` images in notes. Default off:
+   *  a remote image is a tracking beacon that would otherwise fire on
+   *  note-open. When off, such images render a click-to-load placeholder. */
+  loadRemoteImages: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   intervalAutoCommit: true,
   intervalAutoCommitMin: 5,
   editorMode: "livepreview",
+  loadRemoteImages: false,
 };
 
 export interface NoteBuffer {

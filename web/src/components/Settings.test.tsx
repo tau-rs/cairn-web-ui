@@ -14,6 +14,15 @@ describe("Settings", () => {
     });
   });
 
+  it("toggles loading remote images", async () => {
+    const onChange = vi.fn();
+    render(<Settings settings={DEFAULT_SETTINGS} onChange={onChange} />);
+    await userEvent.click(screen.getByLabelText(/load remote images/i));
+    expect(onChange).toHaveBeenCalledWith({
+      loadRemoteImages: !DEFAULT_SETTINGS.loadRemoteImages,
+    });
+  });
+
   it("edits the interval minutes", async () => {
     const onChange = vi.fn();
     render(<Settings settings={DEFAULT_SETTINGS} onChange={onChange} />);

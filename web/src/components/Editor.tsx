@@ -20,6 +20,7 @@ export function Editor(props: {
   mode: "livepreview" | "source";
   notePaths: string[];
   assetUrl: (relPath: string) => string;
+  loadRemoteImages: boolean;
   onChange: (value: string) => void;
   onOpenNote: (path: string) => void;
   onToggleMode: () => void;
@@ -34,8 +35,9 @@ export function Editor(props: {
 
   const onOpenNote = props.onOpenNote;
   const resolveImage = useMemo(
-    () => makeImageResolver(props.assetUrl),
-    [props.assetUrl],
+    () =>
+      makeImageResolver(props.assetUrl, { loadRemote: props.loadRemoteImages }),
+    [props.assetUrl, props.loadRemoteImages],
   );
   const extensions = useMemo(() => {
     const base = markdown({
