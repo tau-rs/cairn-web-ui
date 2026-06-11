@@ -1,5 +1,5 @@
 # cargo-deny configuration for the src-tauri Rust shell.
-# Run via `just deny-rust` (local + CI T1 gate). Tuned to pass on the
+# Run via `just rust-deny` (local + CI T1 gate). Tuned to pass on the
 # current dependency tree; widen `licenses.allow` if a new dep introduces
 # a permissive license not yet listed.
 
