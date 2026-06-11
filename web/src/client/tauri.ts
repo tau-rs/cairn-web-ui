@@ -10,21 +10,37 @@ import type {
 import type { CairnClient, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
 import { confineToRoot } from "./vaultPath";
+import {
+  assertEvent,
+  assertCommandResponse,
+  assertQueryResponse,
+} from "./contractGuards";
 
 /** Talks to the Rust backend over Tauri IPC. Rejections are ContractError
  *  (the Err payload of the Rust command), matching MockClient. */
 export class TauriClient implements CairnClient {
-  sendCommand(command: Command): Promise<CommandResponse> {
-    return invoke<CommandResponse>("send_command", { command });
+  async sendCommand(command: Command): Promise<CommandResponse> {
+    return assertCommandResponse(
+      await invoke<unknown>("send_command", { command }),
+    );
   }
-  runQuery(query: Query): Promise<QueryResponse> {
-    return invoke<QueryResponse>("run_query", { query });
+  async runQuery(query: Query): Promise<QueryResponse> {
+    return assertQueryResponse(await invoke<unknown>("run_query", { query }));
   }
   subscribe(
     cb: (e: Event) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe {
-    const pending = listen<Event>("cairn://event", (e) => cb(e.payload));
+    // Validate the payload's discriminant before dispatch (S5): a drifted /
+    // malformed event routes to onError (the same degraded-state seam as a
+    // failed attach) rather than silently mis-dispatching on a bad `type`.
+    const pending = listen<unknown>("cairn://event", (e) => {
+      try {
+        cb(assertEvent(e.payload));
+      } catch (err) {
+        onError?.(err);
+      }
+    });
     let unlisten: (() => void) | null = null;
     let cancelled = false;
     pending.then(

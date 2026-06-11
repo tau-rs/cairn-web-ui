@@ -71,6 +71,40 @@ describe("TauriClient", () => {
     await Promise.resolve();
     expect(onError).toHaveBeenCalledWith(boom);
   });
+
+  it("runQuery rejects a malformed response with a clear error", async () => {
+    invoke.mockResolvedValueOnce({ type: "not_a_real_query_response" });
+    const c = new TauriClient();
+    await expect(c.runQuery({ type: "list_notes" })).rejects.toThrow(
+      /Malformed query response/,
+    );
+  });
+
+  it("sendCommand rejects a malformed response with a clear error", async () => {
+    invoke.mockResolvedValueOnce({ nope: true });
+    const c = new TauriClient();
+    await expect(
+      c.sendCommand({ type: "write_note", path: "a.md", contents: "x" }),
+    ).rejects.toThrow(/Malformed command response/);
+  });
+
+  it("subscribe routes a malformed event payload to onError and never calls cb", async () => {
+    let handler: (e: { payload: unknown }) => void = () => {};
+    listen.mockImplementationOnce(
+      (_name: string, h: (e: { payload: unknown }) => void) => {
+        handler = h;
+        return Promise.resolve(vi.fn());
+      },
+    );
+    const c = new TauriClient();
+    const cb = vi.fn();
+    const onError = vi.fn();
+    c.subscribe(cb, onError);
+    handler({ payload: { type: "garbage" } });
+    expect(cb).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(String(onError.mock.calls[0][0])).toMatch(/Malformed event/);
+  });
 });
 
 describe("TauriHost", () => {

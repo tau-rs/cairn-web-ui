@@ -96,6 +96,26 @@ describe("ImageWidget", () => {
     expect(onEdit).not.toHaveBeenCalled();
   });
 
+  it("marks a ready <img> as unavailable on load error without restructuring DOM", () => {
+    const w = new ImageWidget(
+      { kind: "ready", url: "asset://missing/x.png" },
+      "diagram alt",
+      false,
+      0,
+      vi.fn(),
+      vi.fn(),
+    );
+    const el = w.toDOM() as HTMLImageElement;
+    const parent = document.createElement("div");
+    parent.appendChild(el);
+    el.dispatchEvent(new Event("error"));
+    // Same node, still an <img>, alt preserved for native fallback rendering.
+    expect(parent.firstChild).toBe(el);
+    expect(el.tagName).toBe("IMG");
+    expect(el.alt).toBe("diagram alt");
+    expect(el.classList.contains("cm-lp-img-error")).toBe(true);
+  });
+
   it("reveals raw markdown (onEdit) when the placeholder body is clicked", () => {
     const onEdit = vi.fn();
     const w = new ImageWidget(

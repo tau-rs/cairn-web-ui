@@ -22,4 +22,16 @@ describe("keybindingPersistence", () => {
     );
     expect(loadOverrides()).toEqual({ a: "Mod+A", c: null });
   });
+  it("ignores a __proto__ key and yields a null-prototype map", () => {
+    localStorage.setItem(
+      "cairn.keybindings",
+      JSON.stringify({ "new-note": "Mod+J", __proto__: "Mod+X" }),
+    );
+    const out = loadOverrides();
+    expect(out["new-note"]).toBe("Mod+J");
+    // No prototype: a `__proto__` data key cannot poison Object.prototype and
+    // the map has no inherited members.
+    expect(Object.getPrototypeOf(out)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(out, "__proto__")).toBe(false);
+  });
 });
