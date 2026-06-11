@@ -10,24 +10,12 @@
 
 version: 2
 updates:
-  # GitHub Actions versions used in .github/workflows/.
-  # Weekly cadence balances signal (timely patch updates) against PR
-  # noise. Auto-bumps `uses: <owner>/<action>@<ref>` entries — works for
-  # both tag refs (e.g. @v4) and SHA pins.
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Europe/Paris
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "ci"
-      include: scope
-    labels:
-      - dependencies
-      - github-actions
+  # NOTE: GitHub Actions are intentionally NOT managed here. Since the
+  # workflows are now SHA-pinned, Renovate (renovate.json,
+  # helpers:pinGitHubActionDigests) owns the action *digest* bumps and the
+  # `# vX.Y.Z` comment refresh. Running Dependabot's github-actions ecosystem
+  # alongside it would open duplicate/conflicting PRs for the same `uses:`
+  # refs. Dependabot keeps npm + cargo below; Renovate keeps github-actions.
 
   # The npm web app. Weekly to cap PR noise; groups bundle the families
   # whose packages move in lockstep into one PR each (a single React or

@@ -88,13 +88,14 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm format:check
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
-      - name: Supply-chain audit (npm)
-        run: just deny-web
+      # Single source of truth: `just web-ci` reproduces the web gate verbatim
+      # (lint, format:check, typecheck, test, build). See justfile / docs/ci.md.
+      - run: just web-ci
+        working-directory: ${{ github.workspace }}
+      # Supply-chain audit (pnpm) on the gate; --audit-level=high keeps it from
+      # flapping on low/moderate advisories. Routed through `just web-deny`.
+      - run: just web-deny
+        working-directory: ${{ github.workspace }}
 
   e2e:
     name: e2e
@@ -149,13 +150,12 @@ jobs:
       - uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
         with:
           tool: just,cargo-deny
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
-      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
-      - name: Supply-chain audit (cargo-deny)
-        run: just deny-rust
-      - name: Compile the Tauri shell (T1 link/bundle check)
-        run: just build-rust
+      # Single source of truth: `just rust-ci` reproduces the tauri gate
+      # (cargo fmt --check, clippy -D warnings, test --locked, build --locked).
+      # See justfile / docs/ci.md.
+      - run: just rust-ci
+      # Supply-chain audit (cargo-deny advisories/licenses/bans/sources).
+      - run: just rust-deny
 
   ci-summary:
     # Single aggregated status for branch protection: require this one

@@ -255,20 +255,21 @@ DIAGRAM 4 — canonical building blocks: which rows cairn-ui turns ON
 Execute roughly top-to-bottom; each item notes **priority** and a one-line
 rationale. cosign/SLSA stay optional phase-2.
 
-- [ ] **Add `justfile` with the canonical verbs** (`fmt`, `lint`, `test`,
+- [x] **Add `justfile` with the canonical verbs** (`fmt`, `lint`, `test`,
   `deny`, `ci`, `heavy`, `fix`) fanning out to eslint/tsc/prettier/vitest
   **and** cargo fmt/clippy/test/deny. **High** — single source of truth; CI
-  cannot diverge from local. *(G1)* — *partial: the T1-gate-hardening PR added
-  a minimal forward-compatible `justfile` (`deny`/`deny-web`/`deny-rust`/
-  `build-rust`) so the new supply-chain + build checks route through `just`;
-  the full canonical verb set + repointing the existing web/tauri jobs remains
-  open.*
-- [ ] **Add `lefthook.yml`** pre-commit running `just fmt` + `just lint` + fast
+  cannot diverge from local. *(G1)* — *canonical justfile landed in PR #40; the
+  T1-gate-hardening PR activated `rust-deny` (via `deny.toml`), gate-hardened
+  `web-deny` (`--audit-level=high`) and `rust-ci` (`--locked` test + `cargo
+  build`).*
+- [x] **Add `lefthook.yml`** pre-commit running `just fmt` + `just lint` + fast
   tests on staged files; document `lefthook install`. Pre-commit = fast `just`
   verbs only; no heavy/container checks in hooks. **High** — closes the
-  local↔CI divergence gap; currently nothing runs pre-commit. *(G2)*
-- [ ] **Repoint `ci.yml` `web`/`tauri` jobs at `just` verbs** instead of inline
-  pnpm/cargo commands. **High** — makes Diagram 3 real. *(G1)*
+  local↔CI divergence gap; currently nothing runs pre-commit. *(G2)* — *landed
+  in PR #40.*
+- [x] **Repoint `ci.yml` `web`/`tauri` jobs at `just` verbs** instead of inline
+  pnpm/cargo commands. **High** — makes Diagram 3 real. *(G1)* — *PR #40
+  (`web-ci`/`rust-ci`); this PR adds the `web-deny`/`rust-deny` gate steps.*
 - [x] **Pin every `uses:` by commit SHA** (drop `@v4`/`@stable`/`@beta`) across
   all 8 workflows. **High** — supply-chain integrity; mutable tags are a
   tag-move attack surface. *(G6)*

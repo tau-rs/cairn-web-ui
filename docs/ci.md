@@ -7,11 +7,16 @@ time-based release train.
 
 ## Tier 1 — per-PR gate (`ci.yml`)
 Runs on every push to `main`, every PR, and `merge_group`. Jobs:
-- **web** — ESLint, Prettier check, `tsc --noEmit`, Vitest, `vite build`.
+- **web** — `just web-ci`: ESLint, Prettier check, `tsc --noEmit`, Vitest, `vite build`.
 - **e2e** — Playwright (Chromium), report artifact on failure.
-- **tauri** — `cargo fmt --check`, `clippy -D warnings`, `cargo test` (Linux).
+- **tauri** — `just rust-ci`: `cargo fmt --check`, `clippy -D warnings`, `cargo test` (Linux).
 - **ci-summary** — aggregates the above; green only when every job
   succeeded or skipped. **This is the single check to require on `main`.**
+
+The `web` and `tauri` jobs invoke the root [`justfile`](../justfile) rather than
+inlining the pnpm/cargo commands, so the per-PR gate and a local `just ci` can
+never drift apart. The same fast verbs run pre-commit via `lefthook` — see
+the README "Local development" section.
 
 Concurrency cancels superseded runs except on `main` (so the cache write
 that warms PR builds is never cancelled mid-write).
