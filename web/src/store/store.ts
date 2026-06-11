@@ -21,6 +21,7 @@ import {
 import { loadTabs, saveTabs } from "../components/tabs/tabsPersistence";
 import type { SearchSnippet } from "../components/searchHighlight";
 import type { Rename } from "../components/tree/treeMoves";
+import { type RefreshTrace, refreshTrace } from "./trace";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -160,6 +161,7 @@ export interface CairnState {
 export function createCairnStore(
   client: CairnClient,
   host: CairnHost = alwaysOpenHost,
+  trace: RefreshTrace = refreshTrace,
 ): StoreApi<CairnState> {
   const autosaves = new Map<string, Debounced>();
   let idleCommit: Debounced | null = null;
@@ -295,16 +297,26 @@ export function createCairnStore(
             selfWrite = true;
           }
         }
+        // Dispatch + observe the refresh fan-out. `fire` records each action
+        // name (for the dev trace's event log) and times the backend call;
+        // behavior is identical to the old fire-and-forget `void` dispatch.
+        const dispatched: string[] = [];
+        const fire = (name: string, run: () => Promise<void>) => {
+          dispatched.push(name);
+          void trace.time(name, run);
+        };
         if (!selfWrite) {
-          void get().refreshNotePaths();
-          void get().loadTags();
-          if (get().graph !== null) void get().loadGraph();
+          fire("refreshNotePaths", () => get().refreshNotePaths());
+          fire("loadTags", () => get().loadTags());
+          if (get().graph !== null) fire("loadGraph", () => get().loadGraph());
         }
         const tag = get().activeTag;
-        if (tag) void get().filterByTag(tag);
+        if (tag) fire("filterByTag", () => get().filterByTag(tag));
         else if (get().searchResults !== null)
-          void get().runSearch(get().query);
-        if (get().activePath) void get().refreshBacklinks();
+          fire("runSearch", () => get().runSearch(get().query));
+        if (get().activePath)
+          fire("refreshBacklinks", () => get().refreshBacklinks());
+        trace.event(e.type, dispatched);
       } else if (e.type === "committed") {
         set({ lastCommit: e.commit, uncommitted: false });
       }
