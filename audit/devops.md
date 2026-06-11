@@ -255,32 +255,41 @@ DIAGRAM 4 — canonical building blocks: which rows cairn-ui turns ON
 Execute roughly top-to-bottom; each item notes **priority** and a one-line
 rationale. cosign/SLSA stay optional phase-2.
 
-- [ ] **Add `justfile` with the canonical verbs** (`fmt`, `lint`, `test`,
+- [x] **Add `justfile` with the canonical verbs** (`fmt`, `lint`, `test`,
   `deny`, `ci`, `heavy`, `fix`) fanning out to eslint/tsc/prettier/vitest
   **and** cargo fmt/clippy/test/deny. **High** — single source of truth; CI
-  cannot diverge from local. *(G1)*
-- [ ] **Add `lefthook.yml`** pre-commit running `just fmt` + `just lint` + fast
+  cannot diverge from local. *(G1)* — *canonical justfile landed in PR #40; the
+  T1-gate-hardening PR activated `rust-deny` (via `deny.toml`), gate-hardened
+  `web-deny` (`--audit-level=high`) and `rust-ci` (`--locked` test + `cargo
+  build`).*
+- [x] **Add `lefthook.yml`** pre-commit running `just fmt` + `just lint` + fast
   tests on staged files; document `lefthook install`. Pre-commit = fast `just`
   verbs only; no heavy/container checks in hooks. **High** — closes the
-  local↔CI divergence gap; currently nothing runs pre-commit. *(G2)*
-- [ ] **Repoint `ci.yml` `web`/`tauri` jobs at `just` verbs** instead of inline
-  pnpm/cargo commands. **High** — makes Diagram 3 real. *(G1)*
-- [ ] **Pin every `uses:` by commit SHA** (drop `@v4`/`@stable`/`@beta`) across
+  local↔CI divergence gap; currently nothing runs pre-commit. *(G2)* — *landed
+  in PR #40.*
+- [x] **Repoint `ci.yml` `web`/`tauri` jobs at `just` verbs** instead of inline
+  pnpm/cargo commands. **High** — makes Diagram 3 real. *(G1)* — *PR #40
+  (`web-ci`/`rust-ci`); this PR adds the `web-deny`/`rust-deny` gate steps.*
+- [x] **Pin every `uses:` by commit SHA** (drop `@v4`/`@stable`/`@beta`) across
   all 8 workflows. **High** — supply-chain integrity; mutable tags are a
   tag-move attack surface. *(G6)*
-- [ ] **Add `renovate.json`** to bump the pinned SHAs and act as the workflow
+- [x] **Add `renovate.json`** to bump the pinned SHAs and act as the workflow
   sync bot. **High** — without it, SHA pins rot and the template can't sync.
-  *(G7)*
-- [ ] **Add `timeout-minutes` to every job in `ci.yml` and `nightly.yml`.**
+  *(G7)* — *scoped to `github-actions` digests; Dependabot keeps npm/cargo.*
+- [x] **Add `timeout-minutes` to every job in `ci.yml` and `nightly.yml`.**
   **Medium** — a hung cargo/Playwright run currently burns the 6h default. *(G12)*
-- [ ] **Promote `tauri build` (`cargo build`) onto the T1 gate** (single-OS) so
-  link/bundle breaks fail on the PR, not in nightly. **Medium**. *(G10)*
-- [ ] **Add changes-detection path filter** (web vs Rust) gating the `web`/
+- [x] **Promote `tauri build` (`cargo build`) onto the T1 gate** (single-OS) so
+  link/bundle breaks fail on the PR, not in nightly. **Medium**. *(G10)* — *via
+  `just build-rust` (`cargo build --locked`) on the `tauri` job.*
+- [x] **Add changes-detection path filter** (web vs Rust) gating the `web`/
   `tauri`/`e2e` jobs; `ci-summary` stays green when a stack is skipped.
-  **Medium** — keeps the <10 min budget on single-stack PRs. *(G9)*
-- [ ] **Add `cargo-deny` (+ `deny.toml`)** and a lockfile/`--locked` +
+  **Medium** — keeps the <10 min budget on single-stack PRs. *(G9)* — *PR-only
+  filter; push/merge_group run the full gate; `changes` ∈ `ci-summary` needs so
+  a broken filter fails the gate, never a silent green.*
+- [x] **Add `cargo-deny` (+ `deny.toml`)** and a lockfile/`--locked` +
   osv/`npm audit` step to the T1 gate. **Medium** — moves supply-chain checks
-  off nightly-only onto the merge gate. *(G8, G11)*
+  off nightly-only onto the merge gate. *(G8, G11)* — *`just deny-rust`
+  (cargo-deny) + `just deny-web` (pnpm audit) + `cargo test --locked`.*
 - [ ] **Create `heavy.yml` triggered on `push: tags: v*` + `workflow_dispatch`;
   fold in the cross-OS matrix, 3-browser e2e, Stryker, and coverage.** Keep
   `nightly.yml`/`mutation-weekly.yml` schedules as T3 drift-catchers (or call

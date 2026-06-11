@@ -62,18 +62,20 @@ rust-build:
 # Supply-chain audit for both stacks.
 deny: web-deny rust-deny
 
-# Audit web dependencies (pnpm audit).
+# Audit web dependencies (pnpm audit). --audit-level=high so the gate does not
+# flap on low/moderate advisories (which carry no fix on the merge path).
 web-deny:
-    cd web && pnpm audit
+    cd web && pnpm audit --audit-level=high
 
-# Audit Rust dependencies; skips cleanly until deny.toml lands (later session).
+# Audit Rust dependencies (advisories/licenses/bans/sources). Guarded so the
+# verb still works on a checkout without cargo-deny installed; CI installs it.
 rust-deny:
     #!/usr/bin/env bash
     set -euo pipefail
     if command -v cargo-deny >/dev/null 2>&1 && [ -f deny.toml ]; then
         cargo deny --manifest-path {{manifest}} check
     else
-        echo "skip: cargo-deny and/or deny.toml absent (deny.toml lands in a later session)"
+        echo "skip: cargo-deny and/or deny.toml absent"
     fi
 
 # Auto-fix lint where possible, then format, for both stacks.
@@ -94,11 +96,13 @@ ci: web-ci rust-ci
 web-ci:
     cd web && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
 
-# Rust PR gate, verbatim ci.yml: fmt --check, clippy -D warnings, test.
+# Rust PR gate: fmt --check, clippy -D warnings, then a --locked test + build so
+# a stale Cargo.lock or a link/bundle break fails on the PR (not in nightly).
 rust-ci:
     cargo fmt --manifest-path {{manifest}} --check
     cargo clippy --manifest-path {{manifest}} -- -D warnings
-    cargo test --manifest-path {{manifest}}
+    cargo test --locked --manifest-path {{manifest}}
+    cargo build --locked --manifest-path {{manifest}}
 
 # Placeholder for the T2 release tier (OS matrix, e2e, mutation, SBOM); later session.
 heavy:
