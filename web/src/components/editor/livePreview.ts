@@ -11,6 +11,7 @@ import { BulletWidget } from "./widgets/bulletWidget";
 import { HrWidget } from "./widgets/hrWidget";
 import { TaskCheckboxWidget } from "./widgets/taskCheckboxWidget";
 import { ImageWidget } from "./widgets/imageWidget";
+import type { ResolvedImage } from "./imageResolver";
 import { TableWidget } from "./widgets/tableWidget";
 import { EditableTableWidget } from "./widgets/editableTableWidget";
 
@@ -18,7 +19,7 @@ export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
   onOpenNote: (path: string) => void;
   onToggleCheckbox: (bracketOpen: number) => void;
-  resolveImage: (src: string) => string;
+  resolveImage: (src: string) => ResolvedImage;
   onEditImage: (from: number) => void;
   onEnterTableEdit: (from: number) => void;
   onCommitTable: (from: number, to: number, md: string) => void;
@@ -314,12 +315,12 @@ export function buildLivePreviewDecorations(
     if (isInsidePos(state, from, "Table")) continue;
     if (selectionTouches(state, from, to)) continue;
     const alt = im[1];
-    const src = opts.resolveImage(im[2]);
+    const image = opts.resolveImage(im[2]);
     const line = state.doc.lineAt(from);
     const block = line.text.trim() === im[0];
     decos.push(
       Decoration.replace({
-        widget: new ImageWidget(src, alt, block, from, opts.onEditImage),
+        widget: new ImageWidget(image, alt, block, from, opts.onEditImage),
       }).range(from, to),
     );
   }

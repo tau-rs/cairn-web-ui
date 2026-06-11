@@ -8,7 +8,10 @@ const opts = {
   resolve: (t: string) => (t === "ideas" ? "ideas.md" : null),
   onOpenNote: vi.fn(),
   onToggleCheckbox: vi.fn(),
-  resolveImage: (src: string) => "resolved:" + src,
+  resolveImage: (src: string) => ({
+    kind: "ready" as const,
+    url: "resolved:" + src,
+  }),
   onEditImage: vi.fn(),
   onEnterTableEdit: vi.fn(),
   onCommitTable: vi.fn(),
