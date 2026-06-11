@@ -85,4 +85,25 @@ describe("TauriHost", () => {
     await h.openCairn();
     expect(h.assetUrl("img/x.png")).toBe("asset:///tmp/c/img/x.png");
   });
+
+  it("assetUrl refuses a path that escapes the vault root", async () => {
+    invoke.mockResolvedValueOnce("/tmp/c");
+    const h = new TauriHost();
+    await h.openCairn();
+    expect(h.assetUrl("../../etc/passwd")).toBe("");
+  });
+
+  it("assetUrl refuses an absolute path", async () => {
+    invoke.mockResolvedValueOnce("/tmp/c");
+    const h = new TauriHost();
+    await h.openCairn();
+    expect(h.assetUrl("/etc/passwd")).toBe("");
+  });
+
+  it("assetUrl normalizes a safe interior `..` before resolving", async () => {
+    invoke.mockResolvedValueOnce("/tmp/c");
+    const h = new TauriHost();
+    await h.openCairn();
+    expect(h.assetUrl("a/../img/x.png")).toBe("asset:///tmp/c/img/x.png");
+  });
 });
