@@ -4,6 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { livePreview } from "./editor/livePreview";
+import { wikilinkCompletionSource } from "./editor/wikilinkComplete";
 import { toggleCheckboxChange } from "./editor/checkboxToggle";
 import { makeImageResolver } from "./editor/imageResolver";
 import {
@@ -52,7 +53,16 @@ export function Editor(props: {
       base: markdownLanguage,
       codeLanguages: markdownCodeLanguages,
     });
-    const common = [base, docTheme, docHighlightStyle, EditorView.lineWrapping];
+    const wikilinkAutocomplete = markdownLanguage.data.of({
+      autocomplete: wikilinkCompletionSource(() => props.notePaths),
+    });
+    const common = [
+      base,
+      docTheme,
+      docHighlightStyle,
+      EditorView.lineWrapping,
+      wikilinkAutocomplete,
+    ];
     const lp = livePreview({
       resolve,
       onOpenNote,
@@ -87,7 +97,7 @@ export function Editor(props: {
       },
     });
     return props.mode === "livepreview" ? [...common, lp] : common;
-  }, [props.mode, resolve, onOpenNote, resolveImage]);
+  }, [props.mode, props.notePaths, resolve, onOpenNote, resolveImage]);
 
   if (!props.path) {
     return (
