@@ -324,4 +324,12 @@ describe("buildLivePreviewDecorations", () => {
     // no HR widget leaks at offset 0
     expect(ds.some((d) => d.widget && d.from === 0)).toBe(false);
   });
+
+  it("suppresses a [[wikilink]] inside the frontmatter block", () => {
+    const doc = "---\nlinks: [[ideas]]\n---\n\nbody";
+    const ds = decos(doc, doc.indexOf("body"));
+    // no wikilink widget should render for the [[ideas]] inside frontmatter
+    const wikilinkPos = doc.indexOf("[[ideas]]");
+    expect(ds.some((d) => d.widget && d.from === wikilinkPos)).toBe(false);
+  });
 });
