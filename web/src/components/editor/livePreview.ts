@@ -100,6 +100,25 @@ function isInsideTable(node: { node: SyntaxNode }): boolean {
   return false;
 }
 
+/** Detect a leading YAML frontmatter block: line 1 is exactly `---`, with a
+ *  later line that is exactly `---` closing it. Returns the block's document
+ *  span and fence line numbers, or null when there is no closing fence (or the
+ *  doc does not open with `---`). The markdown parser mis-parses this region, so
+ *  it is detected by text-scan and its stray nodes are suppressed below. */
+function frontmatterRange(
+  state: EditorState,
+): { start: number; end: number; openLine: number; closeLine: number } | null {
+  const first = state.doc.line(1);
+  if (first.text !== "---") return null;
+  for (let n = 2; n <= state.doc.lines; n++) {
+    const line = state.doc.line(n);
+    if (line.text === "---") {
+      return { start: first.from, end: line.to, openLine: 1, closeLine: n };
+    }
+  }
+  return null;
+}
+
 /** PURE: build the live-preview decoration set for a given editor state. */
 export function buildLivePreviewDecorations(
   state: EditorState,
@@ -107,10 +126,12 @@ export function buildLivePreviewDecorations(
 ): { decorations: DecorationSet; atomic: DecorationSet } {
   const decos: Range<Decoration>[] = [];
   const tree = syntaxTree(state);
+  const fm = frontmatterRange(state);
 
   tree.iterate({
     enter: (node) => {
       const { name, from, to } = node;
+      if (fm && from < fm.end) return; // suppress parser nodes inside frontmatter
       if (HEADING_CLASS[name]) {
         decos.push(
           Decoration.mark({ class: HEADING_CLASS[name] }).range(from, to),
@@ -287,6 +308,7 @@ export function buildLivePreviewDecorations(
     const to = from + m[0].length;
     if (isInsideCode(state, from)) continue;
     if (isInsidePos(state, from, "Table")) continue;
+    if (fm && from < fm.end) continue;
     const inner = m[1];
     const target = inner.split("|")[0].trim();
     if (!target) continue;
@@ -314,6 +336,7 @@ export function buildLivePreviewDecorations(
     const to = from + im[0].length;
     if (isInsideCode(state, from)) continue;
     if (isInsidePos(state, from, "Table")) continue;
+    if (fm && from < fm.end) continue;
     if (selectionTouches(state, from, to)) continue;
     const alt = im[1];
     const image = opts.resolveImage(im[2]);
@@ -331,6 +354,22 @@ export function buildLivePreviewDecorations(
         ),
       }).range(from, to),
     );
+  }
+
+  // Frontmatter: a styled box off-cursor (line classes + hidden `---` fences),
+  // raw when the cursor is inside. The parser mis-reads this region, so it is
+  // handled here by text-scan and suppressed in the tree iterate above.
+  if (fm && !selectionTouches(state, fm.start, fm.end)) {
+    for (let n = fm.openLine; n <= fm.closeLine; n++) {
+      const line = state.doc.line(n);
+      let cls = "cm-lp-frontmatter";
+      if (n === fm.openLine) cls += " cm-lp-frontmatter-first";
+      if (n === fm.closeLine) cls += " cm-lp-frontmatter-last";
+      decos.push(Decoration.line({ class: cls }).range(line.from));
+      if ((n === fm.openLine || n === fm.closeLine) && line.length > 0) {
+        decos.push(Decoration.replace({}).range(line.from, line.to));
+      }
+    }
   }
 
   const decorations = Decoration.set(decos, /* sort */ true);

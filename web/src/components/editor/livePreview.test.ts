@@ -261,4 +261,50 @@ describe("buildLivePreviewDecorations", () => {
       view.destroy();
     }).not.toThrow();
   });
+
+  it("styles frontmatter content lines and hides the --- fences off-cursor", () => {
+    const doc = "---\ntitle: x\ntags: a\n---\n\nbody";
+    const ds = decos(doc, doc.indexOf("body"));
+    // content lines carry the frontmatter class
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter"))).toBe(true);
+    // opening fence (offset 0) and closing fence are hidden
+    const closeFence = doc.indexOf("---", 3);
+    expect(ds.some((d) => d.hidden && d.from === 0)).toBe(true);
+    expect(ds.some((d) => d.hidden && d.from === closeFence)).toBe(true);
+    // first/last marker classes are present
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter-first"))).toBe(
+      true,
+    );
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter-last"))).toBe(
+      true,
+    );
+  });
+
+  it("does not emit a horizontal-rule widget for the opening fence", () => {
+    const doc = "---\ntitle: x\n---\n\nbody";
+    const ds = decos(doc, doc.indexOf("body"));
+    // without the suppression guard the first --- parses as an HR widget at 0
+    expect(ds.some((d) => d.widget && d.from === 0)).toBe(false);
+  });
+
+  it("reveals raw frontmatter when the cursor is inside the block", () => {
+    const doc = "---\ntitle: x\n---\n\nbody";
+    const ds = decos(doc, doc.indexOf("title"));
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter"))).toBe(false);
+    expect(ds.some((d) => d.hidden && d.from === 0)).toBe(false);
+  });
+
+  it("treats --- that is not on line 1 as a horizontal rule, not frontmatter", () => {
+    const doc = "intro\n\n---\n\nbody";
+    const ds = decos(doc, 0);
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter"))).toBe(false);
+    const hrPos = doc.indexOf("---");
+    expect(ds.some((d) => d.widget && d.from === hrPos)).toBe(true);
+  });
+
+  it("ignores unclosed frontmatter (no second ---)", () => {
+    const doc = "---\ntitle: x\n\nbody";
+    const ds = decos(doc, doc.indexOf("body"));
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter"))).toBe(false);
+  });
 });
