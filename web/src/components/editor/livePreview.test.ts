@@ -307,4 +307,21 @@ describe("buildLivePreviewDecorations", () => {
     const ds = decos(doc, doc.indexOf("body"));
     expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter"))).toBe(false);
   });
+
+  it("handles empty frontmatter (--- immediately followed by ---)", () => {
+    const doc = "---\n---\n\nbody";
+    const ds = decos(doc, doc.indexOf("body"));
+    // both fence lines are hidden and carry the first/last marker classes
+    const closeFence = doc.indexOf("---", 3);
+    expect(ds.some((d) => d.hidden && d.from === 0)).toBe(true);
+    expect(ds.some((d) => d.hidden && d.from === closeFence)).toBe(true);
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter-first"))).toBe(
+      true,
+    );
+    expect(ds.some((d) => d.class?.includes("cm-lp-frontmatter-last"))).toBe(
+      true,
+    );
+    // no HR widget leaks at offset 0
+    expect(ds.some((d) => d.widget && d.from === 0)).toBe(false);
+  });
 });
