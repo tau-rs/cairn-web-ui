@@ -243,6 +243,28 @@
   background: transparent;
   color: #f4a3a3;
 }
+.cm-lp-frontmatter {
+  background: #16161c;
+  border-left: 1px solid #26262e;
+  border-right: 1px solid #26262e;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  color: #9a9ba6;
+}
+.cm-doc-livepreview .cm-line.cm-lp-frontmatter {
+  padding-left: 13px;
+  padding-right: 13px;
+}
+.cm-lp-frontmatter-first {
+  border-top: 1px solid #26262e;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+.cm-lp-frontmatter-last {
+  border-bottom: 1px solid #26262e;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
 .cm-lp-table.editing th:hover .cm-lp-col-del,
 .cm-lp-table.editing tr:hover .cm-lp-row-del {
   opacity: 1;
