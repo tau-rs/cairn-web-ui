@@ -44,8 +44,9 @@ Verified facts (against installed deps):
 Frontmatter is only valid at the very top of the document. Detection (pure, in
 `buildLivePreviewDecorations`):
 
-- If `doc.line(1)` trimmed is exactly `---`, scan downward for the next line whose
-  trimmed text is exactly `---` (closing fence).
+- If `doc.line(1)` is exactly `---` (strict equality, no trim — matching the YAML
+  fence convention), scan downward for the next line whose text is exactly `---`
+  (closing fence).
 - The block spans line 1 through that closing-fence line: `[blockStart, blockEnd]`
   as document offsets.
 - No closing fence found → not frontmatter; emit nothing.
@@ -101,14 +102,16 @@ A pure function plus a thin CodeMirror `CompletionSource` wrapper:
 
 ```
 wikilinkCompletionState(
-  textBeforeCursor: string,  // current line text up to the cursor
-  textAfterCursor: string,   // current line text from the cursor on
-  stems: string[],           // note stems (deduped upstream or here)
-): { from: number; options: Completion[] } | null
+  textBefore: string,  // current line text up to the cursor
+  stems: string[],     // note stems
+): { from: number; stems: string[] } | null
 ```
 
-`from` is returned as an offset **relative to the start of `textBeforeCursor`**
-(i.e. the line); the wrapper adds the line's document offset.
+`from` is returned as an offset **relative to the start of `textBefore`** (i.e.
+the line); the wrapper adds the line's document offset and maps the returned
+`stems` to `Completion` options. `textAfter` is not needed for the fire decision —
+the closing-`]]` logic lives in `wikilinkInsert(stem, textAfter)`, applied only
+when a completion is picked.
 
 ### Fire rule
 
