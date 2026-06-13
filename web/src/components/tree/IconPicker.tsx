@@ -30,7 +30,11 @@ export function IconPicker({
 }) {
   const [tab, setTab] = useState<"emoji" | "icons">("emoji");
   const [query, setQuery] = useState("");
-  const [color, setColor] = useState(ICON_COLORS[0]);
+  // Seed the color swatch from an existing lucide icon so reopening the picker
+  // shows the icon's actual color selected, not the default.
+  const [color, setColor] = useState(
+    value.icon?.kind === "lucide" ? value.icon.color : ICON_COLORS[0],
+  );
 
   const setIcon = (icon: TreeItemStyle["icon"]) => onChange({ ...value, icon });
 
@@ -133,6 +137,7 @@ export function IconPicker({
                 >
                   ∅
                 </button>
+                {/* skip accent + grey (indices 0–1): too low-contrast as a row tint */}
                 {ICON_COLORS.slice(2).map((c) => (
                   <button
                     key={c}
