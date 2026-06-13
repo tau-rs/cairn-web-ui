@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCairn, useActions, cairnStore } from "../../app/cairnStore";
@@ -7,6 +7,7 @@ import { IconButton } from "../ui/IconButton";
 import { Drawer } from "../ui/Drawer";
 import { BottomNav } from "./BottomNav";
 import { MoreMenu } from "./MoreMenu";
+import { MobileSearchView } from "./MobileSearchView";
 import type { MobileTab } from "../../store/store";
 import type { ShellRegions } from "./regions";
 
@@ -19,34 +20,45 @@ export function MobileShell({ topBar, list, editor, backlinks }: ShellRegions) {
   const backlinksOpen = useCairn((s) => s.ui.backlinksOpen);
   const searchActive = useCairn((s) => s.searchResults !== null);
 
-  // Opening a note/graph (e.g. tapping a file in the Files tab) or running a
-  // search should leave the Files/More overlay and reveal that content.
+  // Opening a note/graph (e.g. tapping a file in the Files tab) or a tag filter
+  // landing results should leave the Files/More overlay and reveal that content.
+  // This must react to *navigation* (pathname/searchActive), NOT to the tab the
+  // user picked — otherwise tapping Files while a note is open re-fires the
+  // effect and bounces straight back to the editor. So `mobileTab` is read via a
+  // ref (off the dep list): it gates the Search tab (route-independent, never
+  // auto-exited) without re-triggering the effect on every tab change.
   const pathname = location.pathname;
+  const mobileTabRef = useRef(mobileTab);
+  mobileTabRef.current = mobileTab;
   useEffect(() => {
+    if (mobileTabRef.current === "search") return;
     const loc = { pathname };
     if (notePathFromLocation(loc) !== null || isGraph(loc) || searchActive) {
       actions.setUi({ mobileTab: "editor" });
     }
   }, [pathname, searchActive, actions]);
 
-  // Active highlight is derived: Files/More are authoritative; the content tabs
-  // (editor/search/graph) are read back from the route + search state.
+  // Active highlight is derived: Files/More/Search are authoritative; editor and
+  // graph are read back from the route. The trailing searchActive covers a tag
+  // filter whose results render as the editor overlay.
   const active: MobileTab =
     mobileTab === "files"
       ? "files"
       : mobileTab === "more"
         ? "more"
-        : isGraph(location)
-          ? "graph"
-          : searchActive
-            ? "search"
-            : "editor";
+        : mobileTab === "search"
+          ? "search"
+          : isGraph(location)
+            ? "graph"
+            : searchActive
+              ? "search"
+              : "editor";
 
   function select(tab: MobileTab) {
     actions.setUi({ mobileTab: tab });
     if (tab === "graph") {
       navigate("/graph");
-    } else if (tab === "editor" || tab === "search") {
+    } else if (tab === "editor") {
       if (isGraph(location)) {
         const path = cairnStore.getState().activePath;
         navigate(path ? noteUrl(path) : "/");
@@ -55,7 +67,15 @@ export function MobileShell({ topBar, list, editor, backlinks }: ShellRegions) {
   }
 
   const main =
-    mobileTab === "files" ? list : mobileTab === "more" ? <MoreMenu /> : editor;
+    mobileTab === "files" ? (
+      list
+    ) : mobileTab === "more" ? (
+      <MoreMenu />
+    ) : mobileTab === "search" ? (
+      <MobileSearchView />
+    ) : (
+      editor
+    );
 
   return (
     <div className="flex h-full flex-col bg-bg text-text">

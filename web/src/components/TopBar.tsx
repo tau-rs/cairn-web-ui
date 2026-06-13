@@ -26,11 +26,15 @@ export function TopBar() {
       <span className="hidden text-sm font-semibold text-text md:inline">
         Cairn
       </span>
-      <SearchBar
-        value={query}
-        onChange={actions.setQuery}
-        onSearch={actions.runSearch}
-      />
+      {/* Below md the dedicated mobile Search tab owns search, so hide this to
+          avoid two competing inputs. Tablet/desktop keep the header bar. */}
+      <div className="hidden md:block">
+        <SearchBar
+          value={query}
+          onChange={actions.setQuery}
+          onSearch={actions.runSearch}
+        />
+      </div>
       <Button
         variant="ghost"
         className="hidden md:inline-flex"
