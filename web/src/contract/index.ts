@@ -10,4 +10,5 @@ export type { GraphEdge } from "./GraphEdge";
 export type { SearchResult } from "./SearchResult";
 export type { PluginSummary } from "./PluginSummary";
 export type { PluginCommandSummary } from "./PluginCommandSummary";
+export type { Revision } from "./Revision";
 export { CONTRACT_SOURCE_COMMIT } from "./source";

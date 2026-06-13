@@ -4,55 +4,48 @@ import type { JsonValue } from "./serde_json/JsonValue";
 /**
  * A request that mutates the cairn.
  */
-export type Command =
-  | {
-      type: "write_note";
-      /**
-       * Relative note path.
-       */
-      path: string;
-      /**
-       * Full markdown contents.
-       */
-      contents: string;
-    }
-  | {
-      type: "delete_note";
-      /**
-       * Relative note path.
-       */
-      path: string;
-    }
-  | {
-      type: "rename_note";
-      /**
-       * Current relative path.
-       */
-      from: string;
-      /**
-       * New relative path (may be in a different directory).
-       */
-      to: string;
-    }
-  | {
-      type: "commit";
-      /**
-       * Commit message.
-       */
-      message: string;
-    }
-  | {
-      type: "invoke_plugin_command";
-      /**
-       * Plugin id.
-       */
-      plugin: string;
-      /**
-       * Command id.
-       */
-      command: string;
-      /**
-       * Arbitrary JSON arguments.
-       */
-      args: JsonValue;
-    };
+export type Command = { "type": "write_note", 
+/**
+ * Relative note path.
+ */
+path: string, 
+/**
+ * Full markdown contents.
+ */
+contents: string, } | { "type": "delete_note", 
+/**
+ * Relative note path.
+ */
+path: string, } | { "type": "rename_note", 
+/**
+ * Current relative path.
+ */
+from: string, 
+/**
+ * New relative path (may be in a different directory).
+ */
+to: string, } | { "type": "commit", 
+/**
+ * Commit message.
+ */
+message: string, } | { "type": "restore_note", 
+/**
+ * Relative note path.
+ */
+path: string, 
+/**
+ * A git revspec to restore from.
+ */
+revision: string, } | { "type": "invoke_plugin_command", 
+/**
+ * Plugin id.
+ */
+plugin: string, 
+/**
+ * Command id.
+ */
+command: string, 
+/**
+ * Arbitrary JSON arguments.
+ */
+args: JsonValue, };

@@ -4,21 +4,20 @@ import type { PluginCommandSummary } from "./PluginCommandSummary";
 /**
  * A loaded plugin and its commands (response to `ListPlugins`).
  */
-export type PluginSummary = {
-  /**
-   * Manifest id.
-   */
-  id: string;
-  /**
-   * Display name.
-   */
-  name: string;
-  /**
-   * Version.
-   */
-  version: string;
-  /**
-   * Declared commands.
-   */
-  commands: Array<PluginCommandSummary>;
-};
+export type PluginSummary = { 
+/**
+ * Manifest id.
+ */
+id: string, 
+/**
+ * Display name.
+ */
+name: string, 
+/**
+ * Version.
+ */
+version: string, 
+/**
+ * Declared commands.
+ */
+commands: Array<PluginCommandSummary>, };

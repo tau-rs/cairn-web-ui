@@ -3,13 +3,12 @@
 /**
  * A command a plugin handles.
  */
-export type PluginCommandSummary = {
-  /**
-   * Command id.
-   */
-  id: string;
-  /**
-   * Human title.
-   */
-  title: string;
-};
+export type PluginCommandSummary = { 
+/**
+ * Command id.
+ */
+id: string, 
+/**
+ * Human title.
+ */
+title: string, };
