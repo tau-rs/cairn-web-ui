@@ -331,7 +331,8 @@ describe("cairn store", () => {
     expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
     expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo"]);
     // Persisted pinned tabs restore for the freshly opened cairn.
-    expect(store.getState().tabs.map((t) => t.path)).toEqual(["b.md"]);
+    const { panes: p1, activePane: ap1 } = store.getState();
+    expect(p1[ap1].tabs.map((t) => t.path)).toEqual(["b.md"]);
     expect(store.getState().activePath).toBe("b.md");
     // Derived graph is reset consistently (will reload when its panel asks).
     expect(store.getState().graph).toBeNull();
@@ -353,9 +354,13 @@ describe("cairn store", () => {
     const { store } = setup();
     await store.getState().init();
     await store.getState().openNote("a.md");
-    expect(store.getState().tabs).toEqual([{ path: "a.md", preview: true }]);
+    const tabs1 = () => {
+      const s = store.getState();
+      return s.panes[s.activePane].tabs;
+    };
+    expect(tabs1()).toEqual([{ path: "a.md", preview: true }]);
     store.getState().editBuffer("x [[b]]");
-    expect(store.getState().tabs).toEqual([{ path: "a.md", preview: false }]);
+    expect(tabs1()).toEqual([{ path: "a.md", preview: false }]);
   });
 
   it("browsing notes (preview) does not write to disk", async () => {
@@ -366,7 +371,8 @@ describe("cairn store", () => {
     await store.getState().openNote("b.md"); // replaces the preview tab
     await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs);
     expect(spy.mock.calls.some(([c]) => c.type === "write_note")).toBe(false);
-    expect(store.getState().tabs).toEqual([{ path: "b.md", preview: true }]);
+    const { panes: bp, activePane: bap } = store.getState();
+    expect(bp[bap].tabs).toEqual([{ path: "b.md", preview: true }]);
   });
 
   it("closeTab focuses a neighbour; closing the last clears the editor", async () => {
@@ -382,7 +388,8 @@ describe("cairn store", () => {
     store.getState().closeTab("b.md");
     expect(store.getState().activePath).toBeNull();
     expect(store.getState().activeContents).toBe("");
-    expect(store.getState().tabs).toEqual([]);
+    const { panes: ep, activePane: eap } = store.getState();
+    expect(ep[eap].tabs).toEqual([]);
   });
 
   it("deleteNote closes the note's tab", async () => {
@@ -395,7 +402,8 @@ describe("cairn store", () => {
     await store.getState().openNote("b.md");
     store.getState().pinTab("b.md");
     await store.getState().deleteNote("b.md");
-    expect(store.getState().tabs.map((t) => t.path)).toEqual(["a.md"]);
+    const { panes: dp, activePane: dap } = store.getState();
+    expect(dp[dap].tabs.map((t) => t.path)).toEqual(["a.md"]);
     expect(store.getState().activePath).toBe("a.md");
   });
 
@@ -415,7 +423,8 @@ describe("cairn store", () => {
     const c2 = new MockClient({ "a.md": "A" });
     const s2 = createCairnStore(c2);
     await s2.getState().init();
-    expect(s2.getState().tabs.map((t) => t.path)).toEqual(["a.md"]);
+    const { panes: rp, activePane: rap } = s2.getState();
+    expect(rp[rap].tabs.map((t) => t.path)).toEqual(["a.md"]);
     expect(s2.getState().activePath).toBe("a.md");
   });
 
@@ -551,8 +560,9 @@ describe("cairn store", () => {
     store.getState().pinTab("a.md");
     await store.getState().applyRenames([{ from: "a.md", to: "c.md" }]);
     expect(store.getState().activePath).toBe("c.md");
-    expect(store.getState().tabs.map((t) => t.path)).toContain("c.md");
-    expect(store.getState().tabs.map((t) => t.path)).not.toContain("a.md");
+    const { panes: np, activePane: nap } = store.getState();
+    expect(np[nap].tabs.map((t) => t.path)).toContain("c.md");
+    expect(np[nap].tabs.map((t) => t.path)).not.toContain("a.md");
     expect(store.getState().openNotes["c.md"]).toBeDefined();
     expect(store.getState().openNotes["a.md"]).toBeUndefined();
   });

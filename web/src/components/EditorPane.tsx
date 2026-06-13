@@ -23,7 +23,9 @@ export function EditorPane() {
   const activeTag = useCairn((s) => s.activeTag);
   const graph = useCairn((s) => s.graph);
   const noteTags = useCairn((s) => s.noteTags);
-  const tabs = useCairn((s) => s.tabs);
+  const panes = useCairn((s) => s.panes);
+  const activePane = useCairn((s) => s.activePane);
+  const tabs = panes[activePane].tabs;
   const openNotes = useCairn((s) => s.openNotes);
   const loading = useCairn((s) => s.loading);
   const view = isGraph(location) ? "graph" : "editor";
