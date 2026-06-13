@@ -45,12 +45,21 @@ export function Divider(props: {
     }
   };
 
+  const pct = Math.round(props.ratio * 100);
   return (
+    // WAI-ARIA "window splitter": a focusable separator that reports its
+    // position and resizes via drag or arrow keys. jsx-a11y treats role
+    // "separator" as non-interactive, but the splitter pattern is interactive
+    // by design — hence the scoped rule disable.
+    /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
     <div
       ref={ref}
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize panes"
+      aria-valuenow={pct}
+      aria-valuemin={20}
+      aria-valuemax={80}
       tabIndex={0}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -58,5 +67,6 @@ export function Divider(props: {
       onKeyDown={onKeyDown}
       className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-accent focus:bg-accent focus:outline-none"
     />
+    /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
   );
 }
