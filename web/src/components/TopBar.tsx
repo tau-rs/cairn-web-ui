@@ -23,7 +23,9 @@ export function TopBar() {
   return (
     <div className="flex w-full items-center gap-3">
       <Logo />
-      <span className="text-sm font-semibold text-text">Cairn</span>
+      <span className="hidden text-sm font-semibold text-text md:inline">
+        Cairn
+      </span>
       <SearchBar
         value={query}
         onChange={actions.setQuery}
@@ -31,6 +33,7 @@ export function TopBar() {
       />
       <Button
         variant="ghost"
+        className="hidden md:inline-flex"
         onClick={() =>
           navigate(toggleViewTarget(location, cairnStore.getState().activePath))
         }

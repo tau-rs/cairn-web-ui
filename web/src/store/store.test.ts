@@ -1057,3 +1057,22 @@ describe("split panes", () => {
     }
   });
 });
+
+describe("mobile ui state", () => {
+  function freshStore() {
+    return createCairnStore(new MockClient({}));
+  }
+
+  it("defaults mobileTab to editor and backlinksOpen to false", () => {
+    const ui = freshStore().getState().ui;
+    expect(ui.mobileTab).toBe("editor");
+    expect(ui.backlinksOpen).toBe(false);
+  });
+
+  it("setUi patches mobile fields", () => {
+    const store = freshStore();
+    store.getState().setUi({ mobileTab: "files", backlinksOpen: true });
+    expect(store.getState().ui.mobileTab).toBe("files");
+    expect(store.getState().ui.backlinksOpen).toBe(true);
+  });
+});

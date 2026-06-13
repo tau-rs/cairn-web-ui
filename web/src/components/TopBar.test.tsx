@@ -59,3 +59,15 @@ describe("TopBar plugin slot mount", () => {
     expect(await screen.findByText("Stamp")).toBeInTheDocument();
   });
 });
+
+describe("TopBar responsive declutter", () => {
+  it("hides the wordmark and graph toggle below md", () => {
+    render(
+      <MemoryRouter>
+        <TopBar />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Cairn")).toHaveClass("hidden");
+    expect(screen.getByRole("button", { name: "Graph" })).toHaveClass("hidden");
+  });
+});

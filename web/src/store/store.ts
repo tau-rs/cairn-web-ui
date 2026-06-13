@@ -81,12 +81,18 @@ export interface NoteBuffer {
   saving: boolean;
 }
 
+export type MobileTab = "files" | "editor" | "search" | "graph" | "more";
+
 export interface UiState {
   settingsOpen: boolean;
   newNoteOpen: boolean;
   newNoteInitial: string;
   commitOpen: boolean;
   paletteOpen: boolean;
+  /** Active mobile bottom-nav tab (mobile shell only). */
+  mobileTab: MobileTab;
+  /** Backlinks drawer/sheet open (tablet + mobile shells). */
+  backlinksOpen: boolean;
   /** Per-command keybinding overrides (chord, or null = unbound). Persisted. */
   keybindingOverrides: Overrides;
 }
@@ -97,6 +103,8 @@ export const DEFAULT_UI: UiState = {
   newNoteInitial: "",
   commitOpen: false,
   paletteOpen: false,
+  mobileTab: "editor",
+  backlinksOpen: false,
   keybindingOverrides: {},
 };
 

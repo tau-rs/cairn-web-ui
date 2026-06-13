@@ -1,11 +1,6 @@
-import type { ReactNode } from "react";
+import type { ShellRegions } from "./shells/regions";
 
-export function Shell(props: {
-  topBar: ReactNode;
-  list: ReactNode;
-  editor: ReactNode;
-  backlinks: ReactNode;
-}) {
+export function Shell(props: ShellRegions) {
   return (
     <div className="flex h-full flex-col bg-bg text-text">
       <header className="flex items-center gap-2 border-b border-border bg-surface px-3 py-2">

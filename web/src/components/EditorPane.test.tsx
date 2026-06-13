@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EditorPane } from "./EditorPane";
 import { cairnStore } from "../app/cairnStore";
+
+const bp = vi.hoisted(() => ({ value: "desktop" as "desktop" | "mobile" }));
+vi.mock("./responsive/useBreakpoint", () => ({
+  useBreakpoint: () => bp.value,
+}));
 
 function seedSplit() {
   cairnStore.setState({
@@ -35,5 +40,18 @@ describe("EditorPane split", () => {
     expect(screen.getByLabelText("a")).toBeInTheDocument();
     expect(screen.getByLabelText("b")).toBeInTheDocument();
     expect(screen.getByRole("separator")).toBeInTheDocument();
+  });
+
+  it("renders only the first pane on mobile even when two are open", () => {
+    bp.value = "mobile";
+    render(
+      <MemoryRouter initialEntries={["/note/b.md"]}>
+        <EditorPane />
+      </MemoryRouter>,
+    );
+    expect(screen.getByLabelText("a")).toBeInTheDocument(); // pane 0 tab strip
+    expect(screen.queryByLabelText("b")).not.toBeInTheDocument(); // pane 1 gone
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+    bp.value = "desktop";
   });
 });
