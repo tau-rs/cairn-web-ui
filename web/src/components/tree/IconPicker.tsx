@@ -22,11 +22,17 @@ export function IconPicker({
   value,
   onChange,
   trigger,
+  open,
+  onOpenChange,
 }: {
   targetKind: "folder" | "note";
   value: TreeItemStyle;
   onChange: (style: TreeItemStyle) => void;
   trigger: ReactNode;
+  /** Optional controlled open state — lets a context-menu item open the picker.
+   *  When omitted, the popover is uncontrolled (the trigger toggles it). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [tab, setTab] = useState<"emoji" | "icons">("emoji");
   const [query, setQuery] = useState("");
@@ -39,7 +45,13 @@ export function IconPicker({
   const setIcon = (icon: TreeItemStyle["icon"]) => onChange({ ...value, icon });
 
   return (
-    <Popover.Root onOpenChange={() => setQuery("")}>
+    <Popover.Root
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange?.(o);
+        if (!o) setQuery("");
+      }}
+    >
       <Popover.Trigger asChild>{trigger}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content

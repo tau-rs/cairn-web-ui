@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Button } from "../ui/Button";
 import { SectionLabel } from "../ui/SectionLabel";
 import { buildTree, ancestorFolders, type TreeNode } from "./folderTree";
@@ -51,6 +52,25 @@ function RenameInput(props: {
   );
 }
 
+/** A single right-click menu row. */
+function MenuItem(props: {
+  onSelect: () => void;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <ContextMenu.Item
+      onSelect={props.onSelect}
+      className={
+        "cursor-pointer select-none rounded px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2 " +
+        (props.danger ? "text-danger" : "")
+      }
+    >
+      {props.children}
+    </ContextMenu.Item>
+  );
+}
+
 export function FolderTree(props: {
   paths: string[];
   activePath: string | null;
@@ -68,6 +88,7 @@ export function FolderTree(props: {
     loadCollapsed(),
   );
   const [editingPath, setEditingPath] = useState<string | null>(null);
+  const [pickerPath, setPickerPath] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dragged = useRef<{ path: string; isFolder: boolean } | null>(null);
 
@@ -151,6 +172,8 @@ export function FolderTree(props: {
       targetKind={kind}
       value={props.styles[path] ?? {}}
       onChange={(style) => props.onSetStyle(path, style)}
+      open={pickerPath === path}
+      onOpenChange={(o) => setPickerPath(o ? path : null)}
       trigger={
         <button
           aria-label={`set icon for ${path}`}
@@ -161,6 +184,35 @@ export function FolderTree(props: {
         </button>
       }
     />
+  );
+
+  // Wrap a row in its right-click menu. Radix suppresses the native browser menu
+  // (preventDefault) and renders our own with the currently-implemented actions.
+  const withMenu = (node: TreeNode, rowEl: ReactNode): ReactNode => (
+    <ContextMenu.Root key={node.path}>
+      <ContextMenu.Trigger asChild>{rowEl}</ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className="z-50 min-w-[170px] rounded-lg border border-border bg-surface p-1 text-sm text-text shadow-2xl focus:outline-none">
+          <MenuItem onSelect={() => setPickerPath(node.path)}>
+            Set icon…
+          </MenuItem>
+          {node.kind === "folder" && (
+            <MenuItem onSelect={() => props.onRequestNewInFolder(node.path)}>
+              New note here
+            </MenuItem>
+          )}
+          <MenuItem onSelect={() => setEditingPath(node.path)}>Rename</MenuItem>
+          {node.kind === "note" && (
+            <>
+              <ContextMenu.Separator className="my-1 h-px bg-border" />
+              <MenuItem danger onSelect={() => props.onDelete(node.path)}>
+                Delete
+              </MenuItem>
+            </>
+          )}
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   );
 
   // Structure layer: vertical guide lines + the connector tick. Grey by default;
@@ -213,77 +265,80 @@ export function FolderTree(props: {
         const isDrop = dropTarget === node.path;
         return (
           <div key={node.path}>
-            <div
-              draggable={!editing}
-              onDragStart={(e) => startDrag(e, node.path, true)}
-              {...dropProps(node.path)}
-              className={
-                "group relative flex items-center justify-between rounded pr-2 text-muted hover:bg-surface-2 hover:text-text " +
-                (isDrop ? "ring-1 ring-accent" : "")
-              }
-            >
-              {renderGuides(marks)}
-              {props.styles[node.path]?.folderColor && (
-                <span
-                  data-folder-bar="true"
-                  aria-hidden
-                  className="absolute bottom-1 left-0.5 top-1 w-[2.5px] rounded"
-                  style={{ background: props.styles[node.path]!.folderColor }}
-                />
-              )}
-              {editing ? (
-                <span className="flex-1" style={pad}>
-                  <RenameInput
-                    initial={node.name}
-                    onCommit={(v) => commitRename(node, v)}
-                    onCancel={() => setEditingPath(null)}
-                  />
-                </span>
-              ) : (
-                <div
-                  className="flex min-w-0 flex-1 items-center gap-1"
-                  style={pad}
-                >
-                  <button
-                    aria-label={`toggle ${node.path}`}
-                    className="flex flex-none items-center"
-                    onClick={() => toggle(node.path)}
-                  >
-                    {/* boxed chevron: the "mouth" the spine descends from */}
-                    <span
-                      aria-hidden
-                      className="flex h-4 w-4 items-center justify-center rounded-sm border border-border bg-surface text-[9px] text-faint"
-                    >
-                      {isCollapsed ? "▸" : "▾"}
-                    </span>
-                  </button>
-                  {iconCell(node.path, "folder")}
-                  <button
-                    className="min-w-0 flex-1 truncate py-1 text-left"
-                    title={node.path}
-                    onClick={() => toggle(node.path)}
-                    onDoubleClick={() => setEditingPath(node.path)}
-                    onKeyDown={(e) => {
-                      if (e.key === "F2") {
-                        e.preventDefault();
-                        setEditingPath(node.path);
-                      }
-                    }}
-                  >
-                    <span className="truncate font-medium text-text">
-                      {node.name}
-                    </span>
-                  </button>
-                </div>
-              )}
-              <button
-                className="ml-1 hidden text-faint hover:text-text group-hover:block"
-                aria-label={`new note in ${node.path}`}
-                onClick={() => props.onRequestNewInFolder(node.path)}
+            {withMenu(
+              node,
+              <div
+                draggable={!editing}
+                onDragStart={(e) => startDrag(e, node.path, true)}
+                {...dropProps(node.path)}
+                className={
+                  "group relative flex items-center justify-between rounded pr-2 text-muted hover:bg-surface-2 hover:text-text " +
+                  (isDrop ? "ring-1 ring-accent" : "")
+                }
               >
-                +
-              </button>
-            </div>
+                {renderGuides(marks)}
+                {props.styles[node.path]?.folderColor && (
+                  <span
+                    data-folder-bar="true"
+                    aria-hidden
+                    className="absolute bottom-1 left-0.5 top-1 w-[2.5px] rounded"
+                    style={{ background: props.styles[node.path]!.folderColor }}
+                  />
+                )}
+                {editing ? (
+                  <span className="flex-1" style={pad}>
+                    <RenameInput
+                      initial={node.name}
+                      onCommit={(v) => commitRename(node, v)}
+                      onCancel={() => setEditingPath(null)}
+                    />
+                  </span>
+                ) : (
+                  <div
+                    className="flex min-w-0 flex-1 items-center gap-1"
+                    style={pad}
+                  >
+                    <button
+                      aria-label={`toggle ${node.path}`}
+                      className="flex flex-none items-center"
+                      onClick={() => toggle(node.path)}
+                    >
+                      {/* boxed chevron: the "mouth" the spine descends from */}
+                      <span
+                        aria-hidden
+                        className="flex h-4 w-4 items-center justify-center rounded-sm border border-border bg-surface text-[9px] text-faint"
+                      >
+                        {isCollapsed ? "▸" : "▾"}
+                      </span>
+                    </button>
+                    {iconCell(node.path, "folder")}
+                    <button
+                      className="min-w-0 flex-1 truncate py-1 text-left"
+                      title={node.path}
+                      onClick={() => toggle(node.path)}
+                      onDoubleClick={() => setEditingPath(node.path)}
+                      onKeyDown={(e) => {
+                        if (e.key === "F2") {
+                          e.preventDefault();
+                          setEditingPath(node.path);
+                        }
+                      }}
+                    >
+                      <span className="truncate font-medium text-text">
+                        {node.name}
+                      </span>
+                    </button>
+                  </div>
+                )}
+                <button
+                  className="ml-1 hidden text-faint hover:text-text group-hover:block"
+                  aria-label={`new note in ${node.path}`}
+                  onClick={() => props.onRequestNewInFolder(node.path)}
+                >
+                  +
+                </button>
+              </div>,
+            )}
             {!isCollapsed &&
               renderNodes(
                 node.children,
@@ -295,7 +350,8 @@ export function FolderTree(props: {
         );
       }
       const active = node.path === props.activePath;
-      return (
+      return withMenu(
+        node,
         <div
           key={node.path}
           draggable={!editing}
@@ -344,7 +400,7 @@ export function FolderTree(props: {
           >
             ✕
           </button>
-        </div>
+        </div>,
       );
     });
 

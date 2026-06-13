@@ -134,4 +134,45 @@ describe("FolderTree", () => {
     setup({ styles: { notes: { folderColor: "#46b3e6" } } });
     expect(document.querySelector('[data-folder-bar="true"]')).toBeTruthy();
   });
+
+  it("right-clicking a note opens a menu that deletes it", async () => {
+    const props = setup();
+    fireEvent.contextMenu(screen.getByRole("button", { name: "ideas" }), {
+      clientX: 10,
+      clientY: 10,
+    });
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Delete" }),
+    );
+    expect(props.onDelete).toHaveBeenCalledWith("notes/ideas.md");
+  });
+
+  it("right-clicking a folder offers New note here (and no Delete)", async () => {
+    const props = setup();
+    fireEvent.contextMenu(screen.getByRole("button", { name: "notes" }), {
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(
+      screen.queryByRole("menuitem", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "New note here" }),
+    );
+    expect(props.onRequestNewInFolder).toHaveBeenCalledWith("notes");
+  });
+
+  it("right-click → Set icon opens the picker", async () => {
+    setup();
+    fireEvent.contextMenu(screen.getByRole("button", { name: "index" }), {
+      clientX: 10,
+      clientY: 10,
+    });
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Set icon…" }),
+    );
+    expect(
+      await screen.findByRole("tab", { name: "Emoji" }),
+    ).toBeInTheDocument();
+  });
 });
