@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Profiler, type ProfilerOnRenderCallback } from "react";
-import { render, act } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TopBar } from "./TopBar";
 import { cairnStore } from "../app/cairnStore";
@@ -45,5 +45,17 @@ describe("TopBar subscription isolation", () => {
     const before = commits();
     act(() => cairnStore.setState({ query: "hello" }));
     expect(commits()).toBe(before + 1);
+  });
+});
+
+describe("TopBar plugin slot mount", () => {
+  it("renders topbar.action plugin contributions", async () => {
+    await cairnStore.getState().init();
+    render(
+      <MemoryRouter>
+        <TopBar />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Stamp")).toBeInTheDocument();
   });
 });
