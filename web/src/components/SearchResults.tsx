@@ -10,17 +10,20 @@ export function SearchResults(props: {
   onClose: () => void;
   title?: string;
   snippets?: Record<string, SearchSnippet>;
+  /** "overlay" (default) floats over the editor; "inline" fills its parent. */
+  variant?: "overlay" | "inline";
 }) {
-  // Show the overlay while a fresh search is in flight (results still null), so
+  // Show the panel while a fresh search is in flight (results still null), so
   // a slow transport reads as "searching" rather than a frozen, absent panel.
   if (props.results === null && !props.loading) return null;
   const results = props.results ?? [];
   const showSpinner = props.loading && results.length === 0;
+  const className =
+    props.variant === "inline"
+      ? "flex h-full w-full flex-col rounded border border-border bg-surface p-2"
+      : "absolute left-2 top-12 z-10 flex max-h-[60vh] w-72 flex-col rounded border border-border bg-surface p-2 shadow-lg";
   return (
-    <div
-      data-testid="search-results"
-      className="absolute left-2 top-12 z-10 flex max-h-[60vh] w-72 flex-col rounded border border-border bg-surface p-2 shadow-lg"
-    >
+    <div data-testid="search-results" className={className}>
       <div className="mb-1 flex items-center justify-between">
         <SectionLabel>
           {props.title ?? "Results"}
