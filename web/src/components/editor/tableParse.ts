@@ -1,6 +1,9 @@
+export type Align = "none" | "left" | "center" | "right";
+
 export interface TableModel {
   header: string[];
   rows: string[][];
+  align: Align[];
 }
 
 // Split a table row on UNescaped pipes, drop outer pipes, unescape \| → | then \\ → \.
@@ -12,16 +15,30 @@ const cells = (line: string): string[] =>
     .split(/(?<!\\)\|/)
     .map((c) => c.trim().replace(/\\\|/g, "|").replace(/\\\\/g, "\\"));
 
-/** Parse a GFM pipe table's source into a header + body rows (line 2 = delimiter, dropped). */
+/** Read one delimiter cell (e.g. `:--`, `:-:`, `--:`, `---`) into an Align. */
+function parseAlign(cell: string): Align {
+  const t = cell.trim();
+  const left = t.startsWith(":");
+  const right = t.endsWith(":");
+  if (left && right) return "center";
+  if (right) return "right";
+  if (left) return "left";
+  return "none";
+}
+
+/** Parse a GFM pipe table's source into header + body rows + per-column alignment
+ *  (read from line 2, the delimiter row). */
 export function parseTable(md: string): TableModel {
   const lines = md
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
-  if (lines.length === 0) return { header: [], rows: [] };
+  if (lines.length === 0) return { header: [], rows: [], align: [] };
   const header = cells(lines[0]);
+  const rawAlign = lines.length > 1 ? cells(lines[1]).map(parseAlign) : [];
+  const align: Align[] = header.map((_, i) => rawAlign[i] ?? "none");
   const rows = lines.slice(2).map(cells);
-  return { header, rows };
+  return { header, rows, align };
 }
 
 const escapeCell = (s: string): string =>

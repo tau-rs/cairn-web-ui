@@ -9,19 +9,28 @@ import {
 } from "./tableParse";
 
 describe("parseTable", () => {
-  it("parses header and body rows, dropping the delimiter row", () => {
-    const md = "| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |";
+  it("parses header, body, and per-column alignment", () => {
+    const md = "| A | B | C | D |\n|---|:--|:-:|--:|\n| 1 | 2 | 3 | 4 |";
     expect(parseTable(md)).toEqual({
-      header: ["A", "B"],
-      rows: [
-        ["1", "2"],
-        ["3", "4"],
-      ],
+      header: ["A", "B", "C", "D"],
+      rows: [["1", "2", "3", "4"]],
+      align: ["none", "left", "center", "right"],
     });
   });
-  it("tolerates missing outer pipes", () => {
+  it("tolerates missing outer pipes and defaults alignment to none", () => {
     const md = "A | B\n--- | ---\n1 | 2";
-    expect(parseTable(md)).toEqual({ header: ["A", "B"], rows: [["1", "2"]] });
+    expect(parseTable(md)).toEqual({
+      header: ["A", "B"],
+      rows: [["1", "2"]],
+      align: ["none", "none"],
+    });
+  });
+  it("pads a short alignment row to header length", () => {
+    const md = "| A | B |\n| :-: |\n| 1 | 2 |";
+    expect(parseTable(md).align).toEqual(["center", "none"]);
+  });
+  it("returns empty model for empty input", () => {
+    expect(parseTable("")).toEqual({ header: [], rows: [], align: [] });
   });
 });
 
