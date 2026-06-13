@@ -144,6 +144,30 @@ describe("EditableTableWidget paste", () => {
   });
 });
 
+describe("EditableTableWidget context menu", () => {
+  it("opens a combined row+column menu on right-click", () => {
+    const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
+    dom
+      .querySelector<HTMLElement>("tbody td")!
+      .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    const labels = [...document.querySelectorAll("[role=menuitem]")].map(
+      (n) => n.textContent,
+    );
+    expect(labels).toContain("Delete row");
+    expect(labels).toContain("Delete column");
+    expect(labels).toContain("Copy");
+    view.destroy();
+  });
+
+  it("suppresses the native context menu", () => {
+    const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
+    const e = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    dom.querySelector<HTMLElement>("tbody td")!.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+    view.destroy();
+  });
+});
+
 describe("EditableTableWidget commit safety during structural ops", () => {
   it("captures uncommitted cell text into the op and suppresses the stale commit", () => {
     const onCommit = vi.fn();

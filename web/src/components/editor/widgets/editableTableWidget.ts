@@ -155,6 +155,7 @@ export class EditableTableWidget extends WidgetType {
         td.textContent = c;
         this.cellKeys(table, td);
         this.cellPaste(view, table, model, td, ri, ci);
+        this.cellContext(view, table, model, td, ri, ci);
       });
       wrap.appendChild(
         this.grip(
@@ -345,6 +346,63 @@ export class EditableTableWidget extends WidgetType {
         { row, col },
       );
     });
+  }
+
+  /** Right-click menu: clipboard ops + this cell's row and column actions. */
+  private cellContext(
+    view: EditorView,
+    table: HTMLTableElement,
+    model: TableModel,
+    cell: HTMLElement,
+    row: number,
+    col: number,
+  ): void {
+    cell.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const actions: MenuAction[] = [
+        { label: "Cut", run: () => void document.execCommand("cut") },
+        { label: "Copy", run: () => void document.execCommand("copy") },
+        {
+          label: "Paste",
+          run: () =>
+            void this.pasteFromClipboard(view, table, model, cell, row, col),
+        },
+        ...this.rowActions(view, table, model, row),
+        ...this.columnActions(view, table, model, col),
+      ];
+      openTableMenu(cell, actions);
+    });
+  }
+
+  /** Paste via the async Clipboard API: a multi-cell TSV payload spills through
+   *  the paste op; a single value is inserted into the focused cell. Best effort
+   *  — silently no-ops when the clipboard is unavailable or denied. */
+  private async pasteFromClipboard(
+    view: EditorView,
+    table: HTMLTableElement,
+    model: TableModel,
+    cell: HTMLElement,
+    row: number,
+    col: number,
+  ): Promise<void> {
+    try {
+      const text = await navigator.clipboard.readText();
+      const block = parseTSV(text);
+      if (block.length > 1 || (block[0]?.length ?? 0) > 1) {
+        this.op(
+          view,
+          table,
+          model,
+          () => ({ kind: "paste", atRow: row, atCol: col, block }),
+          { row, col },
+        );
+      } else if (text) {
+        cell.focus();
+        document.execCommand("insertText", false, text);
+      }
+    } catch {
+      // clipboard unavailable / permission denied — no-op
+    }
   }
 
   /** A non-editable control button that doesn't steal the contenteditable caret. */
