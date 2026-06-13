@@ -28,6 +28,7 @@ function parseAlign(cell: string): Align {
 
 /** Parse a GFM pipe table's source into header + body rows + per-column alignment
  *  (read from line 2, the delimiter row). */
+// NOTE: assumes line 2 is the GFM delimiter row; malformed input (no delimiter) may drop body rows.
 export function parseTable(md: string): TableModel {
   const lines = md
     .split("\n")
@@ -46,8 +47,8 @@ const escapeCell = (s: string): string =>
 
 /** A padded delimiter cell of width `w` for the given alignment. */
 function marker(a: Align, w: number): string {
-  if (a === "left") return ":" + "-".repeat(w - 1);
-  if (a === "right") return "-".repeat(w - 1) + ":";
+  if (a === "left") return ":" + "-".repeat(Math.max(1, w - 1));
+  if (a === "right") return "-".repeat(Math.max(1, w - 1)) + ":";
   if (a === "center") return ":" + "-".repeat(Math.max(1, w - 2)) + ":";
   return "-".repeat(w);
 }
@@ -169,9 +170,9 @@ export function moveColumn(m: TableModel, from: number, to: number): TableModel 
 }
 
 /** Parse a spreadsheet clipboard payload (TSV): tab = column, newline = row.
- *  Normalizes CRLF and ignores a single trailing newline. */
+ *  Normalizes CRLF and ignores trailing blank lines. */
 export function parseTSV(text: string): string[][] {
-  const norm = text.replace(/\r\n?/g, "\n").replace(/\n$/, "");
+  const norm = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
   if (norm === "") return [];
   return norm.split("\n").map((line) => line.split("\t"));
 }

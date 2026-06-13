@@ -57,6 +57,11 @@ describe("serializeTable", () => {
       serializeTable({ header: ["A", "B"], rows: [["1", "2"]], align: ["none", "none"] }),
     ).toBe("| A   | B   |\n| --- | --- |\n| 1   | 2   |");
   });
+  it("serializes a header-only table (no body rows)", () => {
+    expect(
+      serializeTable({ header: ["A", "B"], rows: [], align: ["none", "none"] }),
+    ).toBe("| A   | B   |\n| --- | --- |");
+  });
   it("round-trips alignment through parseTable", () => {
     const model: TableModel = {
       header: ["A", "B", "C", "D"],
@@ -141,6 +146,14 @@ describe("table model ops", () => {
       ["4", "3"],
     ]);
   });
+  it("moveRow is a no-op when out of range", () => {
+    expect(moveRow(m, 0, 5)).toEqual(m);
+    expect(moveRow(m, -1, 0)).toEqual(m);
+  });
+  it("moveColumn is a no-op when out of range", () => {
+    expect(moveColumn(m, 0, 5)).toEqual(m);
+    expect(moveColumn(m, -1, 0)).toEqual(m);
+  });
 });
 
 describe("parseTSV", () => {
@@ -152,6 +165,9 @@ describe("parseTSV", () => {
   });
   it("normalizes CRLF and drops a single trailing newline", () => {
     expect(parseTSV("a\tb\r\n")).toEqual([["a", "b"]]);
+  });
+  it("drops multiple trailing blank lines without phantom rows", () => {
+    expect(parseTSV("a\tb\n\n")).toEqual([["a", "b"]]);
   });
 });
 
