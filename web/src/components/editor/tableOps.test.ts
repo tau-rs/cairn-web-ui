@@ -16,7 +16,7 @@ describe("computeTableEdit", () => {
     const out = computeTableEdit(md, { kind: "moveColumn", from: 0, to: 1 });
     expect(out).toBe("| B   | A   |\n| --- | --- |\n| 2   | 1   |");
   });
-  it("pastes a TSV block, growing the table", () => {
+  it("pastes a TSV block into the body, growing the table", () => {
     const out = computeTableEdit(md, {
       kind: "paste",
       atRow: 0,
@@ -26,6 +26,8 @@ describe("computeTableEdit", () => {
         ["z", "w"],
       ],
     });
-    expect(out).toBe("| x   | y   |\n| --- | --- |\n| z   | w   |");
+    expect(out).toBe(
+      "| A   | B   |\n| --- | --- |\n| x   | y   |\n| z   | w   |",
+    );
   });
 });
