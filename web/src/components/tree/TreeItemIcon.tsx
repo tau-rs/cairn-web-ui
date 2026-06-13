@@ -26,7 +26,14 @@ export function TreeItemIcon({
 
   if (kind === "folder") {
     // filled folder, single muted accent
-    return <Folder aria-hidden size={16} fill="currentColor" className="text-muted" />;
+    return (
+      <Folder
+        aria-hidden
+        size={16}
+        fill="currentColor"
+        className="text-muted"
+      />
+    );
   }
   return <FileText aria-hidden size={16} className="text-faint" />;
 }

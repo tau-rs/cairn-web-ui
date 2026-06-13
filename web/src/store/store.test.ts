@@ -833,18 +833,24 @@ describe("cairn store", () => {
 describe("treeStyles", () => {
   it("setTreeStyle stores and persists a style", () => {
     const { store } = setup();
-    store.getState().setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
+    store
+      .getState()
+      .setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
     expect(store.getState().treeStyles["a.md"]).toEqual({
       icon: { kind: "emoji", value: "📚" },
     });
-    expect(JSON.parse(localStorage.getItem("cairn.treeIcons")!)["a.md"]).toEqual({
+    expect(
+      JSON.parse(localStorage.getItem("cairn.treeIcons")!)["a.md"],
+    ).toEqual({
       icon: { kind: "emoji", value: "📚" },
     });
   });
 
   it("setTreeStyle with an empty style deletes the key", () => {
     const { store } = setup();
-    store.getState().setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
+    store
+      .getState()
+      .setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
     store.getState().setTreeStyle("a.md", {});
     expect(store.getState().treeStyles["a.md"]).toBeUndefined();
   });

@@ -5,7 +5,10 @@ import { TreeItemIcon } from "./TreeItemIcon";
 describe("TreeItemIcon", () => {
   it("renders a custom emoji", () => {
     const { getByText } = render(
-      <TreeItemIcon kind="note" style={{ icon: { kind: "emoji", value: "📚" } }} />,
+      <TreeItemIcon
+        kind="note"
+        style={{ icon: { kind: "emoji", value: "📚" } }}
+      />,
     );
     expect(getByText("📚")).toBeInTheDocument();
   });
@@ -14,7 +17,9 @@ describe("TreeItemIcon", () => {
     const { container } = render(
       <TreeItemIcon
         kind="note"
-        style={{ icon: { kind: "lucide", name: "star", color: "rgb(70, 179, 230)" } }}
+        style={{
+          icon: { kind: "lucide", name: "star", color: "rgb(70, 179, 230)" },
+        }}
       />,
     );
     const svg = container.querySelector("svg.lucide-star");

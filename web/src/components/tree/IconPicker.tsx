@@ -6,7 +6,7 @@ import { searchIcons } from "./iconCatalog";
 import type { TreeItemStyle } from "./treeIcons";
 
 /** Shared palette (theme-independent so it reads in dark/light/nord). */
-export const ICON_COLORS = [
+const ICON_COLORS = [
   "#5b8def", // accent
   "#9ca0a8",
   "#e5484d",

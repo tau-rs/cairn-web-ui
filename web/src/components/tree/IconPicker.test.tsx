@@ -27,7 +27,9 @@ describe("IconPicker", () => {
     const onChange = open("note");
     await userEvent.click(screen.getByText("set icon"));
     await userEvent.click(screen.getByRole("button", { name: "books 📚" }));
-    expect(onChange).toHaveBeenCalledWith({ icon: { kind: "emoji", value: "📚" } });
+    expect(onChange).toHaveBeenCalledWith({
+      icon: { kind: "emoji", value: "📚" },
+    });
   });
 
   it("filters emoji by search", async () => {
@@ -35,14 +37,18 @@ describe("IconPicker", () => {
     await userEvent.click(screen.getByText("set icon"));
     await userEvent.type(screen.getByPlaceholderText("Search emoji…"), "idea");
     expect(screen.getByRole("button", { name: "bulb 💡" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "books 📚" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "books 📚" }),
+    ).not.toBeInTheDocument();
   });
 
   it("selecting a lucide icon uses the selected color", async () => {
     const onChange = open("note");
     await userEvent.click(screen.getByText("set icon"));
     await userEvent.click(screen.getByRole("tab", { name: "Icons" }));
-    await userEvent.click(screen.getByRole("button", { name: "color #e5484d" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "color #e5484d" }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "icon star" }));
     expect(onChange).toHaveBeenCalledWith({
       icon: { kind: "lucide", name: "star", color: "#e5484d" },

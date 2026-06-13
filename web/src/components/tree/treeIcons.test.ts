@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { loadStyles, saveStyles, remapStyles, type TreeStyleMap } from "./treeIcons";
+import {
+  loadStyles,
+  saveStyles,
+  remapStyles,
+  type TreeStyleMap,
+} from "./treeIcons";
 
 beforeEach(() => localStorage.clear());
 
@@ -43,7 +48,9 @@ describe("remapStyles", () => {
   it("remaps a folder key and its descendants when a folder is renamed", () => {
     const map = {
       notes: { folderColor: "#46b3e6" },
-      "notes/a.md": { icon: { kind: "lucide" as const, name: "star", color: "#fff" } },
+      "notes/a.md": {
+        icon: { kind: "lucide" as const, name: "star", color: "#fff" },
+      },
       "notes/sub": { folderColor: "#e5484d" },
       "other.md": { icon: { kind: "emoji" as const, value: "📌" } },
     };

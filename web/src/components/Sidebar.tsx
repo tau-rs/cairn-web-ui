@@ -11,6 +11,7 @@ export function Sidebar() {
   const activePath = useCairn((s) => s.activePath);
   const tags = useCairn((s) => s.tags);
   const activeTag = useCairn((s) => s.activeTag);
+  const treeStyles = useCairn((s) => s.treeStyles);
 
   return (
     <>
@@ -26,6 +27,8 @@ export function Sidebar() {
           actions.setUi({ newNoteInitial: folder + "/", newNoteOpen: true })
         }
         onApplyRenames={actions.applyRenames}
+        styles={treeStyles}
+        onSetStyle={actions.setTreeStyle}
       />
       <TagsPanel
         tags={tags}
