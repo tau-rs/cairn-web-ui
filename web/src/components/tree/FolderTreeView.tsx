@@ -12,6 +12,7 @@ import {
   canDrop,
   type Rename,
 } from "./treeMoves";
+import { TreeContextMenu } from "./TreeContextMenu";
 
 /** Inline rename input: autofocuses, selects all, commits on Enter/blur, cancels on Esc. */
 function RenameInput(props: {
@@ -42,6 +43,7 @@ export function FolderTree(props: {
   paths: string[];
   activePath: string | null;
   onOpen: (path: string) => void;
+  onOpenToSide: (path: string) => void;
   onDelete: (path: string) => void;
   onRequestNew: () => void;
   onRequestNewInFolder: (folderPath: string) => void;
@@ -52,6 +54,11 @@ export function FolderTree(props: {
     loadCollapsed(),
   );
   const [editingPath, setEditingPath] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{
+    path: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dragged = useRef<{ path: string; isFolder: boolean } | null>(null);
 
@@ -184,6 +191,10 @@ export function FolderTree(props: {
           key={node.path}
           draggable={!editing}
           onDragStart={(e) => startDrag(e, node.path, false)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenu({ path: node.path, x: e.clientX, y: e.clientY });
+          }}
           className={`group flex items-center justify-between rounded pr-2 ${
             active
               ? "bg-surface-2 text-text"
@@ -209,6 +220,9 @@ export function FolderTree(props: {
                 if (e.key === "F2") {
                   e.preventDefault();
                   setEditingPath(node.path);
+                } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  props.onOpenToSide(node.path);
                 }
               }}
             >
@@ -241,6 +255,17 @@ export function FolderTree(props: {
         </Button>
       </div>
       {renderNodes(tree, 0)}
+      {menu && (
+        <TreeContextMenu
+          x={menu.x}
+          y={menu.y}
+          onOpen={() => props.onOpen(menu.path)}
+          onOpenToSide={() => props.onOpenToSide(menu.path)}
+          onRename={() => setEditingPath(menu.path)}
+          onDelete={() => props.onDelete(menu.path)}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }

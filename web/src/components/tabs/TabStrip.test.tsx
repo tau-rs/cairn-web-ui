@@ -100,4 +100,36 @@ describe("TabStrip", () => {
     );
     expect(container.querySelector('[role="tablist"]')).toBeNull();
   });
+
+  it("renders a Split right button and fires onSplit", () => {
+    const onSplit = vi.fn();
+    render(
+      <TabStrip
+        tabs={[{ path: "a.md", preview: false, dirty: false }]}
+        activePath="a.md"
+        onSelect={() => {}}
+        onPin={() => {}}
+        onClose={() => {}}
+        onSplit={onSplit}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Split editor right"));
+    expect(onSplit).toHaveBeenCalled();
+  });
+
+  it("renders a Close pane button and fires onClosePane", () => {
+    const onClosePane = vi.fn();
+    render(
+      <TabStrip
+        tabs={[{ path: "a.md", preview: false, dirty: false }]}
+        activePath="a.md"
+        onSelect={() => {}}
+        onPin={() => {}}
+        onClose={() => {}}
+        onClosePane={onClosePane}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Close pane"));
+    expect(onClosePane).toHaveBeenCalled();
+  });
 });

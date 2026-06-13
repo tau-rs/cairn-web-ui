@@ -73,6 +73,12 @@ export function useCommands(): {
       case "close-tab":
         st.closeActiveTab();
         break;
+      case "split-right":
+        st.splitPane();
+        break;
+      case "close-pane":
+        st.closePane();
+        break;
       case "toggle-view":
         navigate(toggleViewTarget(location, st.activePath));
         break;

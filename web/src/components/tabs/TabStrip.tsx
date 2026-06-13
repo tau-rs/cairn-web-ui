@@ -13,9 +13,14 @@ export function TabStrip(props: {
   onSelect: (path: string) => void;
   onPin: (path: string) => void;
   onClose: (path: string) => void;
+  /** If provided, renders a split-pane button (Task 6). */
+  onSplit?: () => void;
+  /** If provided, renders a close-pane button (Task 6). */
+  onClosePane?: () => void;
 }) {
   const tabRefs = useRef<(HTMLDivElement | null)[]>([]);
-  if (props.tabs.length === 0) return null;
+  if (props.tabs.length === 0 && !props.onSplit && !props.onClosePane)
+    return null;
 
   // WAI-ARIA tabs, manual activation: arrows just move focus between tabs
   // (wrapping); Enter/Space activate the focused tab. Manual (not automatic)
@@ -98,6 +103,53 @@ export function TabStrip(props: {
           </div>
         );
       })}
+      {(props.onSplit || props.onClosePane) && (
+        <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-border px-1.5">
+          {props.onSplit && (
+            <button
+              type="button"
+              aria-label="Split editor right"
+              title="Split editor right"
+              onClick={props.onSplit}
+              className="flex h-6 w-6 items-center justify-center rounded text-faint hover:bg-surface-2 hover:text-text"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+              >
+                <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+                <line x1="8" y1="2.5" x2="8" y2="13.5" />
+              </svg>
+            </button>
+          )}
+          {props.onClosePane && (
+            <button
+              type="button"
+              aria-label="Close pane"
+              title="Close pane"
+              onClick={props.onClosePane}
+              className="flex h-6 w-6 items-center justify-center rounded text-faint hover:bg-surface-2 hover:text-text"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+              >
+                <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" />
+                <line x1="6" y1="6" x2="10" y2="10" />
+                <line x1="10" y1="6" x2="6" y2="10" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
