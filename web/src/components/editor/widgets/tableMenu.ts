@@ -46,6 +46,7 @@ export function openTableMenu(
     item.type = "button";
     item.className = "cm-lp-table-menu-item" + (a.danger ? " danger" : "");
     item.setAttribute("role", "menuitem");
+    item.addEventListener("mousedown", (e) => e.preventDefault());
     item.textContent = a.label;
     item.addEventListener("click", () => {
       dispose();

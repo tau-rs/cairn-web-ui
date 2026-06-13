@@ -14,6 +14,11 @@ export class EditableTableWidget extends WidgetType {
     super();
   }
 
+  /** True while a structural op dispatches + re-mounts. The dispatch tears down
+   *  this widget's DOM, blurring the focused cell and firing a spurious
+   *  `focusout`; this flag tells the commit handler to ignore that. */
+  private applying = false;
+
   eq(other: EditableTableWidget): boolean {
     return (
       other.md === this.md && other.from === this.from && other.to === this.to
@@ -35,6 +40,7 @@ export class EditableTableWidget extends WidgetType {
 
     // Commit in-progress cell text once focus leaves the whole table.
     wrap.addEventListener("focusout", (e) => {
+      if (this.applying) return; // structural re-render in progress, not a real blur
       const next = e.relatedTarget as Node | null;
       if (next && wrap.contains(next)) return; // moving between cells
       const md = serializeTable(this.readModel(table, model));
@@ -84,7 +90,13 @@ export class EditableTableWidget extends WidgetType {
   ): void {
     const current = this.readModel(table, base);
     const md = serializeTable(current);
+    this.applying = true;
     applyTableOp(view, this.from, this.to, build(current), focus, md);
+    // If a dispatch happened, the old DOM (and this instance) is discarded after
+    // the spurious focusout; if it was a no-op, clear the guard so real blurs commit.
+    requestAnimationFrame(() => {
+      this.applying = false;
+    });
   }
 
   protected render(

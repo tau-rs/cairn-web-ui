@@ -36,4 +36,13 @@ describe("openTableMenu", () => {
     expect(ran).toBe(true);
     expect(document.querySelector(".cm-lp-table-menu")).toBeNull();
   });
+  it("prevents default on item mousedown so the editor caret is kept", () => {
+    const anchor = document.createElement("button");
+    document.body.appendChild(anchor);
+    openTableMenu(anchor, actions, "fine");
+    const item = document.querySelector<HTMLElement>("[role=menuitem]")!;
+    const ev = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    item.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+  });
 });
