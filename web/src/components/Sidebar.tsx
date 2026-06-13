@@ -18,6 +18,7 @@ export function Sidebar() {
         paths={notePaths}
         activePath={activePath}
         onOpen={(p) => navigate(noteUrl(p))}
+        onOpenToSide={actions.openToSide}
         onDelete={actions.deleteNote}
         onRequestNew={() =>
           actions.setUi({ newNoteInitial: "", newNoteOpen: true })
