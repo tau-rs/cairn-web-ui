@@ -1,5 +1,5 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
-import { parseTable, serializeTable, type TableModel } from "../tableParse";
+import { parseTable, serializeTable, parseTSV, type TableModel } from "../tableParse";
 import { applyTableOp, type TableOp } from "../tableOps";
 import { readTableFocus } from "../tableFocus";
 import { openTableMenu, type MenuAction } from "./tableMenu";
@@ -148,12 +148,13 @@ export class EditableTableWidget extends WidgetType {
     const tbody = table.createTBody();
     model.rows.forEach((row, ri) => {
       const tr = tbody.insertRow();
-      row.forEach((c) => {
+      row.forEach((c, ci) => {
         const td = tr.insertCell();
         td.contentEditable = "plaintext-only";
         td.setAttribute("role", "gridcell");
         td.textContent = c;
         this.cellKeys(table, td);
+        this.cellPaste(view, table, model, td, ri, ci);
       });
       wrap.appendChild(
         this.grip(
@@ -315,6 +316,34 @@ export class EditableTableWidget extends WidgetType {
         // whole-document selectAll). Stop propagation but not default.
         e.stopPropagation();
       }
+    });
+  }
+
+  /** Paste handler: a multi-cell TSV block spills across cells (auto-growing the
+   *  table) anchored at this body cell; a single value falls through to the
+   *  browser's default text insert. */
+  private cellPaste(
+    view: EditorView,
+    table: HTMLTableElement,
+    model: TableModel,
+    cell: HTMLElement,
+    row: number,
+    col: number,
+  ): void {
+    cell.addEventListener("paste", (e) => {
+      const text =
+        (e as ClipboardEvent).clipboardData?.getData("text/plain") ?? "";
+      const block = parseTSV(text);
+      const multi = block.length > 1 || (block[0]?.length ?? 0) > 1;
+      if (!multi) return; // single value → let the browser insert text normally
+      e.preventDefault();
+      this.op(
+        view,
+        table,
+        model,
+        () => ({ kind: "paste", atRow: row, atCol: col, block }),
+        { row, col },
+      );
     });
   }
 

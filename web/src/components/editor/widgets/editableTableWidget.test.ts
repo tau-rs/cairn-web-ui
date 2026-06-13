@@ -115,6 +115,35 @@ describe("EditableTableWidget grip drag", () => {
   });
 });
 
+describe("EditableTableWidget paste", () => {
+  // jsdom lacks reliable DataTransfer/ClipboardEvent.clipboardData, so synthesize.
+  function pasteEvent(text: string): Event {
+    const e = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(e, "clipboardData", {
+      value: { getData: () => text },
+    });
+    return e;
+  }
+
+  it("spills a multi-cell TSV block from the anchored body cell", () => {
+    const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
+    dom.querySelector<HTMLElement>("tbody td")!.dispatchEvent(pasteEvent("x\ty\nz\tw"));
+    const out = view.state.doc.toString();
+    expect(out).toContain("| x");
+    expect(out).toContain("| z");
+    expect(out.split("\n").length).toBe(4); // header+delim+2 body rows
+    view.destroy();
+  });
+
+  it("ignores a single-value paste (lets the browser insert text)", () => {
+    const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
+    const before = view.state.doc.toString();
+    dom.querySelector<HTMLElement>("tbody td")!.dispatchEvent(pasteEvent("hello"));
+    expect(view.state.doc.toString()).toBe(before); // no structural dispatch
+    view.destroy();
+  });
+});
+
 describe("EditableTableWidget commit safety during structural ops", () => {
   it("captures uncommitted cell text into the op and suppresses the stale commit", () => {
     const onCommit = vi.fn();
