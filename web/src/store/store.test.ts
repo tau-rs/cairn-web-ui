@@ -942,4 +942,15 @@ describe("split panes", () => {
     store.getState().setSplitRatio(0.05);
     expect(store.getState().splitRatio).toBe(0.2);
   });
+
+  it("deleteNote removes the tab from every pane that holds it", async () => {
+    const store = await ready();
+    await store.getState().openNote("a.md");
+    await store.getState().openToSide("a.md"); // a.md now open in both panes
+    await store.getState().deleteNote("a.md");
+    const s = store.getState();
+    for (const pane of s.panes) {
+      expect(pane.tabs.some((t) => t.path === "a.md")).toBe(false);
+    }
+  });
 });

@@ -613,7 +613,17 @@ export function createCairnStore(
       async deleteNote(path) {
         try {
           await client.sendCommand({ type: "delete_note", path });
-          get().closeTab(path);
+          // Close the tab in every pane that holds it. Re-find after each close
+          // because closeTab can collapse a pane and shift indices.
+          let i = get().panes.findIndex((p) =>
+            p.tabs.some((t) => t.path === path),
+          );
+          while (i !== -1) {
+            get().closeTab(path, i);
+            i = get().panes.findIndex((p) =>
+              p.tabs.some((t) => t.path === path),
+            );
+          }
         } catch (err) {
           pushError("Delete note", err, { path });
         }
@@ -723,8 +733,8 @@ export function createCairnStore(
           set({ panes: r.panes, activePane: r.activePane });
         } else {
           const target = get().activePane === 0 ? 1 : 0;
-          applyTabs(openOrPreview(tabsState(target), path), target);
           set({ activePane: target });
+          applyTabs(openOrPreview(tabsState(target), path), target);
         }
         syncMirror();
         persist();
