@@ -206,19 +206,23 @@ export function createCairnStore(
     const persist = () =>
       savePanes({ ...panesState(), ratio: get().splitRatio });
 
+    // The focused-pane mirror fields, derived from a pane + the buffer pool.
+    // Shared by syncMirror and any atomic set() that must recompute the mirror
+    // alongside other changes (e.g. applyRenames).
+    const mirrorOf = (pane: PaneState, openNotes: CairnState["openNotes"]) => {
+      const buf = pane.activePath ? openNotes[pane.activePath] : undefined;
+      return {
+        activePath: pane.activePath,
+        activeContents: buf?.contents ?? "",
+        dirty: buf?.dirty ?? false,
+        saving: buf?.saving ?? false,
+      };
+    };
+
     // Recompute the focused-pane mirror so existing consumers of the top-level
     // activePath/activeContents/dirty/saving stay unchanged.
     const syncMirror = () =>
-      set((s) => {
-        const pane = s.panes[s.activePane];
-        const buf = pane.activePath ? s.openNotes[pane.activePath] : undefined;
-        return {
-          activePath: pane.activePath,
-          activeContents: buf?.contents ?? "",
-          dirty: buf?.dirty ?? false,
-          saving: buf?.saving ?? false,
-        };
-      });
+      set((s) => mirrorOf(s.panes[s.activePane], s.openNotes));
 
     // Write a TabsState into one pane, then refresh the mirror from the focused pane.
     const applyTabs = (next: TabsState, paneIndex = get().activePane) => {
@@ -634,17 +638,10 @@ export function createCairnStore(
               ),
               activePath: p.activePath === from ? to : p.activePath,
             }));
-            const active = panes[s.activePane];
-            const buf = active.activePath
-              ? openNotes[active.activePath]
-              : undefined;
             return {
               openNotes,
               panes,
-              activePath: active.activePath,
-              activeContents: buf?.contents ?? "",
-              dirty: buf?.dirty ?? false,
-              saving: buf?.saving ?? false,
+              ...mirrorOf(panes[s.activePane], openNotes),
             };
           });
         }
@@ -667,9 +664,11 @@ export function createCairnStore(
           p.tabs.some((t) => t.path === path),
         );
         if (!stillOpen) dropNote(path);
-        const ai = paneIndex;
-        if (get().panes.length > 1 && get().panes[ai].tabs.length === 0) {
-          const r = closePaneModel(panesState(), ai);
+        if (
+          get().panes.length > 1 &&
+          get().panes[paneIndex].tabs.length === 0
+        ) {
+          const r = closePaneModel(panesState(), paneIndex);
           set({ panes: r.panes, activePane: r.activePane });
           syncMirror();
         }
@@ -705,6 +704,7 @@ export function createCairnStore(
         void get().refreshBacklinks();
       },
 
+      // TODO(split-panes): implemented in the next task (split actions).
       splitPane() {},
       async openToSide(_path) {},
       closePane(_index) {},
