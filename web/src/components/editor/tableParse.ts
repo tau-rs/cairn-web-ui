@@ -71,30 +71,99 @@ export function serializeTable(m: TableModel): string {
   return [fmtRow(escHeader), delim, ...escRows.map(fmtRow)].join("\n");
 }
 
-/** Append a blank row (column count = header length). */
+const clamp = (n: number, lo: number, hi: number): number =>
+  Math.max(lo, Math.min(hi, n));
+const blankRow = (n: number): string[] => Array.from({ length: n }, () => "");
+const splice = <T>(arr: T[], from: number, to: number): T[] => {
+  const a = [...arr];
+  const [x] = a.splice(from, 1);
+  a.splice(to, 0, x);
+  return a;
+};
+
+/** Insert a blank row at `index` (clamped to [0, rows.length]). */
+export function insertRow(m: TableModel, index: number): TableModel {
+  const i = clamp(index, 0, m.rows.length);
+  return {
+    header: [...m.header],
+    rows: [...m.rows.slice(0, i), blankRow(m.header.length), ...m.rows.slice(i)],
+    align: [...m.align],
+  };
+}
+
+/** Append a blank row. */
 export function addRow(m: TableModel): TableModel {
-  return { header: [...m.header], rows: [...m.rows, m.header.map(() => "")] };
+  return insertRow(m, m.rows.length);
 }
 
 /** Remove a body row; keeps at least one body row. */
 export function removeRow(m: TableModel, index: number): TableModel {
   if (m.rows.length <= 1) return m;
-  return { header: m.header, rows: m.rows.filter((_, i) => i !== index) };
-}
-
-/** Append a blank column to the header and every row. */
-export function addColumn(m: TableModel): TableModel {
   return {
-    header: [...m.header, ""],
-    rows: m.rows.map((r) => [...r, ""]),
+    header: [...m.header],
+    rows: m.rows.filter((_, i) => i !== index),
+    align: [...m.align],
   };
 }
 
-/** Remove a column; keeps at least one column. */
+/** Move a body row from one index to another. No-op if out of range or unchanged. */
+export function moveRow(m: TableModel, from: number, to: number): TableModel {
+  if (
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= m.rows.length ||
+    to >= m.rows.length
+  )
+    return m;
+  return { header: [...m.header], rows: splice(m.rows, from, to), align: [...m.align] };
+}
+
+const insertAt = <T>(arr: T[], i: number, v: T): T[] => [
+  ...arr.slice(0, i),
+  v,
+  ...arr.slice(i),
+];
+
+/** Insert a blank column at `index` (clamped), with the given alignment. */
+export function insertColumn(
+  m: TableModel,
+  index: number,
+  align: Align = "none",
+): TableModel {
+  const i = clamp(index, 0, m.header.length);
+  return {
+    header: insertAt(m.header, i, ""),
+    rows: m.rows.map((r) => insertAt(r, i, "")),
+    align: insertAt(m.align, i, align),
+  };
+}
+
+/** Append a blank column. */
+export function addColumn(m: TableModel): TableModel {
+  return insertColumn(m, m.header.length);
+}
+
+/** Remove a column (and its alignment); keeps at least one column. */
 export function removeColumn(m: TableModel, index: number): TableModel {
   if (m.header.length <= 1) return m;
+  const del = <T>(arr: T[]): T[] => arr.filter((_, i) => i !== index);
+  return { header: del(m.header), rows: m.rows.map(del), align: del(m.align) };
+}
+
+/** Move a column (header, every cell, and align in lockstep). No-op if unchanged. */
+export function moveColumn(m: TableModel, from: number, to: number): TableModel {
+  if (
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= m.header.length ||
+    to >= m.header.length
+  )
+    return m;
   return {
-    header: m.header.filter((_, i) => i !== index),
-    rows: m.rows.map((r) => r.filter((_, i) => i !== index)),
+    header: splice(m.header, from, to),
+    rows: m.rows.map((r) => splice(r, from, to)),
+    align: splice(m.align, from, to),
   };
 }

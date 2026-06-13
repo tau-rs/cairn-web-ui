@@ -2,10 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   parseTable,
   serializeTable,
+  insertRow,
   addRow,
   removeRow,
+  moveRow,
+  insertColumn,
   addColumn,
   removeColumn,
+  moveColumn,
   type TableModel,
 } from "./tableParse";
 
@@ -72,30 +76,67 @@ describe("serializeTable", () => {
 });
 
 describe("table model ops", () => {
-  const m = { header: ["A", "B"], rows: [["1", "2"]] };
+  const m: TableModel = {
+    header: ["A", "B"],
+    rows: [
+      ["1", "2"],
+      ["3", "4"],
+    ],
+    align: ["left", "right"],
+  };
+
+  it("insertRow inserts a blank row at the index", () => {
+    expect(insertRow(m, 1).rows).toEqual([
+      ["1", "2"],
+      ["", ""],
+      ["3", "4"],
+    ]);
+  });
   it("addRow appends a blank row", () => {
-    expect(addRow(m)).toEqual({
-      header: ["A", "B"],
-      rows: [
-        ["1", "2"],
-        ["", ""],
-      ],
-    });
+    expect(addRow(m).rows).toEqual([
+      ["1", "2"],
+      ["3", "4"],
+      ["", ""],
+    ]);
   });
   it("removeRow deletes a row but keeps at least one", () => {
-    expect(removeRow(m, 0)).toEqual(m); // only one row → no-op
-    const m2 = { header: ["A"], rows: [["1"], ["2"]] };
-    expect(removeRow(m2, 0)).toEqual({ header: ["A"], rows: [["2"]] });
+    const one: TableModel = { header: ["A"], rows: [["1"]], align: ["none"] };
+    expect(removeRow(one, 0)).toEqual(one); // no-op at minimum
+    expect(removeRow(m, 0).rows).toEqual([["3", "4"]]);
   });
-  it("addColumn appends a blank column to header and every row", () => {
-    expect(addColumn(m)).toEqual({
-      header: ["A", "B", ""],
-      rows: [["1", "2", ""]],
-    });
+  it("moveRow reorders rows", () => {
+    expect(moveRow(m, 0, 1).rows).toEqual([
+      ["3", "4"],
+      ["1", "2"],
+    ]);
+    expect(moveRow(m, 0, 0)).toEqual(m); // same position → no-op
   });
-  it("removeColumn deletes a column but keeps at least one", () => {
-    expect(removeColumn(m, 1)).toEqual({ header: ["A"], rows: [["1"]] });
-    const oneCol = { header: ["A"], rows: [["1"]] };
-    expect(removeColumn(oneCol, 0)).toEqual(oneCol); // no-op at minimum
+  it("insertColumn inserts a blank column and align entry", () => {
+    const r = insertColumn(m, 1);
+    expect(r.header).toEqual(["A", "", "B"]);
+    expect(r.rows).toEqual([
+      ["1", "", "2"],
+      ["3", "", "4"],
+    ]);
+    expect(r.align).toEqual(["left", "none", "right"]);
+  });
+  it("addColumn appends a blank column", () => {
+    expect(addColumn(m).header).toEqual(["A", "B", ""]);
+  });
+  it("removeColumn deletes a column (and its align) but keeps at least one", () => {
+    const r = removeColumn(m, 1);
+    expect(r.header).toEqual(["A"]);
+    expect(r.align).toEqual(["left"]);
+    const one: TableModel = { header: ["A"], rows: [["1"]], align: ["none"] };
+    expect(removeColumn(one, 0)).toEqual(one);
+  });
+  it("moveColumn reorders header, cells, and align together", () => {
+    const r = moveColumn(m, 0, 1);
+    expect(r.header).toEqual(["B", "A"]);
+    expect(r.align).toEqual(["right", "left"]);
+    expect(r.rows).toEqual([
+      ["2", "1"],
+      ["4", "3"],
+    ]);
   });
 });
