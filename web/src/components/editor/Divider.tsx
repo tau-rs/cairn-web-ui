@@ -1,36 +1,47 @@
 import { useRef } from "react";
 
+/** Keyboard nudge step for the divider (fraction of total width). */
+const NUDGE = 0.02;
+
 /** Draggable vertical divider between split panes. Reports a new left-pane
- *  fraction via `onRatio`. Keyboard-accessible (←/→ nudge by 0.02). */
+ *  fraction via `onRatio`. Uses pointer capture so a drag that ends off-element
+ *  (or while the pane unmounts) cannot leak listeners. Keyboard-accessible
+ *  (←/→ nudge by NUDGE). */
 export function Divider(props: {
   ratio: number;
   onRatio: (ratio: number) => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const dragging = useRef(false);
 
-  const onPointerDown = (e: React.PointerEvent) => {
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
+    dragging.current = true;
+    // Optional-chained: jsdom (test env) may not implement pointer capture.
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
     const parent = ref.current?.parentElement;
     if (!parent) return;
     const rect = parent.getBoundingClientRect();
-    const move = (ev: PointerEvent) => {
-      props.onRatio((ev.clientX - rect.left) / rect.width);
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    if (rect.width === 0) return;
+    props.onRatio((e.clientX - rect.left) / rect.width);
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragging.current = false;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowRight") {
       e.preventDefault();
-      props.onRatio(props.ratio + 0.02);
+      props.onRatio(props.ratio + NUDGE);
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
-      props.onRatio(props.ratio - 0.02);
+      props.onRatio(props.ratio - NUDGE);
     }
   };
 
@@ -42,6 +53,8 @@ export function Divider(props: {
       aria-label="Resize panes"
       tabIndex={0}
       onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       onKeyDown={onKeyDown}
       className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-accent focus:bg-accent focus:outline-none"
     />
