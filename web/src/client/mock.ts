@@ -81,6 +81,61 @@ export class MockClient implements CairnClient {
       name: "Demo plugin",
       version: "1.0.0",
       commands: [{ id: "stamp", title: "Insert stamp note" }],
+      contributions: [
+        {
+          id: "stamp-list",
+          slot: "sidebar.section",
+          widget: {
+            kind: "list",
+            items: [
+              {
+                id: "s",
+                label: "Insert stamp",
+                icon: null,
+                command: "stamp",
+                args: null,
+              },
+            ],
+          },
+          title: null,
+          icon: null,
+          order: null,
+        },
+        {
+          id: "stamp-action",
+          slot: "topbar.action",
+          widget: {
+            kind: "action",
+            label: "Stamp",
+            icon: "note",
+            command: "stamp",
+            args: null,
+          },
+          title: null,
+          icon: null,
+          order: null,
+        },
+        {
+          id: "stamp-cmd",
+          slot: "command",
+          widget: {
+            kind: "action",
+            label: "Insert stamp (cmd)",
+            icon: null,
+            command: "stamp",
+            args: null,
+          },
+          title: null,
+          icon: null,
+          order: null,
+        },
+      ],
+    },
+    {
+      id: "bare",
+      name: "Bare plugin",
+      version: "0.1.0",
+      commands: [],
       contributions: [],
     },
   ];
@@ -137,7 +192,12 @@ export class MockClient implements CairnClient {
           this.notes.set("stamp.md", "# Stamp\n");
           this.emit({ type: "note_changed", path: "stamp.md" });
           this.emit({ type: "reindexed", count: this.notes.size });
-          return { type: "plugin_result", result: "stamp.md" };
+          // Echo args.n into the result so callers can observe arg passthrough.
+          const n =
+            c.args && typeof c.args === "object" && "n" in c.args
+              ? " " + (c.args as { n: unknown }).n
+              : "";
+          return { type: "plugin_result", result: `stamp.md${n}` };
         }
         const err: ContractError = {
           type: "invalid_request",

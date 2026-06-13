@@ -3,6 +3,12 @@ import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient, Unsubscribe } from "../client/types";
 import type { ContractError, TagCount, Event } from "../contract";
 import type { PluginSummary } from "../contract";
+import type { JsonValue } from "../contract/serde_json/JsonValue";
+import {
+  groupBySlot,
+  type SlotEntry,
+  type SanitizeReport,
+} from "../client/pluginContributions";
 import { debounce, type Debounced } from "../util/timer";
 import type { Overrides } from "../components/shortcuts/commands";
 import {
@@ -120,6 +126,13 @@ export interface CairnState {
   tags: TagCount[];
   activeTag: string | null;
   plugins: PluginSummary[];
+  // Sanitized plugin UI contributions, grouped by slot for a future SlotRenderer.
+  pluginContributions: Record<string, SlotEntry[]>;
+  // Monotonic generation counter, bumped on each loadPlugins; lets renderers
+  // key off the freshest contribution set.
+  pluginEpoch: number;
+  // How many contributions the last sanitize pass dropped (for diagnostics).
+  pluginDropped: number;
   notice: string | null;
   settings: Settings;
   ui: UiState;
@@ -163,7 +176,11 @@ export interface CairnState {
   loadTags(): Promise<void>;
   filterByTag(tag: string): Promise<void>;
   loadPlugins(): Promise<void>;
-  invokePlugin(plugin: string, command: string): Promise<void>;
+  invokePlugin(
+    plugin: string,
+    command: string,
+    args?: JsonValue,
+  ): Promise<void>;
   dismissNotice(): void;
   setQuery(query: string): void;
   closeSearch(): void;
@@ -417,6 +434,8 @@ export function createCairnStore(
         activeTag: null,
         tags: [],
         plugins: [],
+        pluginContributions: {},
+        pluginDropped: 0,
         notice: null,
         loading: { search: false, graph: false, backlinks: false, note: false },
       });
@@ -474,6 +493,9 @@ export function createCairnStore(
       tags: [],
       activeTag: null,
       plugins: [],
+      pluginContributions: {},
+      pluginEpoch: 0,
+      pluginDropped: 0,
       notice: null,
       settings: DEFAULT_SETTINGS,
       ui: DEFAULT_UI,
@@ -868,20 +890,38 @@ export function createCairnStore(
       async loadPlugins() {
         try {
           const res = await client.runQuery({ type: "list_plugins" });
-          if (res.type === "plugins") set({ plugins: res.plugins });
-          else unexpected("Load plugins", res);
+          if (res.type === "plugins") {
+            // Bump the epoch and re-group the (sanitized) contributions. The
+            // epoch stays monotonic across reloads so renderers can detect a
+            // refreshed contribution set.
+            const epoch = get().pluginEpoch + 1;
+            const report: SanitizeReport = { kept: 0, dropped: 0, reasons: [] };
+            const pluginContributions = groupBySlot(res.plugins, epoch, report);
+            if (report.dropped > 0) {
+              console.warn(
+                `[cairn] dropped ${report.dropped} plugin contribution(s)`,
+                report.reasons,
+              );
+            }
+            set({
+              plugins: res.plugins,
+              pluginContributions,
+              pluginEpoch: epoch,
+              pluginDropped: report.dropped,
+            });
+          } else unexpected("Load plugins", res);
         } catch (err) {
           pushError("Load plugins", err);
         }
       },
 
-      async invokePlugin(plugin, command) {
+      async invokePlugin(plugin, command, args = null) {
         try {
           const res = await client.sendCommand({
             type: "invoke_plugin_command",
             plugin,
             command,
-            args: null,
+            args,
           });
           if (res.type === "plugin_result") {
             set({

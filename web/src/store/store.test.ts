@@ -329,7 +329,7 @@ describe("cairn store", () => {
 
     // Tags + plugins must reload, not stay empty until an unrelated event.
     expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
-    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo"]);
+    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo", "bare"]);
     // Persisted pinned tabs restore for the freshly opened cairn.
     const { panes: p1, activePane: ap1 } = store.getState();
     expect(p1[ap1].tabs.map((t) => t.path)).toEqual(["b.md"]);
@@ -587,7 +587,7 @@ describe("cairn store", () => {
     vi.useRealTimers();
     const store = createCairnStore(new MockClient({}));
     await store.getState().init();
-    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo"]);
+    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo", "bare"]);
   });
   it("invokePlugin sets a notice and applies the side effect", async () => {
     vi.useRealTimers();
@@ -1016,6 +1016,44 @@ describe("split panes", () => {
     const s = store.getState();
     for (const pane of s.panes) {
       expect(pane.tabs.some((t) => t.path === "a.md")).toBe(false);
+    }
+  });
+
+  it("loadPlugins groups contributions by slot, tagged with an epoch", async () => {
+    vi.useRealTimers();
+    const store = createCairnStore(new MockClient({}));
+    await store.getState().init();
+    const s = store.getState();
+    expect(s.pluginEpoch).toBeGreaterThan(0);
+    const sidebar = s.pluginContributions["sidebar.section"];
+    expect(sidebar[0].plugin).toBe("demo");
+    expect(sidebar[0].epoch).toBe(s.pluginEpoch);
+  });
+
+  it("invokePlugin forwards args to the plugin (mock echoes args.n)", async () => {
+    vi.useRealTimers();
+    const store = createCairnStore(new MockClient({}));
+    await store.getState().init();
+    await store.getState().invokePlugin("demo", "stamp", { n: 1 });
+    expect(store.getState().notice).toContain("1");
+  });
+
+  it("loadPlugins bumps the epoch monotonically on each call", async () => {
+    vi.useRealTimers();
+    const store = createCairnStore(new MockClient({}));
+    await store.getState().init();
+    const first = store.getState().pluginEpoch;
+    await store.getState().loadPlugins();
+    expect(store.getState().pluginEpoch).toBeGreaterThan(first);
+  });
+
+  it("a plugin with no contributions sources no slot entries", async () => {
+    vi.useRealTimers();
+    const store = createCairnStore(new MockClient({}));
+    await store.getState().init();
+    const grouped = store.getState().pluginContributions;
+    for (const entries of Object.values(grouped)) {
+      for (const e of entries) expect(e.plugin).not.toBe("bare");
     }
   });
 });
