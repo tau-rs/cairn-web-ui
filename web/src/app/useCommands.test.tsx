@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { ReactNode } from "react";
 import { renderHook, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -47,5 +47,19 @@ describe("useCommands runCommand", () => {
     const ids = result.current.commands.map((c) => c.id);
     expect(ids).toContain("commit");
     expect(ids).not.toContain("open-palette");
+  });
+
+  it("split-right command calls splitPane", () => {
+    const spy = vi.spyOn(cairnStore.getState(), "splitPane");
+    const { result } = renderHook(() => useCommands(), { wrapper });
+    act(() => result.current.runCommand("split-right"));
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("close-pane command calls closePane", () => {
+    const spy = vi.spyOn(cairnStore.getState(), "closePane");
+    const { result } = renderHook(() => useCommands(), { wrapper });
+    act(() => result.current.runCommand("close-pane"));
+    expect(spy).toHaveBeenCalled();
   });
 });
