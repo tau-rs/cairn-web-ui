@@ -30,6 +30,21 @@ describe("FolderTree", () => {
     expect(screen.getByRole("button", { name: "ideas" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "index" })).toBeInTheDocument();
   });
+  it("draws indent guides for nested rows but not for root rows", () => {
+    setup(); // index.md (root), notes/ideas.md, notes/todo.md (depth 1)
+    // nested notes render a connector line + tick; the root note does not.
+    expect(
+      document.querySelectorAll('[data-guide="line"]').length,
+    ).toBeGreaterThan(0);
+    expect(document.querySelectorAll('[data-guide="tick"]').length).toBe(2);
+  });
+  it("lights the active note's guide path in the accent color", () => {
+    setup({ activePath: "notes/ideas.md" });
+    // the active note's connector should be accent (bg-accent), the inactive
+    // sibling's should not.
+    const accentGuides = document.querySelectorAll("[data-guide].bg-accent");
+    expect(accentGuides.length).toBeGreaterThan(0);
+  });
   it("collapses and re-expands a folder", () => {
     setup();
     expect(screen.getByRole("button", { name: "ideas" })).toBeInTheDocument();

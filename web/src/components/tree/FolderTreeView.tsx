@@ -17,6 +17,14 @@ import {
 import type { TreeStyleMap, TreeItemStyle } from "./treeIcons";
 import { TreeItemIcon } from "./TreeItemIcon";
 import { IconPicker } from "./IconPicker";
+import {
+  childGuides,
+  rowGuides,
+  onActivePath,
+  indentPad,
+  type Guide,
+  type GuideMark,
+} from "./treeGuides";
 
 /** Inline rename input: autofocuses, selects all, commits on Enter/blur, cancels on Esc. */
 function RenameInput(props: {
@@ -155,9 +163,50 @@ export function FolderTree(props: {
     />
   );
 
-  const renderNodes = (nodes: TreeNode[], depth: number): ReactNode =>
-    nodes.map((node) => {
-      const pad = { paddingLeft: depth * 12 + 8 };
+  // Structure layer: vertical guide lines + the connector tick. Grey by default;
+  // accent only along the active path. Absolutely positioned within the row, so
+  // each row is `relative`. Lines extend 2px past the row to bridge the row gap.
+  const renderGuides = (marks: GuideMark[]): ReactNode =>
+    marks.map((m, i) =>
+      m.variant === "tick" ? (
+        <span
+          key={i}
+          aria-hidden
+          data-guide="tick"
+          className={`pointer-events-none absolute ${m.accent ? "bg-accent" : "bg-[#3a3a45]"}`}
+          style={{
+            left: m.x,
+            top: "calc(50% - 0.75px)",
+            width: 7,
+            height: 1.5,
+          }}
+        />
+      ) : (
+        <span
+          key={i}
+          aria-hidden
+          data-guide="line"
+          className={`pointer-events-none absolute ${m.accent ? "bg-accent" : "bg-[#33333d]"}`}
+          style={{
+            left: m.x,
+            top: -2,
+            width: 1.5,
+            ...(m.toCenter ? { height: "calc(50% + 2px)" } : { bottom: -2 }),
+          }}
+        />
+      ),
+    );
+
+  const renderNodes = (
+    nodes: TreeNode[],
+    depth: number,
+    ancestorGuides: Guide[],
+    parentOnPath: boolean,
+  ): ReactNode =>
+    nodes.map((node, i) => {
+      const pad = { paddingLeft: indentPad(depth) };
+      const isLast = i === nodes.length - 1;
+      const marks = rowGuides(ancestorGuides, depth, isLast, parentOnPath);
       const editing = editingPath === node.path;
       if (node.kind === "folder") {
         const isCollapsed = collapsed.has(node.path);
@@ -168,12 +217,12 @@ export function FolderTree(props: {
               draggable={!editing}
               onDragStart={(e) => startDrag(e, node.path, true)}
               {...dropProps(node.path)}
-              style={{ position: "relative" }}
               className={
-                "group flex items-center justify-between rounded pr-2 text-muted hover:bg-surface-2 hover:text-text " +
+                "group relative flex items-center justify-between rounded pr-2 text-muted hover:bg-surface-2 hover:text-text " +
                 (isDrop ? "ring-1 ring-accent" : "")
               }
             >
+              {renderGuides(marks)}
               {props.styles[node.path]?.folderColor && (
                 <span
                   data-folder-bar="true"
@@ -197,10 +246,16 @@ export function FolderTree(props: {
                 >
                   <button
                     aria-label={`toggle ${node.path}`}
-                    className="flex flex-none items-center text-faint"
+                    className="flex flex-none items-center"
                     onClick={() => toggle(node.path)}
                   >
-                    <span aria-hidden>{isCollapsed ? "▸" : "▾"}</span>
+                    {/* boxed chevron: the "mouth" the spine descends from */}
+                    <span
+                      aria-hidden
+                      className="flex h-4 w-4 items-center justify-center rounded-sm border border-border bg-surface text-[9px] text-faint"
+                    >
+                      {isCollapsed ? "▸" : "▾"}
+                    </span>
                   </button>
                   {iconCell(node.path, "folder")}
                   <button
@@ -215,7 +270,9 @@ export function FolderTree(props: {
                       }
                     }}
                   >
-                    <span className="truncate text-text">{node.name}</span>
+                    <span className="truncate font-medium text-text">
+                      {node.name}
+                    </span>
                   </button>
                 </div>
               )}
@@ -227,7 +284,13 @@ export function FolderTree(props: {
                 +
               </button>
             </div>
-            {!isCollapsed && renderNodes(node.children, depth + 1)}
+            {!isCollapsed &&
+              renderNodes(
+                node.children,
+                depth + 1,
+                childGuides(ancestorGuides, depth, isLast, parentOnPath),
+                onActivePath(node.path, props.activePath),
+              )}
           </div>
         );
       }
@@ -237,15 +300,16 @@ export function FolderTree(props: {
           key={node.path}
           draggable={!editing}
           onDragStart={(e) => startDrag(e, node.path, false)}
-          className={`group flex items-center justify-between rounded pr-2 ${
+          className={`group relative flex items-center justify-between rounded pr-2 ${
             active
-              ? "bg-surface-2 text-text"
+              ? "bg-accent/15 text-text"
               : "text-muted hover:bg-surface-2 hover:text-text"
           }`}
         >
+          {renderGuides(marks)}
           {!editing && (
             <span className="flex flex-none items-center gap-1" style={pad}>
-              <span aria-hidden className="w-[11px]" /> {/* chevron spacer */}
+              <span aria-hidden className="w-4" /> {/* chevron-box spacer */}
               {iconCell(node.path, "note")}
             </span>
           )}
@@ -298,7 +362,7 @@ export function FolderTree(props: {
           + New note
         </Button>
       </div>
-      {renderNodes(tree, 0)}
+      {renderNodes(tree, 0, [], false)}
     </div>
   );
 }
