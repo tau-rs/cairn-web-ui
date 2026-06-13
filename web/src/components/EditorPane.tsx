@@ -9,6 +9,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { Button } from "./ui/Button";
 import { Spinner } from "./ui/Spinner";
 import { Divider } from "./editor/Divider";
+import { useBreakpoint } from "./responsive/useBreakpoint";
 import type { PaneState } from "./tabs/paneModel";
 
 /** One editor pane: its own tab strip + editor, bound to pane `index`. */
@@ -95,7 +96,8 @@ export function EditorPane() {
   const splitRatio = useCairn((s) => s.splitRatio);
   const loading = useCairn((s) => s.loading);
   const view = isGraph(location) ? "graph" : "editor";
-  const split = panes.length > 1;
+  const bp = useBreakpoint();
+  const split = panes.length > 1 && bp !== "mobile";
 
   return (
     <ErrorBoundary
