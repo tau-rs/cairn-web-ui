@@ -17,7 +17,21 @@ yanked = "deny"
 # crates; "workspace" scopes the noise out while keeping real vulnerability
 # advisories gating. Re-evaluate if cairn-ui's own crates ever go unmaintained.
 unmaintained = "workspace"
-ignore = []
+# Documented vulnerability exceptions. Each is a transitive advisory we cannot
+# remediate from this repo because a parent crate pins the vulnerable major;
+# the fix must land upstream first, then flow here via a version bump. Re-check
+# and drop each id once its upstream gate clears.
+ignore = [
+    # glib <0.20 unsoundness in VariantStrIter Iterator impls (RUSTSEC-2024-0429).
+    # Pinned by gtk 0.18.2 -> tauri 2.11.2; Linux-only (gtk-rs GTK3 stack, not in
+    # the macOS build tree). Clears when Tauri moves to the gtk-rs 0.20 ecosystem.
+    "RUSTSEC-2024-0429",
+    # git2 <0.20.4 UB dereferencing the Buf struct (RUSTSEC-2026-0008). Pinned by
+    # the cairn engine crate (cairn-infra, git-rev dep requiring git2 ^0.19);
+    # 0.19->0.20 is a breaking bump only the engine can make. Clears when the
+    # engine bumps git2 and we re-pin its rev in Cargo.toml.
+    "RUSTSEC-2026-0008",
+]
 
 [licenses]
 version = 2
