@@ -43,13 +43,32 @@ export function parseTable(md: string): TableModel {
 
 const escapeCell = (s: string): string =>
   s.trim().replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
-const fmtRow = (cs: string[]): string =>
-  `| ${cs.map(escapeCell).join(" | ")} |`;
 
-/** Serialize a model to GFM markdown (alignment normalized to left). */
+/** A padded delimiter cell of width `w` for the given alignment. */
+function marker(a: Align, w: number): string {
+  if (a === "left") return ":" + "-".repeat(w - 1);
+  if (a === "right") return "-".repeat(w - 1) + ":";
+  if (a === "center") return ":" + "-".repeat(Math.max(1, w - 2)) + ":";
+  return "-".repeat(w);
+}
+
+/** Serialize a model to prettified GFM: columns padded to equal width, alignment
+ *  markers preserved. Minimum column width is 3 so every marker form fits. */
 export function serializeTable(m: TableModel): string {
-  const delim = `| ${m.header.map(() => "---").join(" | ")} |`;
-  return [fmtRow(m.header), delim, ...m.rows.map(fmtRow)].join("\n");
+  const cols = m.header.length;
+  const escHeader = m.header.map(escapeCell);
+  const escRows = m.rows.map((r) =>
+    Array.from({ length: cols }, (_, c) => escapeCell(r[c] ?? "")),
+  );
+  const widths = Array.from({ length: cols }, (_, c) =>
+    Math.max(3, escHeader[c].length, ...escRows.map((r) => r[c].length)),
+  );
+  const fmtRow = (cs: string[]): string =>
+    `| ${cs.map((s, c) => s.padEnd(widths[c])).join(" | ")} |`;
+  const delim = `| ${widths
+    .map((w, c) => marker(m.align[c] ?? "none", w))
+    .join(" | ")} |`;
+  return [fmtRow(escHeader), delim, ...escRows.map(fmtRow)].join("\n");
 }
 
 /** Append a blank row (column count = header length). */
