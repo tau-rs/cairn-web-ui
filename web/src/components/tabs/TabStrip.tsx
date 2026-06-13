@@ -13,6 +13,10 @@ export function TabStrip(props: {
   onSelect: (path: string) => void;
   onPin: (path: string) => void;
   onClose: (path: string) => void;
+  /** If provided, renders a split-pane button (Task 6). */
+  onSplit?: () => void;
+  /** If provided, renders a close-pane button (Task 6). */
+  onClosePane?: () => void;
 }) {
   const tabRefs = useRef<(HTMLDivElement | null)[]>([]);
   if (props.tabs.length === 0) return null;
