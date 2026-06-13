@@ -840,6 +840,71 @@ describe("cairn store", () => {
   });
 });
 
+describe("treeStyles", () => {
+  it("setTreeStyle stores and persists a style", () => {
+    const { store } = setup();
+    store
+      .getState()
+      .setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
+    expect(store.getState().treeStyles["a.md"]).toEqual({
+      icon: { kind: "emoji", value: "📚" },
+    });
+    expect(
+      JSON.parse(localStorage.getItem("cairn.treeIcons")!)["a.md"],
+    ).toEqual({
+      icon: { kind: "emoji", value: "📚" },
+    });
+  });
+
+  it("setTreeStyle with an empty style deletes the key", () => {
+    const { store } = setup();
+    store
+      .getState()
+      .setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
+    store.getState().setTreeStyle("a.md", {});
+    expect(store.getState().treeStyles["a.md"]).toBeUndefined();
+  });
+
+  it("applyRenames remaps a note's style key to the new path", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    store
+      .getState()
+      .setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
+    await store.getState().applyRenames([{ from: "a.md", to: "c.md" }]);
+    expect(store.getState().treeStyles["a.md"]).toBeUndefined();
+    expect(store.getState().treeStyles["c.md"]).toEqual({
+      icon: { kind: "emoji", value: "📚" },
+    });
+    expect(
+      JSON.parse(localStorage.getItem("cairn.treeIcons")!)["c.md"],
+    ).toEqual({ icon: { kind: "emoji", value: "📚" } });
+  });
+
+  it("deleteNote drops the note's style key", async () => {
+    const { store } = setup();
+    await store.getState().init();
+    store
+      .getState()
+      .setTreeStyle("a.md", { icon: { kind: "emoji", value: "📚" } });
+    await store.getState().deleteNote("a.md");
+    expect(store.getState().treeStyles["a.md"]).toBeUndefined();
+  });
+
+  it("remapFolderStyles moves a note-less folder's color (and persists)", () => {
+    const { store } = setup();
+    store.getState().setTreeStyle("empty", { folderColor: "#30a46c" });
+    store.getState().remapFolderStyles("empty", "moved");
+    expect(store.getState().treeStyles["empty"]).toBeUndefined();
+    expect(store.getState().treeStyles["moved"]).toEqual({
+      folderColor: "#30a46c",
+    });
+    expect(
+      JSON.parse(localStorage.getItem("cairn.treeIcons")!)["moved"],
+    ).toEqual({ folderColor: "#30a46c" });
+  });
+});
+
 describe("ui slice", () => {
   it("setUi patches ui flags without touching others", () => {
     const { store } = setup();

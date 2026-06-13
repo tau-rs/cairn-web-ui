@@ -1,12 +1,16 @@
 import { useEffect, useRef } from "react";
 
-/** A positioned right-click menu for a tree note row. Closes on Escape, on an
- *  outside click, or after any item runs. */
+/** A positioned right-click menu for a tree row (note or folder). Closes on
+ *  Escape, on an outside click, or after any item runs. Items are filtered by
+ *  `kind`: notes can be opened/deleted, folders can spawn a new note. */
 export function TreeContextMenu(props: {
+  kind: "folder" | "note";
   x: number;
   y: number;
+  onSetIcon: () => void;
   onOpen: () => void;
   onOpenToSide: () => void;
+  onNewNote: () => void;
   onRename: () => void;
   onDelete: () => void;
   onClose: () => void;
@@ -49,6 +53,8 @@ export function TreeContextMenu(props: {
     </button>
   );
 
+  const isNote = props.kind === "note";
+
   return (
     <div
       ref={ref}
@@ -58,13 +64,15 @@ export function TreeContextMenu(props: {
         if (e.key === "Escape") props.onClose();
       }}
       style={{ left: props.x, top: props.y }}
-      className="fixed z-50 w-44 rounded-lg border border-border bg-surface p-1 shadow-xl outline-none"
+      className="fixed z-50 w-48 rounded-lg border border-border bg-surface p-1 shadow-xl outline-none"
     >
-      {item("Open", props.onOpen, false, "↵")}
-      {item("Open to the side", props.onOpenToSide, false, "⌘↵")}
+      {isNote && item("Open", props.onOpen, false, "↵")}
+      {isNote && item("Open to the side", props.onOpenToSide, false, "⌘↵")}
+      {!isNote && item("New note here", props.onNewNote)}
       <div className="my-1 h-px bg-border" />
+      {item("Set icon…", props.onSetIcon)}
       {item("Rename", props.onRename, false, "F2")}
-      {item("Delete", props.onDelete, true)}
+      {isNote && item("Delete", props.onDelete, true)}
     </div>
   );
 }

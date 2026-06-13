@@ -10,6 +10,14 @@ import {
   saveOverrides,
 } from "../components/shortcuts/keybindingPersistence";
 import {
+  loadStyles,
+  saveStyles,
+  remapStyles,
+  remapStylesByPrefix,
+  type TreeStyleMap,
+  type TreeItemStyle,
+} from "../components/tree/treeIcons";
+import {
   openOrPreview,
   pinTab as pinTabModel,
   closeTab as closeTabModel,
@@ -115,6 +123,7 @@ export interface CairnState {
   notice: string | null;
   settings: Settings;
   ui: UiState;
+  treeStyles: TreeStyleMap;
   errors: Toast[];
   // Per-area pending flags so consumers can show a spinner/skeleton distinct
   // from an empty result. Set around each async call; a superseded request never
@@ -165,6 +174,8 @@ export interface CairnState {
   rearmInterval(): void;
   setSettings(patch: Partial<Settings>): void;
   setUi(patch: Partial<UiState>): void;
+  setTreeStyle(path: string, style: TreeItemStyle): void;
+  remapFolderStyles(from: string, to: string): void;
   setKeybindingOverrides(overrides: Overrides): void;
   dismissError(id: number): void;
   refreshAll(): Promise<void>;
@@ -466,6 +477,7 @@ export function createCairnStore(
       notice: null,
       settings: DEFAULT_SETTINGS,
       ui: DEFAULT_UI,
+      treeStyles: loadStyles(),
       errors: [],
       loading: { search: false, graph: false, backlinks: false, note: false },
       liveUpdates: "ok",
@@ -624,6 +636,14 @@ export function createCairnStore(
               p.tabs.some((t) => t.path === path),
             );
           }
+          // Drop the deleted note's tree icon/style.
+          set((s) => {
+            if (!(path in s.treeStyles)) return {};
+            const next = { ...s.treeStyles };
+            delete next[path];
+            saveStyles(next);
+            return { treeStyles: next };
+          });
         } catch (err) {
           pushError("Delete note", err, { path });
         }
@@ -656,6 +676,11 @@ export function createCairnStore(
             };
           });
         }
+        set((s) => {
+          const treeStyles = remapStyles(ops, s.treeStyles);
+          saveStyles(treeStyles);
+          return { treeStyles };
+        });
         persist();
         if (get().activePath) void get().refreshBacklinks();
       },
@@ -971,6 +996,24 @@ export function createCairnStore(
 
       setUi(patch) {
         set((s) => ({ ui: { ...s.ui, ...patch } }));
+      },
+
+      setTreeStyle(path, style) {
+        set((s) => {
+          const next = { ...s.treeStyles };
+          if (!style.icon && !style.folderColor) delete next[path];
+          else next[path] = style;
+          saveStyles(next);
+          return { treeStyles: next };
+        });
+      },
+
+      remapFolderStyles(from, to) {
+        set((s) => {
+          const treeStyles = remapStylesByPrefix(from, to, s.treeStyles);
+          saveStyles(treeStyles);
+          return { treeStyles };
+        });
       },
 
       setKeybindingOverrides(overrides) {
