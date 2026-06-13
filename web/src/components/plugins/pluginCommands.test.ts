@@ -6,6 +6,7 @@ const demo = {
   name: "Demo plugin",
   version: "1.0.0",
   commands: [{ id: "stamp", title: "Insert stamp note" }],
+  contributions: [],
 };
 
 describe("toPaletteCommands", () => {

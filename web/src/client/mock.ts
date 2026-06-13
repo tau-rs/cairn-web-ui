@@ -81,6 +81,7 @@ export class MockClient implements CairnClient {
       name: "Demo plugin",
       version: "1.0.0",
       commands: [{ id: "stamp", title: "Insert stamp note" }],
+      contributions: [],
     },
   ];
 
