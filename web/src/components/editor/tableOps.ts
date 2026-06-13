@@ -54,8 +54,12 @@ export function applyTableOp(
   focus: { row: number; col: number },
 ): void {
   const md = view.state.sliceDoc(from, to);
+  // Compare against the prettified baseline (not the raw slice) so a structural
+  // no-op — e.g. a guard-hit delete or move-to-same-index — does not dispatch a
+  // reformat-only transaction. Relies on serializeTable being a stable fixed point.
+  const base = serializeTable(parseTable(md));
   const next = computeTableEdit(md, op);
-  if (next === md) return; // no-op (e.g. guard hit) — no transaction
+  if (next === base) return; // structural no-op → no transaction
   view.dispatch({
     changes: { from, to, insert: next },
     selection: { anchor: from },
