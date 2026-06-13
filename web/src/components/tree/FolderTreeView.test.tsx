@@ -14,6 +14,8 @@ function setup(over = {}) {
     onRequestNew: vi.fn(),
     onRequestNewInFolder: vi.fn(),
     onApplyRenames: vi.fn(),
+    styles: {},
+    onSetStyle: vi.fn(),
     ...over,
   };
   render(<FolderTree {...props} />);
@@ -90,5 +92,30 @@ describe("FolderTree", () => {
     expect(props.onApplyRenames).toHaveBeenCalledWith([
       { from: "index.md", to: "notes/index.md" },
     ]);
+  });
+
+  it("renders a default folder glyph and note glyph", () => {
+    setup();
+    expect(document.querySelector("svg.lucide-folder")).toBeTruthy();
+    expect(document.querySelector("svg.lucide-file-text")).toBeTruthy();
+  });
+
+  it("renders a custom emoji from styles", () => {
+    setup({ styles: { "index.md": { icon: { kind: "emoji", value: "📚" } } } });
+    expect(screen.getByText("📚")).toBeInTheDocument();
+  });
+
+  it("opens the icon picker when the icon trigger is clicked", async () => {
+    setup();
+    const trigger = screen.getByRole("button", {
+      name: "set icon for index.md",
+    });
+    await userEvent.click(trigger);
+    expect(screen.getByRole("tab", { name: "Emoji" })).toBeInTheDocument();
+  });
+
+  it("draws a folder color bar when folderColor is set", () => {
+    setup({ styles: { notes: { folderColor: "#46b3e6" } } });
+    expect(document.querySelector('[data-folder-bar="true"]')).toBeTruthy();
   });
 });

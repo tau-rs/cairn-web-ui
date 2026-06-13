@@ -13,6 +13,8 @@ function setup(over = {}) {
     onRequestNew: vi.fn(),
     onRequestNewInFolder: vi.fn(),
     onApplyRenames: vi.fn(),
+    styles: {},
+    onSetStyle: vi.fn(),
     ...over,
   };
   render(<FolderTree {...props} />);

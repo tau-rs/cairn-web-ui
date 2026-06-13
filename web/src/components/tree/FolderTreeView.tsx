@@ -12,6 +12,9 @@ import {
   canDrop,
   type Rename,
 } from "./treeMoves";
+import type { TreeStyleMap, TreeItemStyle } from "./treeIcons";
+import { TreeItemIcon } from "./TreeItemIcon";
+import { IconPicker } from "./IconPicker";
 
 /** Inline rename input: autofocuses, selects all, commits on Enter/blur, cancels on Esc. */
 function RenameInput(props: {
@@ -46,6 +49,8 @@ export function FolderTree(props: {
   onRequestNew: () => void;
   onRequestNewInFolder: (folderPath: string) => void;
   onApplyRenames: (ops: Rename[]) => void;
+  styles: TreeStyleMap;
+  onSetStyle: (path: string, style: TreeItemStyle) => void;
 }) {
   const tree = useMemo(() => buildTree(props.paths), [props.paths]);
   const [collapsed, setCollapsed] = useState<Set<string>>(() =>
@@ -120,6 +125,23 @@ export function FolderTree(props: {
     },
   });
 
+  const iconCell = (path: string, kind: "folder" | "note") => (
+    <IconPicker
+      targetKind={kind}
+      value={props.styles[path] ?? {}}
+      onChange={(style) => props.onSetStyle(path, style)}
+      trigger={
+        <button
+          aria-label={`set icon for ${path}`}
+          className="flex h-[18px] w-[18px] flex-none items-center justify-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <TreeItemIcon kind={kind} style={props.styles[path]} />
+        </button>
+      }
+    />
+  );
+
   const renderNodes = (nodes: TreeNode[], depth: number): ReactNode =>
     nodes.map((node) => {
       const pad = { paddingLeft: depth * 12 + 8 };
@@ -133,11 +155,20 @@ export function FolderTree(props: {
               draggable={!editing}
               onDragStart={(e) => startDrag(e, node.path, true)}
               {...dropProps(node.path)}
+              style={{ position: "relative" }}
               className={
                 "group flex items-center justify-between rounded pr-2 text-muted hover:bg-surface-2 hover:text-text " +
                 (isDrop ? "ring-1 ring-accent" : "")
               }
             >
+              {props.styles[node.path]?.folderColor && (
+                <span
+                  data-folder-bar="true"
+                  aria-hidden
+                  className="absolute bottom-1 left-0.5 top-1 w-[2.5px] rounded"
+                  style={{ background: props.styles[node.path]!.folderColor }}
+                />
+              )}
               {editing ? (
                 <span className="flex-1" style={pad}>
                   <RenameInput
@@ -147,24 +178,33 @@ export function FolderTree(props: {
                   />
                 </span>
               ) : (
-                <button
-                  className="flex min-w-0 flex-1 items-center gap-1 py-1 text-left"
+                <div
+                  className="flex min-w-0 flex-1 items-center gap-1"
                   style={pad}
-                  title={node.path}
-                  onClick={() => toggle(node.path)}
-                  onDoubleClick={() => setEditingPath(node.path)}
-                  onKeyDown={(e) => {
-                    if (e.key === "F2") {
-                      e.preventDefault();
-                      setEditingPath(node.path);
-                    }
-                  }}
                 >
-                  <span aria-hidden="true" className="text-faint">
-                    {isCollapsed ? "▸" : "▾"}
-                  </span>
-                  <span className="truncate">{node.name}</span>
-                </button>
+                  <button
+                    aria-label={`toggle ${node.path}`}
+                    className="flex flex-none items-center text-faint"
+                    onClick={() => toggle(node.path)}
+                  >
+                    <span aria-hidden>{isCollapsed ? "▸" : "▾"}</span>
+                  </button>
+                  {iconCell(node.path, "folder")}
+                  <button
+                    className="min-w-0 flex-1 truncate py-1 text-left"
+                    title={node.path}
+                    onClick={() => toggle(node.path)}
+                    onDoubleClick={() => setEditingPath(node.path)}
+                    onKeyDown={(e) => {
+                      if (e.key === "F2") {
+                        e.preventDefault();
+                        setEditingPath(node.path);
+                      }
+                    }}
+                  >
+                    <span className="truncate text-text">{node.name}</span>
+                  </button>
+                </div>
               )}
               <button
                 className="ml-1 hidden text-faint hover:text-text group-hover:block"
@@ -190,6 +230,12 @@ export function FolderTree(props: {
               : "text-muted hover:bg-surface-2 hover:text-text"
           }`}
         >
+          {!editing && (
+            <span className="flex flex-none items-center gap-1" style={pad}>
+              <span aria-hidden className="w-[11px]" /> {/* chevron spacer */}
+              {iconCell(node.path, "note")}
+            </span>
+          )}
           {editing ? (
             <span className="flex-1" style={pad}>
               <RenameInput
@@ -201,7 +247,6 @@ export function FolderTree(props: {
           ) : (
             <button
               className="min-w-0 flex-1 truncate py-1 text-left"
-              style={pad}
               title={node.path}
               onClick={() => props.onOpen(node.path)}
               onDoubleClick={() => setEditingPath(node.path)}
