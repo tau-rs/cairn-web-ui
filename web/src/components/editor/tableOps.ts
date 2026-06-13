@@ -1,3 +1,5 @@
+import { EditorView } from "@codemirror/view";
+import { setTableFocus } from "./tableFocus";
 import {
   parseTable,
   serializeTable,
@@ -39,4 +41,24 @@ export function computeTableEdit(md: string, op: TableOp): string {
     case "paste":
       return serializeTable(pasteBlock(m, op.atRow, op.atCol, op.block));
   }
+}
+
+/** Apply a structural op to the table block spanning [from, to] in the document.
+ *  Dispatches a single replace, parks the cursor at the block start (keeping the
+ *  table editable), and records which cell to refocus after the widget rebuilds. */
+export function applyTableOp(
+  view: EditorView,
+  from: number,
+  to: number,
+  op: TableOp,
+  focus: { row: number; col: number },
+): void {
+  const md = view.state.sliceDoc(from, to);
+  const next = computeTableEdit(md, op);
+  if (next === md) return; // no-op (e.g. guard hit) — no transaction
+  view.dispatch({
+    changes: { from, to, insert: next },
+    selection: { anchor: from },
+    effects: setTableFocus.of({ pos: from, row: focus.row, col: focus.col }),
+  });
 }
