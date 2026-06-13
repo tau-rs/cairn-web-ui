@@ -15,6 +15,7 @@ function setup(over = {}) {
     onApplyRenames: vi.fn(),
     styles: {},
     onSetStyle: vi.fn(),
+    onRemapFolderStyles: vi.fn(),
     ...over,
   };
   render(<FolderTree {...props} />);
@@ -42,6 +43,14 @@ describe("FolderTree rename/move", () => {
       { from: "notes/ideas.md", to: "work/ideas.md" },
       { from: "notes/todo.md", to: "work/todo.md" },
     ]);
+  });
+  it("renaming a folder remaps its styles by path (covers note-less folders)", () => {
+    const props = setup();
+    fireEvent.doubleClick(screen.getByRole("button", { name: "notes" }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "work" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(props.onRemapFolderStyles).toHaveBeenCalledWith("notes", "work");
   });
   it("Escape cancels an inline rename", () => {
     const props = setup();

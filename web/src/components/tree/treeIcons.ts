@@ -71,3 +71,24 @@ export function remapStyles(ops: Rename[], map: TreeStyleMap): TreeStyleMap {
   for (const [key, style] of Object.entries(map)) out[remapKey(key)] = style;
   return out;
 }
+
+/** Remap a folder's own style key plus every descendant key (notes & subfolders)
+ *  when the folder is renamed/moved. Driven by the explicit folder path change,
+ *  so it works even for folders with no descendant notes (which emit no rename
+ *  ops) — the gap `remapStyles` can't cover. Idempotent: a no-op when nothing
+ *  sits under `from`. */
+export function remapStylesByPrefix(
+  from: string,
+  to: string,
+  map: TreeStyleMap,
+): TreeStyleMap {
+  if (from === to) return map;
+  const out: TreeStyleMap = {};
+  for (const [key, style] of Object.entries(map)) {
+    if (key === from) out[to] = style;
+    else if (key.startsWith(from + "/"))
+      out[to + key.slice(from.length)] = style;
+    else out[key] = style;
+  }
+  return out;
+}

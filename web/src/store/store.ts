@@ -13,6 +13,7 @@ import {
   loadStyles,
   saveStyles,
   remapStyles,
+  remapStylesByPrefix,
   type TreeStyleMap,
   type TreeItemStyle,
 } from "../components/tree/treeIcons";
@@ -161,6 +162,7 @@ export interface CairnState {
   setSettings(patch: Partial<Settings>): void;
   setUi(patch: Partial<UiState>): void;
   setTreeStyle(path: string, style: TreeItemStyle): void;
+  remapFolderStyles(from: string, to: string): void;
   setKeybindingOverrides(overrides: Overrides): void;
   dismissError(id: number): void;
   refreshAll(): Promise<void>;
@@ -862,6 +864,14 @@ export function createCairnStore(
           else next[path] = style;
           saveStyles(next);
           return { treeStyles: next };
+        });
+      },
+
+      remapFolderStyles(from, to) {
+        set((s) => {
+          const treeStyles = remapStylesByPrefix(from, to, s.treeStyles);
+          saveStyles(treeStyles);
+          return { treeStyles };
         });
       },
 

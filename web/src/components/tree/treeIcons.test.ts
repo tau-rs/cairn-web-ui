@@ -3,6 +3,7 @@ import {
   loadStyles,
   saveStyles,
   remapStyles,
+  remapStylesByPrefix,
   type TreeStyleMap,
 } from "./treeIcons";
 
@@ -71,5 +72,42 @@ describe("remapStyles", () => {
     const map = { "a/b": { folderColor: "#30a46c" } };
     const out = remapStyles([{ from: "a/b/x.md", to: "c/b/x.md" }], map);
     expect(out).toEqual({ "c/b": { folderColor: "#30a46c" } });
+  });
+});
+
+describe("remapStylesByPrefix", () => {
+  it("remaps a note-less (empty) folder's own style key", () => {
+    // The bug case: a folder carrying a color but no descendant notes -> no ops.
+    const map = { "empty/folder": { folderColor: "#30a46c" } };
+    const out = remapStylesByPrefix("empty/folder", "moved/folder", map);
+    expect(out).toEqual({ "moved/folder": { folderColor: "#30a46c" } });
+  });
+
+  it("remaps the folder key and every descendant (notes + subfolders)", () => {
+    const map = {
+      notes: { folderColor: "#46b3e6" },
+      "notes/sub": { folderColor: "#e5484d" },
+      "notes/a.md": {
+        icon: { kind: "lucide" as const, name: "star", color: "#fff" },
+      },
+      "other.md": { icon: { kind: "emoji" as const, value: "📌" } },
+    };
+    const out = remapStylesByPrefix("notes", "docs", map);
+    expect(out).toEqual({
+      docs: { folderColor: "#46b3e6" },
+      "docs/sub": { folderColor: "#e5484d" },
+      "docs/a.md": { icon: { kind: "lucide", name: "star", color: "#fff" } },
+      "other.md": { icon: { kind: "emoji", value: "📌" } },
+    });
+  });
+
+  it("does not remap a sibling whose name is a prefix substring", () => {
+    const map = { notesX: { folderColor: "#fff" } };
+    expect(remapStylesByPrefix("notes", "docs", map)).toEqual(map);
+  });
+
+  it("is a no-op when from === to", () => {
+    const map = { notes: { folderColor: "#fff" } };
+    expect(remapStylesByPrefix("notes", "notes", map)).toBe(map);
   });
 });

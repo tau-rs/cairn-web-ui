@@ -16,6 +16,7 @@ function setup(over = {}) {
     onApplyRenames: vi.fn(),
     styles: {},
     onSetStyle: vi.fn(),
+    onRemapFolderStyles: vi.fn(),
     ...over,
   };
   render(<FolderTree {...props} />);

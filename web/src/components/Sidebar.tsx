@@ -29,6 +29,7 @@ export function Sidebar() {
         onApplyRenames={actions.applyRenames}
         styles={treeStyles}
         onSetStyle={actions.setTreeStyle}
+        onRemapFolderStyles={actions.remapFolderStyles}
       />
       <TagsPanel
         tags={tags}

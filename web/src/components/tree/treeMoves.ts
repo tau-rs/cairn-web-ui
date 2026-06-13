@@ -54,6 +54,29 @@ export function planRenameFolder(
     .map((p) => ({ from: p, to: newFolder + p.slice(folderPath.length) }));
 }
 
+/** The folder's new path after a rename (same guards as `planRenameFolder`),
+ *  or null when invalid/unchanged. Used to remap folder styles, which must
+ *  follow the folder even when it has no descendant notes to generate ops. */
+export function renamedFolderPath(
+  folderPath: string,
+  newName: string,
+): string | null {
+  const name = newName.trim();
+  if (!name || name.includes("/")) return null;
+  const newFolder = join(dirOf(folderPath), name);
+  return newFolder === folderPath ? null : newFolder;
+}
+
+/** The folder's new path after a move into `destFolder`, or null when the drop
+ *  isn't allowed. Counterpart to `renamedFolderPath` for drag-to-move. */
+export function movedFolderPath(
+  folderPath: string,
+  destFolder: string,
+): string | null {
+  if (!canDrop(folderPath, true, destFolder)) return null;
+  return join(destFolder, baseName(folderPath));
+}
+
 /** Move a note into `destFolder` ("" = root). [] if already there. */
 export function planMoveNote(notePath: string, destFolder: string): Rename[] {
   if (dirOf(notePath) === destFolder) return [];

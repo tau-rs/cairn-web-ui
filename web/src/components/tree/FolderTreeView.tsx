@@ -9,6 +9,8 @@ import {
   planRenameFolder,
   planMoveNote,
   planMoveFolder,
+  renamedFolderPath,
+  movedFolderPath,
   canDrop,
   type Rename,
 } from "./treeMoves";
@@ -51,6 +53,7 @@ export function FolderTree(props: {
   onApplyRenames: (ops: Rename[]) => void;
   styles: TreeStyleMap;
   onSetStyle: (path: string, style: TreeItemStyle) => void;
+  onRemapFolderStyles: (from: string, to: string) => void;
 }) {
   const tree = useMemo(() => buildTree(props.paths), [props.paths]);
   const [collapsed, setCollapsed] = useState<Set<string>>(() =>
@@ -86,6 +89,12 @@ export function FolderTree(props: {
 
   const commitRename = (node: TreeNode, newName: string) => {
     setEditingPath(null);
+    if (node.kind === "folder") {
+      // Remap folder styles by the explicit path change — covers note-less
+      // folders, which produce no rename ops.
+      const newPath = renamedFolderPath(node.path, newName);
+      if (newPath) props.onRemapFolderStyles(node.path, newPath);
+    }
     const ops =
       node.kind === "folder"
         ? planRenameFolder(node.path, newName, props.paths)
@@ -98,6 +107,10 @@ export function FolderTree(props: {
     dragged.current = null;
     setDropTarget(null);
     if (!d) return;
+    if (d.isFolder) {
+      const newPath = movedFolderPath(d.path, destFolder);
+      if (newPath) props.onRemapFolderStyles(d.path, newPath);
+    }
     const ops = d.isFolder
       ? planMoveFolder(d.path, destFolder, props.paths)
       : planMoveNote(d.path, destFolder);
