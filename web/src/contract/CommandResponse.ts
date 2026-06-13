@@ -4,19 +4,12 @@ import type { JsonValue } from "./serde_json/JsonValue";
 /**
  * Result of a successful command.
  */
-export type CommandResponse =
-  | { type: "done" }
-  | {
-      type: "committed";
-      /**
-       * Short commit id.
-       */
-      commit: string;
-    }
-  | {
-      type: "plugin_result";
-      /**
-       * The command's JSON output.
-       */
-      result: JsonValue;
-    };
+export type CommandResponse = { "type": "done" } | { "type": "committed", 
+/**
+ * Short commit id.
+ */
+commit: string, } | { "type": "plugin_result", 
+/**
+ * The command's JSON output.
+ */
+result: JsonValue, };

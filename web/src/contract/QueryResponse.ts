@@ -2,63 +2,47 @@
 import type { GraphEdge } from "./GraphEdge";
 import type { NoteSummary } from "./NoteSummary";
 import type { PluginSummary } from "./PluginSummary";
+import type { Revision } from "./Revision";
 import type { SearchResult } from "./SearchResult";
 import type { TagCount } from "./TagCount";
 
 /**
  * Result of a successful query.
  */
-export type QueryResponse =
-  | {
-      type: "note";
-      /**
-       * Full markdown contents.
-       */
-      contents: string;
-    }
-  | {
-      type: "paths";
-      /**
-       * Relative note paths.
-       */
-      paths: Array<string>;
-    }
-  | {
-      type: "search_results";
-      /**
-       * Best match first.
-       */
-      results: Array<SearchResult>;
-    }
-  | {
-      type: "notes";
-      /**
-       * One per note.
-       */
-      notes: Array<NoteSummary>;
-    }
-  | {
-      type: "graph";
-      /**
-       * All note paths.
-       */
-      nodes: Array<string>;
-      /**
-       * Directed link edges.
-       */
-      edges: Array<GraphEdge>;
-    }
-  | {
-      type: "tags";
-      /**
-       * One per distinct tag, sorted by tag.
-       */
-      tags: Array<TagCount>;
-    }
-  | {
-      type: "plugins";
-      /**
-       * One per loaded plugin.
-       */
-      plugins: Array<PluginSummary>;
-    };
+export type QueryResponse = { "type": "note", 
+/**
+ * Full markdown contents.
+ */
+contents: string, } | { "type": "paths", 
+/**
+ * Relative note paths.
+ */
+paths: Array<string>, } | { "type": "search_results", 
+/**
+ * Best match first.
+ */
+results: Array<SearchResult>, } | { "type": "notes", 
+/**
+ * One per note.
+ */
+notes: Array<NoteSummary>, } | { "type": "graph", 
+/**
+ * All note paths.
+ */
+nodes: Array<string>, 
+/**
+ * Directed link edges.
+ */
+edges: Array<GraphEdge>, } | { "type": "tags", 
+/**
+ * One per distinct tag, sorted by tag.
+ */
+tags: Array<TagCount>, } | { "type": "plugins", 
+/**
+ * One per loaded plugin.
+ */
+plugins: Array<PluginSummary>, } | { "type": "history", 
+/**
+ * One per commit, newest first.
+ */
+revisions: Array<Revision>, };

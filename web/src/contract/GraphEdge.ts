@@ -3,13 +3,12 @@
 /**
  * A directed link edge between two notes, by path.
  */
-export type GraphEdge = {
-  /**
-   * Source note path.
-   */
-  from: string;
-  /**
-   * Target note path.
-   */
-  to: string;
-};
+export type GraphEdge = { 
+/**
+ * Source note path.
+ */
+from: string, 
+/**
+ * Target note path.
+ */
+to: string, };
