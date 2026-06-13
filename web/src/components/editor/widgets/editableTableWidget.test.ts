@@ -92,6 +92,29 @@ describe("EditableTableWidget structure controls", () => {
   });
 });
 
+describe("EditableTableWidget grip drag", () => {
+  it("dragging a row grip reorders the rows", () => {
+    const { dom, view } = mount("| A |\n| - |\n| 1 |\n| 2 |");
+    const grip = dom.querySelector<HTMLElement>(".cm-lp-row-grip")!; // row 0 ("1")
+    grip.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
+    grip.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, clientY: 9999 }));
+    grip.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientY: 9999 }));
+    // row "1" should have moved after row "2"
+    const body = view.state.doc.toString().split("\n").slice(2);
+    expect(body).toEqual(["| 2   |", "| 1   |"]);
+    view.destroy();
+  });
+
+  it("a bare click (no drag) still opens the menu", () => {
+    const { dom, view } = mount("| A |\n| - |\n| 1 |\n| 2 |");
+    dom
+      .querySelector<HTMLElement>(".cm-lp-row-grip")!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector("[role=menuitem]")).not.toBeNull();
+    view.destroy();
+  });
+});
+
 describe("EditableTableWidget commit safety during structural ops", () => {
   it("captures uncommitted cell text into the op and suppresses the stale commit", () => {
     const onCommit = vi.fn();

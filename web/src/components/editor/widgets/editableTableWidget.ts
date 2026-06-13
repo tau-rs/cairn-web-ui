@@ -3,6 +3,7 @@ import { parseTable, serializeTable, type TableModel } from "../tableParse";
 import { applyTableOp, type TableOp } from "../tableOps";
 import { readTableFocus } from "../tableFocus";
 import { openTableMenu, type MenuAction } from "./tableMenu";
+import { dropIndex } from "./dragIndex";
 
 export class EditableTableWidget extends WidgetType {
   constructor(
@@ -122,8 +123,24 @@ export class EditableTableWidget extends WidgetType {
       this.cellKeys(table, th);
       hr.appendChild(th);
       wrap.appendChild(
-        this.grip("cm-lp-col-grip", () =>
-          this.columnActions(view, table, model, ci),
+        this.grip(
+          "cm-lp-col-grip",
+          "col",
+          ci,
+          () => this.columnActions(view, table, model, ci),
+          (to) =>
+            this.op(
+              view,
+              table,
+              model,
+              () => ({ kind: "moveColumn", from: ci, to }),
+              { row: -1, col: to },
+            ),
+          () =>
+            [...table.querySelectorAll("thead th")].map((el) => {
+              const r = el.getBoundingClientRect();
+              return r.left + r.width / 2;
+            }),
         ),
       );
     });
@@ -139,8 +156,24 @@ export class EditableTableWidget extends WidgetType {
         this.cellKeys(table, td);
       });
       wrap.appendChild(
-        this.grip("cm-lp-row-grip", () =>
-          this.rowActions(view, table, model, ri),
+        this.grip(
+          "cm-lp-row-grip",
+          "row",
+          ri,
+          () => this.rowActions(view, table, model, ri),
+          (to) =>
+            this.op(
+              view,
+              table,
+              model,
+              () => ({ kind: "moveRow", from: ri, to }),
+              { row: to, col: 0 },
+            ),
+          () =>
+            [...table.querySelectorAll("tbody tr")].map((el) => {
+              const r = el.getBoundingClientRect();
+              return r.top + r.height / 2;
+            }),
         ),
       );
     });
@@ -214,16 +247,51 @@ export class EditableTableWidget extends WidgetType {
     (target ?? table.querySelector<HTMLElement>("th, td"))?.focus();
   }
 
-  /** A grip button: click opens the action menu. (Drag-reorder added in Task 11.) */
-  private grip(cls: string, actions: () => MenuAction[]): HTMLElement {
+  /** A grip button. Click opens the action menu; dragging reorders its row/column.
+   *  The `moved` guard suppresses the click that fires after a drag. */
+  private grip(
+    cls: string,
+    axis: "row" | "col",
+    index: number,
+    actions: () => MenuAction[],
+    onMove: (to: number) => void,
+    centers: () => number[],
+  ): HTMLElement {
     const g = document.createElement("button");
     g.type = "button";
     g.className = cls;
     g.contentEditable = "false";
     g.setAttribute("aria-haspopup", "menu");
-    g.textContent = "⠿"; // ⠿ braille dots = grip handle
+    g.textContent = "⠿"; // braille dots = grip handle
+    let down = false;
+    let moved = false;
     g.addEventListener("mousedown", (e) => e.preventDefault()); // keep caret
-    g.addEventListener("click", () => openTableMenu(g, actions()));
+    g.addEventListener("pointerdown", (e) => {
+      down = true;
+      moved = false;
+      g.setPointerCapture?.(e.pointerId);
+    });
+    g.addEventListener("pointermove", () => {
+      if (down) moved = true;
+    });
+    g.addEventListener("pointerup", (e) => {
+      if (down && moved) {
+        const list = centers();
+        const p = axis === "row" ? e.clientY : e.clientX;
+        const to = Math.min(list.length - 1, dropIndex(p, list));
+        if (to !== index) onMove(to);
+      }
+      down = false;
+    });
+    g.addEventListener("click", (e) => {
+      if (moved) {
+        moved = false;
+        e.preventDefault();
+        e.stopPropagation();
+        return; // this click is the tail of a drag — ignore
+      }
+      openTableMenu(g, actions());
+    });
     return g;
   }
 
