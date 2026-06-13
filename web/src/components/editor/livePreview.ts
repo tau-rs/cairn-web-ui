@@ -14,6 +14,7 @@ import { ImageWidget } from "./widgets/imageWidget";
 import type { ResolvedImage } from "./imageResolver";
 import { TableWidget } from "./widgets/tableWidget";
 import { EditableTableWidget } from "./widgets/editableTableWidget";
+import { tableFocus } from "./tableFocus";
 
 export interface LivePreviewOptions {
   resolve: (target: string) => string | null;
@@ -416,5 +417,5 @@ export function livePreview(opts: LivePreviewOptions): Extension {
       ),
     ],
   });
-  return field;
+  return [field, tableFocus];
 }
