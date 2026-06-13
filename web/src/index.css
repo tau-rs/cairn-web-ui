@@ -14,3 +14,12 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* Stop iOS Safari from auto-zooming when focusing an input on small screens. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
