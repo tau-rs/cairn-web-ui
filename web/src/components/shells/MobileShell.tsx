@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { Link2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCairn, useActions, cairnStore } from "../../app/cairnStore";
-import { isGraph, noteUrl } from "../../app/routes";
+import { isGraph, notePathFromLocation, noteUrl } from "../../app/routes";
 import { IconButton } from "../ui/IconButton";
 import { Drawer } from "../ui/Drawer";
 import { BottomNav } from "./BottomNav";
@@ -17,6 +18,16 @@ export function MobileShell({ topBar, list, editor, backlinks }: ShellRegions) {
   const mobileTab = useCairn((s) => s.ui.mobileTab);
   const backlinksOpen = useCairn((s) => s.ui.backlinksOpen);
   const searchActive = useCairn((s) => s.searchResults !== null);
+
+  // Opening a note/graph (e.g. tapping a file in the Files tab) or running a
+  // search should leave the Files/More overlay and reveal that content.
+  const pathname = location.pathname;
+  useEffect(() => {
+    const loc = { pathname };
+    if (notePathFromLocation(loc) !== null || isGraph(loc) || searchActive) {
+      actions.setUi({ mobileTab: "editor" });
+    }
+  }, [pathname, searchActive, actions]);
 
   // Active highlight is derived: Files/More are authoritative; the content tabs
   // (editor/search/graph) are read back from the route + search state.

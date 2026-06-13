@@ -51,4 +51,15 @@ describe("MobileShell", () => {
     await userEvent.click(screen.getByRole("button", { name: /backlinks/i }));
     expect(screen.getByText("BACKLINKS")).toBeInTheDocument();
   });
+
+  it("leaves the Files tab and shows the editor when a note route is active", () => {
+    cairnStore.getState().setUi({ mobileTab: "files" });
+    render(
+      <MemoryRouter initialEntries={["/note/a.md"]}>
+        <MobileShell {...regions} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("EDITOR")).toBeInTheDocument();
+    expect(screen.queryByText("LIST")).not.toBeInTheDocument();
+  });
 });
