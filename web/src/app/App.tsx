@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Shell } from "../components/Shell";
+import { AppShell } from "../components/shells/AppShell";
 import { OpenCairn } from "../components/OpenCairn";
 import { RouteSync } from "./RouteSync";
 import { cairnStore, useCairn } from "./cairnStore";
@@ -30,7 +30,7 @@ export default function App() {
   return (
     <>
       <RouteSync />
-      <Shell
+      <AppShell
         topBar={<TopBar />}
         list={<Sidebar />}
         editor={<EditorPane />}
