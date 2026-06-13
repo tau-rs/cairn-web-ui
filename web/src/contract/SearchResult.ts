@@ -3,21 +3,20 @@
 /**
  * One ranked search result.
  */
-export type SearchResult = {
-  /**
-   * Relative note path.
-   */
-  path: string;
-  /**
-   * Relevance score (relative ordering only).
-   */
-  score: number;
-  /**
-   * Plain-text excerpt around the match.
-   */
-  snippet: string;
-  /**
-   * `(start, end)` byte ranges within `snippet` that matched.
-   */
-  highlights: Array<[number, number]>;
-};
+export type SearchResult = { 
+/**
+ * Relative note path.
+ */
+path: string, 
+/**
+ * Relevance score (relative ordering only).
+ */
+score: number, 
+/**
+ * Plain-text excerpt around the match.
+ */
+snippet: string, 
+/**
+ * `(start, end)` byte ranges within `snippet` that matched.
+ */
+highlights: Array<[number, number]>, };

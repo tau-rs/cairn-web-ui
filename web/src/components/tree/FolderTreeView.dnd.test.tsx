@@ -9,6 +9,7 @@ function setup(over = {}) {
     paths: ["archive/keep.md", "notes/ideas.md", "notes/todo.md"],
     activePath: null as string | null,
     onOpen: vi.fn(),
+    onOpenToSide: vi.fn(),
     onDelete: vi.fn(),
     onRequestNew: vi.fn(),
     onRequestNewInFolder: vi.fn(),

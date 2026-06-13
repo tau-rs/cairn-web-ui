@@ -3,13 +3,12 @@
 /**
  * A tag and how many notes carry it.
  */
-export type TagCount = {
-  /**
-   * The tag.
-   */
-  tag: string;
-  /**
-   * Number of notes carrying it.
-   */
-  count: number;
-};
+export type TagCount = { 
+/**
+ * The tag.
+ */
+tag: string, 
+/**
+ * Number of notes carrying it.
+ */
+count: number, };

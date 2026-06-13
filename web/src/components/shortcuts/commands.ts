@@ -22,6 +22,8 @@ export const COMMAND_DEFS: CommandDef[] = [
   },
   { id: "open-settings", label: "Open Settings", defaultBinding: "Mod+," },
   { id: "close-tab", label: "Close tab", defaultBinding: "Mod+W" },
+  { id: "split-right", label: "Split editor right", defaultBinding: "Mod+\\" },
+  { id: "close-pane", label: "Close pane", defaultBinding: "Mod+Shift+W" },
   { id: "nav-back", label: "Back", defaultBinding: "Mod+[" },
   { id: "nav-forward", label: "Forward", defaultBinding: "Mod+]" },
 ];

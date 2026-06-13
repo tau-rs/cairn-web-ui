@@ -3,17 +3,16 @@
 /**
  * A note's path and display title, for list views.
  */
-export type NoteSummary = {
-  /**
-   * Relative note path.
-   */
-  path: string;
-  /**
-   * Display title (frontmatter title, first heading, or filename).
-   */
-  title: string;
-  /**
-   * Frontmatter tags of the note.
-   */
-  tags: Array<string>;
-};
+export type NoteSummary = { 
+/**
+ * Relative note path.
+ */
+path: string, 
+/**
+ * Display title (frontmatter title, first heading, or filename).
+ */
+title: string, 
+/**
+ * Frontmatter tags of the note.
+ */
+tags: Array<string>, };

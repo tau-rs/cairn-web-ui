@@ -26,7 +26,13 @@ import {
   type Tab,
   type TabsState,
 } from "../components/tabs/tabsModel";
-import { loadTabs, saveTabs } from "../components/tabs/tabsPersistence";
+import {
+  splitPane as splitPaneModel,
+  closePane as closePaneModel,
+  type PaneState,
+  type PanesState,
+} from "../components/tabs/paneModel";
+import { loadPanes, savePanes } from "../components/tabs/tabsPersistence";
 import type { SearchSnippet } from "../components/searchHighlight";
 import type { Rename } from "../components/tree/treeMoves";
 import { type RefreshTrace, refreshTrace } from "./trace";
@@ -95,7 +101,9 @@ export interface CairnState {
   ready: boolean;
   notePaths: string[];
   openNotes: Record<string, NoteBuffer>;
-  tabs: Tab[];
+  panes: PaneState[];
+  activePane: number;
+  splitRatio: number;
   activePath: string | null;
   activeContents: string;
   dirty: boolean;
@@ -133,19 +141,24 @@ export interface CairnState {
   init(): Promise<void>;
   openCairn(): Promise<void>;
   refreshNotePaths(): Promise<void>;
-  openNote(path: string): Promise<void>;
+  openNote(path: string, opts?: { pane?: number }): Promise<void>;
   editBuffer(contents: string): void;
   saveActive(): Promise<void>;
   saveNote(path: string): Promise<void>;
   createNote(path: string): Promise<void>;
   deleteNote(path: string): Promise<void>;
   applyRenames(ops: Rename[]): Promise<void>;
-  selectTab(path: string): void;
-  closeTab(path: string): void;
+  selectTab(path: string, paneIndex?: number): void;
+  closeTab(path: string, paneIndex?: number): void;
   closeActiveTab(): void;
   cycleTab(delta: 1 | -1): void;
   jumpToTab(n: number): void;
-  pinTab(path: string): void;
+  pinTab(path: string, paneIndex?: number): void;
+  splitPane(): void;
+  openToSide(path: string): Promise<void>;
+  closePane(index?: number): void;
+  focusPane(index: number): void;
+  setSplitRatio(ratio: number): void;
   runSearch(query: string): Promise<void>;
   loadTags(): Promise<void>;
   filterByTag(tag: string): Promise<void>;
@@ -194,47 +207,43 @@ export function createCairnStore(
   const pendingSelfWrites = new Map<string, number>();
 
   const store = createStore<CairnState>()((set, get) => {
-    const tabsState = (): TabsState => ({
-      tabs: get().tabs,
-      activePath: get().activePath,
+    const tabsState = (paneIndex = get().activePane): TabsState =>
+      get().panes[paneIndex];
+
+    const panesState = (): PanesState => ({
+      panes: get().panes,
+      activePane: get().activePane,
     });
 
-    const persist = () => saveTabs(tabsState());
+    const persist = () =>
+      savePanes({ ...panesState(), ratio: get().splitRatio });
 
-    // Write a note's buffer; if it's the active note, keep the top-level mirror
-    // (activeContents/dirty/saving) in sync so existing consumers are unchanged.
-    const setBuffer = (path: string, patch: Partial<NoteBuffer>) => {
-      set((s) => {
-        const cur = s.openNotes[path] ?? {
-          contents: "",
-          dirty: false,
-          saving: false,
-        };
-        const buf = { ...cur, ...patch };
-        const mirror =
-          s.activePath === path
-            ? {
-                activeContents: buf.contents,
-                dirty: buf.dirty,
-                saving: buf.saving,
-              }
-            : {};
-        return { openNotes: { ...s.openNotes, [path]: buf }, ...mirror };
-      });
-    };
-
-    // Apply a new tabs/active selection and swap the active-note mirror.
-    const applyTabs = (next: TabsState) => {
-      const buf = next.activePath
-        ? get().openNotes[next.activePath]
-        : undefined;
-      set({
-        tabs: next.tabs,
-        activePath: next.activePath,
+    // The focused-pane mirror fields, derived from a pane + the buffer pool.
+    // Shared by syncMirror and any atomic set() that must recompute the mirror
+    // alongside other changes (e.g. applyRenames).
+    const mirrorOf = (pane: PaneState, openNotes: CairnState["openNotes"]) => {
+      const buf = pane.activePath ? openNotes[pane.activePath] : undefined;
+      return {
+        activePath: pane.activePath,
         activeContents: buf?.contents ?? "",
         dirty: buf?.dirty ?? false,
         saving: buf?.saving ?? false,
+      };
+    };
+
+    // Recompute the focused-pane mirror so existing consumers of the top-level
+    // activePath/activeContents/dirty/saving stay unchanged.
+    const syncMirror = () =>
+      set((s) => mirrorOf(s.panes[s.activePane], s.openNotes));
+
+    // Write a TabsState into one pane, then refresh the mirror from the focused pane.
+    const applyTabs = (next: TabsState, paneIndex = get().activePane) => {
+      set((s) => {
+        const panes = s.panes.slice();
+        panes[paneIndex] = next;
+        return { panes };
       });
+      syncMirror();
     };
 
     const setLoading = (key: keyof CairnState["loading"], value: boolean) =>
@@ -278,6 +287,50 @@ export function createCairnStore(
         ...context,
         response: res.type,
       });
+
+    // Load a note's buffer if not already open. Returns false on failure.
+    const ensureNote = async (path: string): Promise<boolean> => {
+      if (get().openNotes[path]) return true;
+      setLoading("note", true);
+      try {
+        const res = await client.runQuery({ type: "get_note", path });
+        if (res.type !== "note") {
+          unexpected("Open note", res, { path });
+          return false;
+        }
+        set((s) => ({
+          openNotes: {
+            ...s.openNotes,
+            [path]: { contents: res.contents, dirty: false, saving: false },
+          },
+        }));
+        return true;
+      } finally {
+        setLoading("note", false);
+      }
+    };
+
+    // Write a note's buffer; if it's the active note, keep the top-level mirror
+    // (activeContents/dirty/saving) in sync so existing consumers are unchanged.
+    const setBuffer = (path: string, patch: Partial<NoteBuffer>) => {
+      set((s) => {
+        const cur = s.openNotes[path] ?? {
+          contents: "",
+          dirty: false,
+          saving: false,
+        };
+        const buf = { ...cur, ...patch };
+        const mirror =
+          s.activePath === path
+            ? {
+                activeContents: buf.contents,
+                dirty: buf.dirty,
+                saving: buf.saving,
+              }
+            : {};
+        return { openNotes: { ...s.openNotes, [path]: buf }, ...mirror };
+      });
+    };
 
     const dropNote = (path: string) => {
       autosaves.get(path)?.cancel();
@@ -349,7 +402,9 @@ export function createCairnStore(
     const loadCairn = async () => {
       set({
         openNotes: {},
-        tabs: [],
+        panes: [{ tabs: [], activePath: null }],
+        activePane: 0,
+        splitRatio: 0.5,
         activePath: null,
         activeContents: "",
         dirty: false,
@@ -368,19 +423,30 @@ export function createCairnStore(
       await get().refreshNotePaths();
       await get().loadTags();
       await get().loadPlugins();
-      // Restore persisted pinned tabs; skip any that no longer load.
-      const persisted = loadTabs(get().notePaths);
-      for (const p of persisted.pinned) {
-        try {
-          await get().openNote(p);
-          get().pinTab(p);
-        } catch {
-          /* skip a tab that won't load */
+      // Restore persisted panes; skip any pinned note that no longer loads, and
+      // collapse a pane that restores empty.
+      const persisted = loadPanes(get().notePaths);
+      const restored: PaneState[] = [];
+      for (const pp of persisted.panes) {
+        const tabs: Tab[] = [];
+        for (const p of pp.pinned) {
+          if (await ensureNote(p)) tabs.push({ path: p, preview: false });
         }
+        const activePath =
+          pp.activePath && tabs.some((t) => t.path === pp.activePath)
+            ? pp.activePath
+            : tabs.length > 0
+              ? tabs[tabs.length - 1].path
+              : null;
+        restored.push({ tabs, activePath });
       }
-      if (persisted.activePath && get().openNotes[persisted.activePath]) {
-        get().selectTab(persisted.activePath);
-      }
+      const nonEmpty = restored.filter((p) => p.tabs.length > 0);
+      const panes =
+        nonEmpty.length > 0 ? nonEmpty : [{ tabs: [], activePath: null }];
+      const activePane = Math.min(persisted.activePane, panes.length - 1);
+      set({ panes, activePane, splitRatio: persisted.ratio });
+      syncMirror();
+      if (get().activePath) await get().refreshBacklinks();
       get().rearmInterval();
     };
 
@@ -389,7 +455,9 @@ export function createCairnStore(
       ready: false,
       notePaths: [],
       openNotes: {},
-      tabs: [],
+      panes: [{ tabs: [], activePath: null }],
+      activePane: 0,
+      splitRatio: 0.5,
       activePath: null,
       activeContents: "",
       dirty: false,
@@ -460,31 +528,11 @@ export function createCairnStore(
         }
       },
 
-      async openNote(path) {
+      async openNote(path, opts) {
+        const pane = opts?.pane ?? get().activePane;
         try {
-          if (!get().openNotes[path]) {
-            setLoading("note", true);
-            try {
-              const res = await client.runQuery({ type: "get_note", path });
-              if (res.type !== "note") {
-                unexpected("Open note", res, { path });
-                return;
-              }
-              set((s) => ({
-                openNotes: {
-                  ...s.openNotes,
-                  [path]: {
-                    contents: res.contents,
-                    dirty: false,
-                    saving: false,
-                  },
-                },
-              }));
-            } finally {
-              setLoading("note", false);
-            }
-          }
-          applyTabs(openOrPreview(tabsState(), path));
+          if (!(await ensureNote(path))) return;
+          applyTabs(openOrPreview(tabsState(pane), path), pane);
           persist();
           await get().refreshBacklinks();
         } catch (err) {
@@ -577,7 +625,18 @@ export function createCairnStore(
       async deleteNote(path) {
         try {
           await client.sendCommand({ type: "delete_note", path });
-          get().closeTab(path);
+          // Close the tab in every pane that holds it. Re-find after each close
+          // because closeTab can collapse a pane and shift indices.
+          let i = get().panes.findIndex((p) =>
+            p.tabs.some((t) => t.path === path),
+          );
+          while (i !== -1) {
+            get().closeTab(path, i);
+            i = get().panes.findIndex((p) =>
+              p.tabs.some((t) => t.path === path),
+            );
+          }
+          // Drop the deleted note's tree icon/style.
           set((s) => {
             if (!(path in s.treeStyles)) return {};
             const next = { ...s.treeStyles };
@@ -604,12 +663,16 @@ export function createCairnStore(
               openNotes[to] = openNotes[from];
               delete openNotes[from];
             }
-            return {
-              openNotes,
-              tabs: s.tabs.map((t) =>
+            const panes = s.panes.map((p) => ({
+              tabs: p.tabs.map((t) =>
                 t.path === from ? { ...t, path: to } : t,
               ),
-              activePath: s.activePath === from ? to : s.activePath,
+              activePath: p.activePath === from ? to : p.activePath,
+            }));
+            return {
+              openNotes,
+              panes,
+              ...mirrorOf(panes[s.activePane], openNotes),
             };
           });
         }
@@ -622,19 +685,29 @@ export function createCairnStore(
         if (get().activePath) void get().refreshBacklinks();
       },
 
-      selectTab(path) {
+      selectTab(path, paneIndex = get().activePane) {
         if (!get().openNotes[path]) return;
-        applyTabs({ tabs: get().tabs, activePath: path });
+        set({ activePane: paneIndex });
+        applyTabs({ ...tabsState(paneIndex), activePath: path }, paneIndex);
         persist();
         void get().refreshBacklinks();
       },
 
-      closeTab(path) {
-        // Flush any pending edit before the buffer is dropped (saveNote snapshots
-        // contents synchronously and is a no-op when not dirty).
+      closeTab(path, paneIndex = get().activePane) {
         void get().saveNote(path);
-        dropNote(path);
-        applyTabs(closeTabModel(tabsState(), path));
+        applyTabs(closeTabModel(tabsState(paneIndex), path), paneIndex);
+        const stillOpen = get().panes.some((p) =>
+          p.tabs.some((t) => t.path === path),
+        );
+        if (!stillOpen) dropNote(path);
+        if (
+          get().panes.length > 1 &&
+          get().panes[paneIndex].tabs.length === 0
+        ) {
+          const r = closePaneModel(panesState(), paneIndex);
+          set({ panes: r.panes, activePane: r.activePane });
+          syncMirror();
+        }
         persist();
         void get().refreshBacklinks();
       },
@@ -656,12 +729,80 @@ export function createCairnStore(
         void get().refreshBacklinks();
       },
 
-      pinTab(path) {
-        if (!get().openNotes[path]) return; // only pin an actually-open note
-        // Pinning focuses the tab too (used by double-click and createNote).
-        applyTabs(pinTabModel({ tabs: get().tabs, activePath: path }, path));
+      pinTab(path, paneIndex = get().activePane) {
+        if (!get().openNotes[path]) return;
+        set({ activePane: paneIndex });
+        applyTabs(
+          pinTabModel({ ...tabsState(paneIndex), activePath: path }, path),
+          paneIndex,
+        );
         persist();
         void get().refreshBacklinks();
+      },
+
+      splitPane() {
+        const seed = get().activePath; // duplicate the focused note
+        if (seed === null || get().panes.length >= 2) return;
+        const r = splitPaneModel(panesState(), seed);
+        set({ panes: r.panes, activePane: r.activePane });
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      async openToSide(path) {
+        if (!(await ensureNote(path))) return;
+        if (get().panes.length < 2) {
+          // Create the second pane seeded directly with `path` and focus it.
+          const r = splitPaneModel(panesState(), path);
+          set({ panes: r.panes, activePane: r.activePane });
+        } else {
+          const target = get().activePane === 0 ? 1 : 0;
+          set({ activePane: target });
+          applyTabs(openOrPreview(tabsState(target), path), target);
+        }
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      closePane(index = get().activePane) {
+        if (get().panes.length < 2) return;
+        const closing = get().panes[index];
+        const survivorPaths = new Set(
+          get()
+            .panes.filter((_, i) => i !== index)
+            .flatMap((p) => p.tabs.map((t) => t.path)),
+        );
+        for (const t of closing.tabs) {
+          if (!survivorPaths.has(t.path)) {
+            void get().saveNote(t.path);
+            dropNote(t.path);
+          }
+        }
+        const r = closePaneModel(panesState(), index);
+        set({ panes: r.panes, activePane: r.activePane });
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      focusPane(index) {
+        if (
+          index < 0 ||
+          index >= get().panes.length ||
+          index === get().activePane
+        )
+          return;
+        set({ activePane: index });
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      setSplitRatio(ratio) {
+        set({ splitRatio: Math.min(0.8, Math.max(0.2, ratio)) });
+        persist();
       },
 
       async runSearch(query) {

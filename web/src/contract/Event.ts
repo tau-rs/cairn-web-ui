@@ -3,32 +3,20 @@
 /**
  * A push event emitted by the engine.
  */
-export type Event =
-  | {
-      type: "note_changed";
-      /**
-       * Relative note path.
-       */
-      path: string;
-    }
-  | {
-      type: "note_deleted";
-      /**
-       * Relative note path.
-       */
-      path: string;
-    }
-  | {
-      type: "committed";
-      /**
-       * Short commit id.
-       */
-      commit: string;
-    }
-  | {
-      type: "reindexed";
-      /**
-       * Number of notes indexed.
-       */
-      count: number;
-    };
+export type Event = { "type": "note_changed", 
+/**
+ * Relative note path.
+ */
+path: string, } | { "type": "note_deleted", 
+/**
+ * Relative note path.
+ */
+path: string, } | { "type": "committed", 
+/**
+ * Short commit id.
+ */
+commit: string, } | { "type": "reindexed", 
+/**
+ * Number of notes indexed.
+ */
+count: number, };

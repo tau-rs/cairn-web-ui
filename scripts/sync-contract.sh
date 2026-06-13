@@ -24,9 +24,11 @@ cat > "$DEST/source.ts" <<EOF
 export const CONTRACT_SOURCE_COMMIT = "$COMMIT";
 EOF
 
-# Normalize to the repo's prettier style: the vendored copy is committed
-# formatted, but ts-rs emits unformatted output. Without this the copy would
-# "drift" from itself on every sync (and the DX3 drift check would never pass).
-( cd web && pnpm exec prettier --log-level warn --write "src/contract/**/*.ts" )
+# The vendored copy is committed verbatim in ts-rs' own output format — it is
+# NOT reformatted to the repo's prettier style. web/src/contract is listed in
+# web/.prettierignore so the gate (format:check) and `just fix` leave it alone;
+# the DX3 drift check (scripts/check-contract-drift.sh) re-runs this script and
+# compares byte-for-byte, so any normalization here would have to match ts-rs
+# exactly — simpler to keep both sides raw.
 
 echo "synced contract from $SRC @ $COMMIT"

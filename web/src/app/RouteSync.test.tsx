@@ -16,7 +16,8 @@ beforeEach(() => {
     searchResults: null,
     searchSnippets: null,
     openNotes: {},
-    tabs: [],
+    panes: [{ tabs: [], activePath: null }],
+    activePane: 0,
   });
 });
 

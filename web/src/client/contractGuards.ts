@@ -18,6 +18,7 @@ const QUERY_RESPONSE_TYPES = [
   "graph",
   "tags",
   "plugins",
+  "history",
 ] as const;
 
 /** Raised when a value crossing the backend boundary doesn't carry a known
