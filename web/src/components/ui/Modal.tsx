@@ -25,7 +25,7 @@ export function Modal({
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
         <Dialog.Content
           {...(description ? {} : { "aria-describedby": undefined })}
-          className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-4 text-text shadow-2xl focus:outline-none"
+          className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface p-4 text-text shadow-2xl focus:outline-none"
         >
           <Dialog.Title className="text-sm font-semibold text-text">
             {title}

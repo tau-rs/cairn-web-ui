@@ -202,19 +202,26 @@ describe("MockClient", () => {
       c.sendCommand({ type: "rename_note", from: "a.md", to: "b.md" }),
     ).rejects.toMatchObject({ type: "invalid_request" });
   });
-  it("list_plugins returns the seeded demo plugin", async () => {
+  it("list_plugins returns the seeded demo + bare plugins", async () => {
     const c = new MockClient({});
-    expect(await c.runQuery({ type: "list_plugins" })).toEqual({
-      type: "plugins",
-      plugins: [
-        {
-          id: "demo",
-          name: "Demo plugin",
-          version: "1.0.0",
-          commands: [{ id: "stamp", title: "Insert stamp note" }],
-        },
-      ],
+    const res = await c.runQuery({ type: "list_plugins" });
+    expect(res.type).toBe("plugins");
+    if (res.type !== "plugins") return;
+    expect(res.plugins.map((p) => p.id)).toEqual(["demo", "bare"]);
+    const demo = res.plugins[0];
+    expect(demo).toMatchObject({
+      id: "demo",
+      name: "Demo plugin",
+      version: "1.0.0",
+      commands: [{ id: "stamp", title: "Insert stamp note" }],
     });
+    // demo seeds contributions across all three slots; bare seeds none.
+    expect(demo.contributions.map((c) => c.slot)).toEqual([
+      "sidebar.section",
+      "topbar.action",
+      "command",
+    ]);
+    expect(res.plugins[1].contributions).toEqual([]);
   });
   it("invoke_plugin_command demo/stamp writes a note and returns its path", async () => {
     const c = new MockClient({});

@@ -11,6 +11,7 @@ import { formatChord } from "../components/shortcuts/keybinding";
 import {
   toPaletteCommands,
   parsePluginCommandId,
+  pluginCommandArgs,
 } from "../components/plugins/pluginCommands";
 import type { PaletteCommand } from "../components/command-palette/CommandPalette";
 
@@ -56,7 +57,8 @@ export function useCommands(): {
     const st = cairnStore.getState();
     const pluginCmd = parsePluginCommandId(id);
     if (pluginCmd) {
-      void st.invokePlugin(pluginCmd.plugin, pluginCmd.command);
+      const args = pluginCommandArgs(st.plugins)[id] ?? null;
+      void st.invokePlugin(pluginCmd.plugin, pluginCmd.command, args);
       st.setUi({ paletteOpen: false });
       return;
     }

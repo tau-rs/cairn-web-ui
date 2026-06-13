@@ -3,6 +3,7 @@ import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl, tagUrl } from "../app/routes";
 import { FolderTree } from "./tree/FolderTreeView";
 import { TagsPanel } from "./tags/TagsPanel";
+import { SlotRenderer } from "./plugins/SlotRenderer";
 
 export function Sidebar() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export function Sidebar() {
         activeTag={activeTag}
         onSelect={(t) => navigate(tagUrl(t))}
       />
+      <SlotRenderer slot="sidebar.section" />
     </>
   );
 }

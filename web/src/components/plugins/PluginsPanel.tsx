@@ -1,7 +1,10 @@
 import { SectionLabel } from "../ui/SectionLabel";
 import type { PluginSummary } from "../../contract";
 
-export function PluginsPanel(props: { plugins: PluginSummary[] }) {
+export function PluginsPanel(props: {
+  plugins: PluginSummary[];
+  dropped?: number;
+}) {
   return (
     <div className="flex flex-col gap-1 text-sm text-text">
       <span className="mb-1">
@@ -23,6 +26,12 @@ export function PluginsPanel(props: { plugins: PluginSummary[] }) {
           </div>
         ))
       )}
+      {props.dropped ? (
+        <span className="text-xs text-faint">
+          {props.dropped} contribution(s) not rendered — unsupported by this
+          version
+        </span>
+      ) : null}
     </div>
   );
 }

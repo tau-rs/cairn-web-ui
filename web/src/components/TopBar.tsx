@@ -6,6 +6,7 @@ import { CommitBar } from "./CommitBar";
 import { IconButton } from "./ui/IconButton";
 import { Logo } from "./ui/Logo";
 import { Button } from "./ui/Button";
+import { SlotRenderer } from "./plugins/SlotRenderer";
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export function TopBar() {
         {view === "graph" ? "Editor" : "Graph"}
       </Button>
       <span className="grow" />
+      <SlotRenderer slot="topbar.action" />
       <IconButton
         label="Settings"
         onClick={() => actions.setUi({ settingsOpen: true })}
