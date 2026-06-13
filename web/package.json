@@ -37,6 +37,11 @@
     "react-router-dom": "^7.17.0",
     "zustand": "^5"
   },
+  "pnpm": {
+    "overrides": {
+      "qs@>=6.11.1 <6.15.2": ">=6.15.2"
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.45",
