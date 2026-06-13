@@ -867,3 +867,79 @@ describe("ui slice", () => {
     expect(store.getState().ui.keybindingOverrides).toEqual({ commit: null });
   });
 });
+
+describe("split panes", () => {
+  async function ready() {
+    const { store } = setup();
+    await store.getState().init();
+    return store;
+  }
+
+  it("splitPane duplicates the focused note into a new focused pane", async () => {
+    const store = await ready();
+    await store.getState().openNote("a.md");
+    store.getState().splitPane();
+    const s = store.getState();
+    expect(s.panes).toHaveLength(2);
+    expect(s.activePane).toBe(1);
+    expect(s.panes[1].activePath).toBe("a.md");
+    expect(s.activePath).toBe("a.md");
+  });
+
+  it("splitPane is a no-op with no active note", async () => {
+    const store = await ready();
+    store.getState().splitPane();
+    expect(store.getState().panes).toHaveLength(1);
+  });
+
+  it("openToSide opens a chosen note in the other pane and focuses it", async () => {
+    const store = await ready();
+    await store.getState().openNote("a.md");
+    await store.getState().openToSide("b.md");
+    const s = store.getState();
+    expect(s.panes).toHaveLength(2);
+    expect(s.activePane).toBe(1);
+    expect(s.panes[0].activePath).toBe("a.md");
+    expect(s.panes[1].activePath).toBe("b.md");
+    expect(s.activePath).toBe("b.md");
+  });
+
+  it("openToSide on an existing split targets the non-focused pane", async () => {
+    const store = await ready();
+    await store.getState().openNote("a.md");
+    await store.getState().openToSide("b.md"); // panes [a][b], focus 1
+    store.getState().focusPane(0);
+    await store.getState().openToSide("a.md"); // into pane 1 (non-focused)
+    const s = store.getState();
+    expect(s.panes).toHaveLength(2);
+    expect(s.activePane).toBe(1);
+    expect(s.panes[1].activePath).toBe("a.md");
+  });
+
+  it("focusPane moves the mirror to the target pane", async () => {
+    const store = await ready();
+    await store.getState().openNote("a.md");
+    await store.getState().openToSide("b.md");
+    store.getState().focusPane(0);
+    expect(store.getState().activePath).toBe("a.md");
+  });
+
+  it("closePane collapses to a single pane", async () => {
+    const store = await ready();
+    await store.getState().openNote("a.md");
+    await store.getState().openToSide("b.md");
+    store.getState().closePane(1);
+    const s = store.getState();
+    expect(s.panes).toHaveLength(1);
+    expect(s.activePane).toBe(0);
+    expect(s.activePath).toBe("a.md");
+  });
+
+  it("setSplitRatio clamps to [0.2, 0.8]", async () => {
+    const store = await ready();
+    store.getState().setSplitRatio(0.95);
+    expect(store.getState().splitRatio).toBe(0.8);
+    store.getState().setSplitRatio(0.05);
+    expect(store.getState().splitRatio).toBe(0.2);
+  });
+});

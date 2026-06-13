@@ -19,6 +19,7 @@ import {
   type TabsState,
 } from "../components/tabs/tabsModel";
 import {
+  splitPane as splitPaneModel,
   closePane as closePaneModel,
   type PaneState,
   type PanesState,
@@ -704,12 +705,70 @@ export function createCairnStore(
         void get().refreshBacklinks();
       },
 
-      // TODO(split-panes): implemented in the next task (split actions).
-      splitPane() {},
-      async openToSide(_path) {},
-      closePane(_index) {},
-      focusPane(_index) {},
-      setSplitRatio(_ratio) {},
+      splitPane() {
+        const seed = get().activePath; // duplicate the focused note
+        if (seed === null || get().panes.length >= 2) return;
+        const r = splitPaneModel(panesState(), seed);
+        set({ panes: r.panes, activePane: r.activePane });
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      async openToSide(path) {
+        if (!(await ensureNote(path))) return;
+        if (get().panes.length < 2) {
+          // Create the second pane seeded directly with `path` and focus it.
+          const r = splitPaneModel(panesState(), path);
+          set({ panes: r.panes, activePane: r.activePane });
+        } else {
+          const target = get().activePane === 0 ? 1 : 0;
+          applyTabs(openOrPreview(tabsState(target), path), target);
+          set({ activePane: target });
+        }
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      closePane(index = get().activePane) {
+        if (get().panes.length < 2) return;
+        const closing = get().panes[index];
+        const survivorPaths = new Set(
+          get()
+            .panes.filter((_, i) => i !== index)
+            .flatMap((p) => p.tabs.map((t) => t.path)),
+        );
+        for (const t of closing.tabs) {
+          if (!survivorPaths.has(t.path)) {
+            void get().saveNote(t.path);
+            dropNote(t.path);
+          }
+        }
+        const r = closePaneModel(panesState(), index);
+        set({ panes: r.panes, activePane: r.activePane });
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      focusPane(index) {
+        if (
+          index < 0 ||
+          index >= get().panes.length ||
+          index === get().activePane
+        )
+          return;
+        set({ activePane: index });
+        syncMirror();
+        persist();
+        void get().refreshBacklinks();
+      },
+
+      setSplitRatio(ratio) {
+        set({ splitRatio: Math.min(0.8, Math.max(0.2, ratio)) });
+        persist();
+      },
 
       async runSearch(query) {
         const token = ++seq.results;
