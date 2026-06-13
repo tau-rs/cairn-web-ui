@@ -5,7 +5,7 @@ import type { MobileTab } from "../../store/store";
 const TABS: {
   id: MobileTab;
   label: string;
-  Icon: ComponentType<{ size?: number }>;
+  Icon: ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
 }[] = [
   { id: "files", label: "Files", Icon: Folder },
   { id: "editor", label: "Editor", Icon: FileText },
@@ -36,7 +36,7 @@ export function BottomNav({
             (active === id ? "text-accent" : "text-faint")
           }
         >
-          <Icon size={18} />
+          <Icon size={18} aria-hidden={true} />
           {label}
         </button>
       ))}

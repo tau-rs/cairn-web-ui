@@ -7,7 +7,7 @@ export function MoreMenu() {
   const actions = useActions();
   const items: {
     label: string;
-    Icon: ComponentType<{ size?: number }>;
+    Icon: ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
     onClick: () => void;
   }[] = [
     {
@@ -30,7 +30,7 @@ export function MoreMenu() {
           onClick={onClick}
           className="flex min-h-[44px] items-center gap-3 rounded-md px-3 text-left text-sm text-text hover:bg-surface-2"
         >
-          <Icon size={18} />
+          <Icon size={18} aria-hidden={true} />
           {label}
         </button>
       ))}

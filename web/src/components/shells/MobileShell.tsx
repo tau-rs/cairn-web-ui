@@ -65,7 +65,7 @@ export function MobileShell({ topBar, list, editor, backlinks }: ShellRegions) {
           label="Backlinks"
           onClick={() => actions.setUi({ backlinksOpen: true })}
         >
-          <Link2 size={18} />
+          <Link2 size={18} aria-hidden={true} />
         </IconButton>
       </header>
       <main className="min-h-0 flex-1 overflow-auto">{main}</main>
