@@ -10,6 +10,8 @@ import {
   addColumn,
   removeColumn,
   moveColumn,
+  parseTSV,
+  pasteBlock,
   type TableModel,
 } from "./tableParse";
 
@@ -138,5 +140,48 @@ describe("table model ops", () => {
       ["2", "1"],
       ["4", "3"],
     ]);
+  });
+});
+
+describe("parseTSV", () => {
+  it("splits tabs into columns and newlines into rows", () => {
+    expect(parseTSV("a\tb\nc\td")).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
+  });
+  it("normalizes CRLF and drops a single trailing newline", () => {
+    expect(parseTSV("a\tb\r\n")).toEqual([["a", "b"]]);
+  });
+});
+
+describe("pasteBlock", () => {
+  const m: TableModel = {
+    header: ["A", "B"],
+    rows: [
+      ["1", "2"],
+      ["3", "4"],
+    ],
+    align: ["none", "none"],
+  };
+  it("fills cells from the anchor without growing when it fits", () => {
+    const r = pasteBlock(m, 0, 0, [["x", "y"]]);
+    expect(r.rows).toEqual([
+      ["x", "y"],
+      ["3", "4"],
+    ]);
+  });
+  it("auto-grows rows and columns to fit an oversized block", () => {
+    const r = pasteBlock(m, 1, 1, [
+      ["x", "y"],
+      ["z", "w"],
+    ]);
+    expect(r.header).toEqual(["A", "B", ""]);
+    expect(r.rows).toEqual([
+      ["1", "2", ""],
+      ["3", "x", "y"],
+      ["", "z", "w"],
+    ]);
+    expect(r.align).toEqual(["none", "none", "none"]);
   });
 });

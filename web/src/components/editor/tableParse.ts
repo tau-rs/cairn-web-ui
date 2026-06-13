@@ -167,3 +167,36 @@ export function moveColumn(m: TableModel, from: number, to: number): TableModel 
     align: splice(m.align, from, to),
   };
 }
+
+/** Parse a spreadsheet clipboard payload (TSV): tab = column, newline = row.
+ *  Normalizes CRLF and ignores a single trailing newline. */
+export function parseTSV(text: string): string[][] {
+  const norm = text.replace(/\r\n?/g, "\n").replace(/\n$/, "");
+  if (norm === "") return [];
+  return norm.split("\n").map((line) => line.split("\t"));
+}
+
+/** Paste a 2-D block of cells into the body, anchored at (atRow, atCol) in body
+ *  coordinates. Auto-grows rows and columns so the whole block fits. */
+export function pasteBlock(
+  m: TableModel,
+  atRow: number,
+  atCol: number,
+  block: string[][],
+): TableModel {
+  if (block.length === 0) return m;
+  const blockCols = Math.max(...block.map((r) => r.length));
+  let model = m;
+  while (model.header.length < atCol + blockCols) model = addColumn(model);
+  while (model.rows.length < atRow + block.length) model = addRow(model);
+  const rows = model.rows.map((r) => [...r]);
+  block.forEach((br, ri) =>
+    br.forEach((val, ci) => {
+      const R = atRow + ri;
+      const C = atCol + ci;
+      if (R >= 0 && R < rows.length && C >= 0 && C < rows[R].length)
+        rows[R][C] = val;
+    }),
+  );
+  return { header: [...model.header], rows, align: [...model.align] };
+}
