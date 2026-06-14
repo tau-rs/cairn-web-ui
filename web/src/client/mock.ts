@@ -368,11 +368,15 @@ export class MockClient implements CairnClient {
    *  `[[stem]]` citation drawn from a real seeded note, then completes. A
    *  question containing "fail" emits the failed path instead. Events fire on
    *  chained microtasks (ordered + async); unsubscribe cancels mid-stream. */
-  ask(question: string, onEvent: (e: AgentEvent) => void): Unsubscribe {
+  ask(
+    question: string,
+    onEvent: (e: AgentEvent) => void,
+    _onError?: (err: unknown) => void,
+  ): Unsubscribe {
     let cancelled = false;
     const fail = question.toLowerCase().includes("fail");
     const firstPath = [...this.notes.keys()][0];
-    const firstStem = firstPath ? stem(firstPath).replace(/\.[^.]+$/, "") || stem(firstPath) : undefined;
+    const firstStem = firstPath ? stem(firstPath) : undefined;
     const cite = firstStem ? ` [[${firstStem}]]` : "";
     const seq: AgentEvent[] = fail
       ? [

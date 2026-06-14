@@ -262,7 +262,7 @@ describe("MockClient.ask", () => {
   }
 
   it("streams a tool round, text deltas with a citation, then completes", async () => {
-    const client = new MockClient({ "store.ts": "# Store\n" });
+    const client = new MockClient({ "store.md": "# Store\n" });
     const events = await collect(client, "how does it work?");
     const types = events.map((e) => e.type);
     expect(types[0]).toBe("tool_started");
@@ -277,17 +277,17 @@ describe("MockClient.ask", () => {
   });
 
   it("emits the failed path when the question contains 'fail'", async () => {
-    const client = new MockClient({ "store.ts": "x" });
+    const client = new MockClient({ "store.md": "x" });
     const events = await collect(client, "please fail");
     expect(events[events.length - 1]).toEqual({ type: "failed", message: expect.any(String) });
   });
 
   it("unsubscribe stops further events", async () => {
-    const client = new MockClient({ "store.ts": "x" });
+    const client = new MockClient({ "store.md": "x" });
     const seen: AgentEvent[] = [];
     const unsub = client.ask("hello", (e) => seen.push(e));
     unsub();
-    await new Promise<void>((r) => queueMicrotask(() => queueMicrotask(r)));
+    // flush two microtask levels: step(0) schedules step(1); both must be blocked by `cancelled`
     await new Promise<void>((r) => queueMicrotask(() => queueMicrotask(r)));
     expect(seen.length).toBe(0);
   });

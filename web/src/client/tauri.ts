@@ -74,6 +74,7 @@ export class TauriClient implements CairnClient {
     _onEvent: (e: AgentEvent) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe {
+    // Reports immediately (synchronous), unlike subscribe's async onError path.
     onError?.(new Error("agent stream not available yet"));
     return () => {};
   }
