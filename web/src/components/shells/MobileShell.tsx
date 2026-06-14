@@ -5,6 +5,7 @@ import { useCairn, useActions, cairnStore } from "../../app/cairnStore";
 import { isGraph, notePathFromLocation, noteUrl } from "../../app/routes";
 import { IconButton } from "../ui/IconButton";
 import { Drawer } from "../ui/Drawer";
+import { AskSheetHost } from "../ask/AskSheetHost";
 import { BottomNav } from "./BottomNav";
 import { MoreMenu } from "./MoreMenu";
 import { MobileSearchView } from "./MobileSearchView";
@@ -98,6 +99,7 @@ export function MobileShell({ topBar, list, editor, backlinks }: ShellRegions) {
       >
         {backlinks}
       </Drawer>
+      <AskSheetHost side="bottom" />
     </div>
   );
 }

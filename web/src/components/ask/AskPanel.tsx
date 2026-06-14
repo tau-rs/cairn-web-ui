@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnswerView } from "./AnswerView";
 import type { AskSurfaceProps } from "./AskBar";
 
@@ -8,6 +8,14 @@ export function AskPanel(props: AskSurfaceProps) {
   const { open, turns, streaming, error, onSubmit, onClose, onOpenNote } =
     props;
   const [value, setValue] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
   if (!open) return null;
 
   const submit = () => {

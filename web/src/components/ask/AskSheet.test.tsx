@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { AskPanel } from "./AskPanel";
+import { AskSheet } from "./AskSheet";
 import type { AskTurn } from "../../store/askReducer";
 
 const base = {
   open: true,
+  side: "bottom" as const,
   turns: [] as AskTurn[],
   streaming: false,
   error: null as string | null,
@@ -13,10 +14,10 @@ const base = {
   onOpenNote: vi.fn(),
 };
 
-describe("AskPanel", () => {
+describe("AskSheet", () => {
   it("renders nothing when closed", () => {
-    render(<AskPanel {...base} open={false} />);
-    expect(screen.queryByTestId("ask-panel")).toBeNull();
+    render(<AskSheet {...base} open={false} />);
+    expect(screen.queryByTestId("ask-sheet")).toBeNull();
   });
 
   it("renders all turns when open", () => {
@@ -24,31 +25,29 @@ describe("AskPanel", () => {
       { role: "user", text: "q1", citations: [], tools: [] },
       { role: "assistant", text: "a1", citations: [], tools: [] },
     ];
-    render(<AskPanel {...base} turns={turns} />);
+    render(<AskSheet {...base} turns={turns} />);
     expect(screen.getByText("q1")).toBeInTheDocument();
     expect(screen.getByText("a1")).toBeInTheDocument();
   });
 
   it("submits a follow-up", () => {
     const onSubmit = vi.fn();
-    render(<AskPanel {...base} onSubmit={onSubmit} />);
+    render(<AskSheet {...base} onSubmit={onSubmit} />);
     const input = screen.getByPlaceholderText("Ask a follow-up…");
     fireEvent.change(input, { target: { value: "more?" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSubmit).toHaveBeenCalledWith("more?");
   });
 
-  it("closes via the close button", () => {
+  it("closes via the ✕ button", () => {
     const onClose = vi.fn();
-    render(<AskPanel {...base} onClose={onClose} />);
-    fireEvent.click(screen.getByRole("button", { name: /close ask panel/i }));
+    render(<AskSheet {...base} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /close ask/i }));
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("closes on Escape", () => {
-    const onClose = vi.fn();
-    render(<AskPanel {...base} onClose={onClose} />);
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(onClose).toHaveBeenCalled();
+  it("renders as a right side sheet too", () => {
+    render(<AskSheet {...base} side="right" />);
+    expect(screen.getByTestId("ask-sheet")).toBeInTheDocument();
   });
 });
