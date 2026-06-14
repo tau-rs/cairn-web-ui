@@ -6,6 +6,7 @@ import {
   RECONNECT_BASE_MS,
   RECONNECT_MAX_MS,
 } from "./daemon";
+import type { AnswerEvent } from "../contract";
 
 // ── A controllable fake WebSocket ───────────────────────────────────────────
 class FakeWebSocket {
@@ -257,6 +258,164 @@ describe("backoffDelay", () => {
     expect(backoffDelay(2)).toBe(RECONNECT_BASE_MS * 2);
     expect(backoffDelay(3)).toBe(RECONNECT_BASE_MS * 4);
     expect(backoffDelay(99)).toBe(RECONNECT_MAX_MS);
+  });
+});
+
+describe("DaemonClient.ask", () => {
+  function sseResponse(chunks: string[], init?: ResponseInit): Response {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const c of chunks) controller.enqueue(enc.encode(c));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+      ...init,
+    });
+  }
+  function frame(e: AnswerEvent): string {
+    return `data: ${JSON.stringify(e)}\n\n`;
+  }
+  function collect(
+    client: DaemonClient,
+    onError?: (e: unknown) => void,
+  ): Promise<AnswerEvent[]> {
+    return new Promise((resolve) => {
+      const got: AnswerEvent[] = [];
+      client.ask(
+        { query: "q", top_k: null },
+        (e) => {
+          got.push(e);
+          if (e.type === "completed" || e.type === "failed") resolve(got);
+        },
+        (err) => {
+          onError?.(err);
+          resolve(got);
+        },
+      );
+    });
+  }
+
+  it("yields sources -> deltas -> completed in order and POSTs the request", async () => {
+    const fetch = vi.fn(async () =>
+      sseResponse([
+        frame({ type: "sources", paths: ["a.md", "b.md"] }),
+        frame({ type: "text_delta", text: "Hello " }),
+        frame({ type: "text_delta", text: "world" }),
+        frame({ type: "completed" }),
+      ]),
+    ) as unknown as typeof globalThis.fetch;
+    const client = new DaemonClient({ url: "http://x", token: "t", fetch });
+    const got = await collect(client);
+    expect(got.map((e) => e.type)).toEqual([
+      "sources",
+      "text_delta",
+      "text_delta",
+      "completed",
+    ]);
+    expect(got[0]).toEqual({ type: "sources", paths: ["a.md", "b.md"] });
+    const [url, opts] = (fetch as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0];
+    expect(url).toBe("http://x/ask");
+    expect(opts.method).toBe("POST");
+    expect(JSON.parse(opts.body)).toEqual({ query: "q", top_k: null });
+    expect(opts.headers.Authorization).toBe("Bearer t");
+  });
+
+  it("parses multiple frames in one chunk", async () => {
+    const fetch = vi.fn(async () =>
+      sseResponse([
+        frame({ type: "sources", paths: [] }) +
+          frame({ type: "text_delta", text: "x" }) +
+          frame({ type: "completed" }),
+      ]),
+    ) as unknown as typeof globalThis.fetch;
+    const got = await collect(new DaemonClient({ url: "http://x", fetch }));
+    expect(got.map((e) => e.type)).toEqual([
+      "sources",
+      "text_delta",
+      "completed",
+    ]);
+  });
+
+  it("parses a frame split across chunks", async () => {
+    const full = frame({ type: "text_delta", text: "hi" });
+    const fetch = vi.fn(async () =>
+      sseResponse([
+        frame({ type: "sources", paths: [] }),
+        full.slice(0, 6),
+        full.slice(6),
+        frame({ type: "completed" }),
+      ]),
+    ) as unknown as typeof globalThis.fetch;
+    const got = await collect(new DaemonClient({ url: "http://x", fetch }));
+    expect(got).toContainEqual({ type: "text_delta", text: "hi" });
+  });
+
+  it("delivers an in-run failed frame as an event, not onError", async () => {
+    const fetch = vi.fn(async () =>
+      sseResponse([
+        frame({ type: "sources", paths: [] }),
+        frame({ type: "failed", message: "boom" }),
+      ]),
+    ) as unknown as typeof globalThis.fetch;
+    const onError = vi.fn();
+    const got = await collect(
+      new DaemonClient({ url: "http://x", fetch }),
+      onError,
+    );
+    expect(got[got.length - 1]).toEqual({ type: "failed", message: "boom" });
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("routes a pre-stream HTTP error to onError", async () => {
+    const fetch = vi.fn(
+      async () => new Response("nope", { status: 401 }),
+    ) as unknown as typeof globalThis.fetch;
+    const onError = vi.fn();
+    await collect(new DaemonClient({ url: "http://x", fetch }), onError);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(String((onError.mock.calls[0][0] as Error).message)).toMatch(
+      /unauthorized/,
+    );
+  });
+
+  it("stops emitting after unsubscribe and cancels the reader", async () => {
+    let cancelled = false;
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          enc.encode(
+            `data: ${JSON.stringify({ type: "sources", paths: [] })}\n\n`,
+          ),
+        );
+        // never closes; the test cancels.
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetch = vi.fn(
+      async () =>
+        new Response(stream, {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+    ) as unknown as typeof globalThis.fetch;
+    const seen: AnswerEvent[] = [];
+    const unsub = new DaemonClient({ url: "http://x", fetch }).ask(
+      { query: "q", top_k: null },
+      (e) => seen.push(e),
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    unsub();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cancelled).toBe(true);
+    expect(seen.every((e) => e.type === "sources")).toBe(true);
   });
 });
 
