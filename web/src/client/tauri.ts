@@ -8,6 +8,7 @@ import type {
   QueryResponse,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
+import type { AgentEvent } from "./agent";
 import type { CairnHost } from "./host";
 import { confineToRoot } from "./vaultPath";
 import {
@@ -64,6 +65,17 @@ export class TauriClient implements CairnClient {
     const res = await this.runQuery({ type: "list_notes" });
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
+  }
+  /** Wave 2 (Track 03) wires the real agent stream over Tauri IPC. Until then
+   *  the channel is unavailable: report via onError so the UI can show a
+   *  degraded state, and return a no-op unsubscribe. */
+  ask(
+    _question: string,
+    _onEvent: (e: AgentEvent) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe {
+    onError?.(new Error("agent stream not available yet"));
+    return () => {};
   }
 }
 
