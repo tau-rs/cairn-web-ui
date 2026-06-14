@@ -22,3 +22,11 @@ describe("MockHost.assetUrl", () => {
     expect(url.startsWith("data:image/")).toBe(true);
   });
 });
+
+describe("MockHost.setPluginUiRoots", () => {
+  it("resolves to undefined (no-op off Tauri)", async () => {
+    expect(await new MockHost().setPluginUiRoots({ wc: "/tmp/wc/ui" })).toBe(
+      undefined,
+    );
+  });
+});

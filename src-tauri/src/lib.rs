@@ -1,3 +1,6 @@
+mod plugin_protocol;
+mod plugin_roots;
+
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -5,7 +8,10 @@ use cairn_app::{Engine, Event as AppEvent, EventSink};
 use cairn_contract::{Command, CommandResponse, ContractError, Query, QueryResponse};
 use cairn_infra::{GitVcs, InMemoryIndex, LocalFsStore};
 use cairn_service::{app_event_to_wire, dispatch_command, dispatch_query, ServiceError};
+use tauri::http::Response;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+
+use plugin_roots::{set_plugin_ui_roots, PluginRoots};
 
 /// The concrete engine the desktop app runs.
 type CairnEngine = Engine<LocalFsStore, InMemoryIndex, GitVcs>;
@@ -191,6 +197,25 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(CairnState::default())
+        .manage(PluginRoots::default())
+        // Tier-3 6b: serve each plugin's on-disk ui/ bundle at a distinct
+        // opaque origin (plugin-sandbox://<id>/...). The handler is a thin
+        // adapter over the unit-tested `plugin_protocol` core: id→root lookup
+        // against the registered allow-list, strict path-canonicalisation, MIME,
+        // and a locked-down per-frame CSP on every response.
+        .register_uri_scheme_protocol("plugin-sandbox", |ctx, request| {
+            let id = request.uri().host().unwrap_or("").to_string();
+            let rel = request.uri().path().trim_start_matches('/').to_string();
+            let roots = ctx.app_handle().state::<PluginRoots>();
+            let (status, mime, body) = plugin_protocol::build_response(&roots, &id, &rel);
+            Response::builder()
+                .status(status)
+                .header("Content-Type", mime)
+                .header("Content-Security-Policy", plugin_protocol::plugin_csp())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(body)
+                .unwrap()
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             if let Some(dir) = last_path(&handle) {
@@ -203,7 +228,8 @@ pub fn run() {
             send_command,
             run_query,
             pick_and_open_cairn,
-            current_cairn
+            current_cairn,
+            set_plugin_ui_roots
         ])
         .run(tauri::generate_context!())
         .expect("error while running cairn");

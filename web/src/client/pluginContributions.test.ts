@@ -18,7 +18,6 @@ import {
   type PluginSummary,
 } from "../contract";
 import {
-  MAX_IFRAME_HTML,
   MAX_IFRAME_HEIGHT,
   MIN_IFRAME_HEIGHT,
   DEFAULT_IFRAME_HEIGHT,
@@ -331,47 +330,61 @@ describe("Tier-3 iframe widget sanitization", () => {
       {
         id: "wc",
         slot: "sidebar.section",
-        widget: { kind: "iframe", html: "<p>hi</p>", height: 9999 },
+        widget: { kind: "iframe", entry: "index.html", height: 9999 },
       },
     ]);
     expect(out).toHaveLength(1);
     const w = out[0].widget as unknown as {
       kind: string;
-      html: string;
+      entry: string;
       height: number | null;
     };
     expect(w.kind).toBe("iframe");
+    expect(w.entry).toBe("index.html");
     expect(w.height).toBe(MAX_IFRAME_HEIGHT);
   });
 
-  it("drops an iframe widget whose html exceeds the byte cap", () => {
+  it("drops an iframe widget whose entry is unsafe", () => {
     const report = { kept: 0, dropped: 0, reasons: [] as string[] };
     const out = sanitizeContributions(
       [
         {
-          id: "big",
+          id: "esc",
           slot: "sidebar.section",
-          widget: {
-            kind: "iframe",
-            html: "x".repeat(MAX_IFRAME_HTML + 1),
-            height: null,
-          },
+          widget: { kind: "iframe", entry: "../x.html", height: null },
+        },
+        {
+          id: "abs",
+          slot: "sidebar.section",
+          widget: { kind: "iframe", entry: "/abs", height: null },
         },
       ],
       report,
     );
     expect(out).toHaveLength(0);
-    expect(report.reasons.join()).toMatch(/html too large/);
+    expect(report.reasons.join()).toMatch(/unsafe or missing entry/);
   });
 
-  it("rejects an iframe widget outside sidebar.section", () => {
+  it("accepts an iframe entry in the panel.main slot", () => {
+    const out = sanitizeContributions([
+      {
+        id: "panel",
+        slot: "panel.main",
+        widget: { kind: "iframe", entry: "index.html", height: null },
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].slot).toBe("panel.main");
+  });
+
+  it("rejects an iframe widget outside sidebar.section and panel.main", () => {
     // topbar.action exercises the dedicated iframe-slot guard (command would be
     // caught earlier by the command-requires-action guard instead).
     const out = sanitizeContributions([
       {
         id: "x",
         slot: "topbar.action",
-        widget: { kind: "iframe", html: "<p>x</p>", height: null },
+        widget: { kind: "iframe", entry: "index.html", height: null },
       },
     ]);
     expect(out).toHaveLength(0);
@@ -383,7 +396,7 @@ describe("Tier-3 iframe widget sanitization", () => {
         {
           id: "h",
           slot: "sidebar.section",
-          widget: { kind: "iframe", html: "<p>x</p>", height: h },
+          widget: { kind: "iframe", entry: "index.html", height: h },
         },
       ]);
       return (out[0].widget as unknown as { height: number | null }).height;

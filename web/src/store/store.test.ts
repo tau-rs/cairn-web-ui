@@ -298,6 +298,7 @@ describe("cairn store", () => {
       currentCairn: () => Promise.resolve<string | null>(null),
       openCairn: () => Promise.resolve<string | null>("/tmp/mycairn"),
       assetUrl: (p: string) => p,
+      setPluginUiRoots: () => Promise.resolve(),
     };
     const store = createCairnStore(client, host);
     await store.getState().init();
@@ -318,6 +319,7 @@ describe("cairn store", () => {
       currentCairn: () => Promise.resolve<string | null>(null),
       openCairn: () => Promise.resolve<string | null>("/tmp/second"),
       assetUrl: (p: string) => p,
+      setPluginUiRoots: () => Promise.resolve(),
     };
     // A pinned tab persisted from a prior session of this cairn.
     saveTabs({ tabs: [{ path: "b.md", preview: false }], activePath: "b.md" });
@@ -1065,6 +1067,24 @@ describe("split panes", () => {
     for (const entries of Object.values(grouped)) {
       for (const e of entries) expect(e.plugin).not.toBe("bare");
     }
+  });
+
+  it("loadPlugins registers ui-roots for plugins that declare uiRoot", async () => {
+    vi.useRealTimers();
+    const setPluginUiRoots = vi.fn(() => Promise.resolve());
+    const host = {
+      currentCairn: () => Promise.resolve<string | null>("(fixture)"),
+      openCairn: () => Promise.resolve<string | null>("(fixture)"),
+      assetUrl: (p: string) => p,
+      setPluginUiRoots,
+    };
+    // The mock seeds `wordcount` with uiRoot "(mock)/wordcount/ui"; demo/bare
+    // have no uiRoot and must be excluded from the registered map.
+    const store = createCairnStore(new MockClient({}), host);
+    await store.getState().init();
+    expect(setPluginUiRoots).toHaveBeenCalledWith({
+      wordcount: "(mock)/wordcount/ui",
+    });
   });
 });
 

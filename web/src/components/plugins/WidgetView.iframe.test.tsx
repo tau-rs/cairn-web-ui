@@ -21,7 +21,7 @@ describe("WidgetView iframe branch", () => {
     render(
       <WidgetView
         plugin="p"
-        widget={{ kind: "iframe", html: "<p>x</p>", height: 200 } as never}
+        widget={{ kind: "iframe", entry: "index.html", height: 200 } as never}
       />,
     );
     expect(screen.getByText(/wants to:/i)).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe("WidgetView iframe branch", () => {
     render(
       <WidgetView
         plugin="p"
-        widget={{ kind: "iframe", html: "<p>x</p>", height: 200 } as never}
+        widget={{ kind: "iframe", entry: "index.html", height: 200 } as never}
       />,
     );
     expect(screen.getByTitle("plugin:p")).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe("WidgetView iframe branch", () => {
     render(
       <WidgetView
         plugin="p"
-        widget={{ kind: "iframe", html: "<p>x</p>", height: 200 } as never}
+        widget={{ kind: "iframe", entry: "index.html", height: 200 } as never}
       />,
     );
     // grant is for v1 but plugin is v2 → consent required again, no iframe yet.
