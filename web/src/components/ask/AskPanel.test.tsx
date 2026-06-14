@@ -44,4 +44,11 @@ describe("AskPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /close ask panel/i }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("closes on Escape", () => {
+    const onClose = vi.fn();
+    render(<AskPanel {...base} onClose={onClose} />);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
 });
