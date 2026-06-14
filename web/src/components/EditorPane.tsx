@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl, isGraph, tagFromLocation } from "../app/routes";
@@ -10,6 +11,7 @@ import { Button } from "./ui/Button";
 import { Spinner } from "./ui/Spinner";
 import { Divider } from "./editor/Divider";
 import { useBreakpoint } from "./responsive/useBreakpoint";
+import { RevisionView } from "./history/RevisionView";
 import type { PaneState } from "./tabs/paneModel";
 
 /** One editor pane: its own tab strip + editor, bound to pane `index`. */
@@ -75,6 +77,7 @@ function PaneView(props: {
                 editorMode === "livepreview" ? "source" : "livepreview",
             })
           }
+          onShowHistory={focused ? actions.showHistory : undefined}
         />
       </div>
     </div>
@@ -95,9 +98,17 @@ export function EditorPane() {
   const activePane = useCairn((s) => s.activePane);
   const splitRatio = useCairn((s) => s.splitRatio);
   const loading = useCairn((s) => s.loading);
+  const viewingRevision = useCairn((s) => s.viewingRevision);
+  const openNotes = useCairn((s) => s.openNotes);
   const view = isGraph(location) ? "graph" : "editor";
   const bp = useBreakpoint();
   const split = panes.length > 1 && bp !== "mobile";
+
+  useEffect(() => {
+    if (viewingRevision && viewingRevision.path !== activePath) {
+      actions.exitRevisionView();
+    }
+  }, [activePath, viewingRevision, actions]);
 
   return (
     <ErrorBoundary
@@ -117,59 +128,73 @@ export function EditorPane() {
       )}
     >
       <div className="relative h-full">
-        <SearchResults
-          results={searchResults}
-          loading={loading.search}
-          snippets={searchSnippets ?? undefined}
-          title={activeTag ? `Tagged · ${activeTag}` : undefined}
-          onOpen={(p) => navigate(noteUrl(p))}
-          onClose={() => {
-            if (tagFromLocation(location) !== null) {
-              navigate(activePath ? noteUrl(activePath) : "/");
-            } else {
-              actions.closeSearch();
+        {viewingRevision && viewingRevision.path === activePath ? (
+          <RevisionView
+            revision={viewingRevision.revision}
+            contents={viewingRevision.contents}
+            current={openNotes[viewingRevision.path]?.contents ?? ""}
+            onBack={() => actions.exitRevisionView()}
+            onRestore={() =>
+              void actions.restoreRevision(viewingRevision.revision)
             }
-          }}
-        />
-        {view === "graph" ? (
-          <GraphView
-            nodes={graph?.nodes ?? []}
-            edges={graph?.edges ?? []}
-            tagsByNote={noteTags}
-            activePath={activePath}
-            loading={loading.graph}
-            onOpenNote={(p) => navigate(noteUrl(p))}
           />
         ) : (
-          <div className="flex h-full">
-            <div
-              className="flex min-w-0 flex-col"
-              style={{ flexGrow: split ? splitRatio : 1, flexBasis: 0 }}
-            >
-              <PaneView
-                pane={panes[0]}
-                index={0}
-                focused={activePane === 0}
-                split={split}
+          <>
+            <SearchResults
+              results={searchResults}
+              loading={loading.search}
+              snippets={searchSnippets ?? undefined}
+              title={activeTag ? `Tagged · ${activeTag}` : undefined}
+              onOpen={(p) => navigate(noteUrl(p))}
+              onClose={() => {
+                if (tagFromLocation(location) !== null) {
+                  navigate(activePath ? noteUrl(activePath) : "/");
+                } else {
+                  actions.closeSearch();
+                }
+              }}
+            />
+            {view === "graph" ? (
+              <GraphView
+                nodes={graph?.nodes ?? []}
+                edges={graph?.edges ?? []}
+                tagsByNote={noteTags}
+                activePath={activePath}
+                loading={loading.graph}
+                onOpenNote={(p) => navigate(noteUrl(p))}
               />
-            </div>
-            {split && (
-              <Divider ratio={splitRatio} onRatio={actions.setSplitRatio} />
-            )}
-            {split && (
-              <div
-                className="flex min-w-0 flex-col"
-                style={{ flexGrow: 1 - splitRatio, flexBasis: 0 }}
-              >
-                <PaneView
-                  pane={panes[1]}
-                  index={1}
-                  focused={activePane === 1}
-                  split={split}
-                />
+            ) : (
+              <div className="flex h-full">
+                <div
+                  className="flex min-w-0 flex-col"
+                  style={{ flexGrow: split ? splitRatio : 1, flexBasis: 0 }}
+                >
+                  <PaneView
+                    pane={panes[0]}
+                    index={0}
+                    focused={activePane === 0}
+                    split={split}
+                  />
+                </div>
+                {split && (
+                  <Divider ratio={splitRatio} onRatio={actions.setSplitRatio} />
+                )}
+                {split && (
+                  <div
+                    className="flex min-w-0 flex-col"
+                    style={{ flexGrow: 1 - splitRatio, flexBasis: 0 }}
+                  >
+                    <PaneView
+                      pane={panes[1]}
+                      index={1}
+                      focused={activePane === 1}
+                      split={split}
+                    />
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </ErrorBoundary>

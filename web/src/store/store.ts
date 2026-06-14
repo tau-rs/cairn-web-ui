@@ -46,6 +46,7 @@ import { loadPanes, savePanes } from "../components/tabs/tabsPersistence";
 import type { SearchSnippet } from "../components/searchHighlight";
 import type { Rename } from "../components/tree/treeMoves";
 import { type RefreshTrace, refreshTrace } from "./trace";
+import { createHistorySlice, type HistorySlice } from "./historySlice";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -112,7 +113,7 @@ export const DEFAULT_UI: UiState = {
   keybindingOverrides: {},
 };
 
-export interface CairnState extends PluginGrantsState {
+export interface CairnState extends PluginGrantsState, HistorySlice {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
   // waits for this so its URL<->store reconciliation can't race the restore.
@@ -1100,6 +1101,8 @@ export function createCairnStore(
       assetUrl(relPath: string) {
         return host.assetUrl(relPath);
       },
+
+      ...createHistorySlice({ set, get, client, pushError, setBuffer }),
     };
   });
 

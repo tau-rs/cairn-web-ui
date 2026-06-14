@@ -25,6 +25,7 @@ export function Editor(props: {
   onChange: (value: string) => void;
   onOpenNote: (path: string) => void;
   onToggleMode: () => void;
+  onShowHistory?: () => void;
 }) {
   const viewRef = useRef<EditorView | null>(null);
 
@@ -110,9 +111,16 @@ export function Editor(props: {
     <div className="flex h-full flex-col">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm text-muted">{props.path}</span>
-        <Button variant="ghost" onClick={props.onToggleMode}>
-          {props.mode === "livepreview" ? "Source" : "Live Preview"}
-        </Button>
+        <div className="flex items-center gap-1">
+          {props.onShowHistory && (
+            <Button variant="ghost" onClick={props.onShowHistory}>
+              History
+            </Button>
+          )}
+          <Button variant="ghost" onClick={props.onToggleMode}>
+            {props.mode === "livepreview" ? "Source" : "Live Preview"}
+          </Button>
+        </div>
       </div>
       <div
         className={

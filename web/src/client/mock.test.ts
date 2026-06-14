@@ -248,3 +248,69 @@ describe("MockClient", () => {
     ).rejects.toMatchObject({ type: "invalid_request" });
   });
 });
+
+describe("mock history ops", () => {
+  function withHistory() {
+    const revs: import("../contract").Revision[] = [
+      { id: "r2", message: "second", timestamp_secs: 2n, author: "tau" },
+      { id: "r1", message: "first", timestamp_secs: 1n, author: "tau" },
+    ];
+    return new MockClient(
+      { "n.md": "current body" },
+      {
+        "n.md": { revisions: revs, contents: { r2: "body v2", r1: "body v1" } },
+      },
+    );
+  }
+
+  it("note_history returns seeded revisions newest-first", async () => {
+    const c = withHistory();
+    const res = await c.runQuery({ type: "note_history", path: "n.md" });
+    expect(res).toEqual({
+      type: "history",
+      revisions: [
+        { id: "r2", message: "second", timestamp_secs: 2n, author: "tau" },
+        { id: "r1", message: "first", timestamp_secs: 1n, author: "tau" },
+      ],
+    });
+  });
+
+  it("note_history returns [] for a note with no seeded history", async () => {
+    const c = withHistory();
+    const res = await c.runQuery({ type: "note_history", path: "other.md" });
+    expect(res).toEqual({ type: "history", revisions: [] });
+  });
+
+  it("note_at returns historical contents", async () => {
+    const c = withHistory();
+    const res = await c.runQuery({
+      type: "note_at",
+      path: "n.md",
+      revision: "r1",
+    });
+    expect(res).toEqual({ type: "note", contents: "body v1" });
+  });
+
+  it("note_at rejects an unknown revision with not_found", async () => {
+    const c = withHistory();
+    await expect(
+      c.runQuery({ type: "note_at", path: "n.md", revision: "nope" }),
+    ).rejects.toMatchObject({ type: "not_found" });
+  });
+
+  it("restore_note overwrites the working copy and emits note_changed", async () => {
+    const c = withHistory();
+    const events: string[] = [];
+    c.subscribe((e) => events.push(e.type));
+    const res = await c.sendCommand({
+      type: "restore_note",
+      path: "n.md",
+      revision: "r1",
+    });
+    expect(res).toEqual({ type: "done" });
+    const note = await c.runQuery({ type: "get_note", path: "n.md" });
+    expect(note).toEqual({ type: "note", contents: "body v1" });
+    await new Promise<void>((r) => queueMicrotask(r));
+    expect(events).toContain("note_changed");
+  });
+});

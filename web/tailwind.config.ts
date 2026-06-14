@@ -18,6 +18,8 @@ export default {
         "accent-fg": "#ffffff",
         danger: "#f87171",
         "danger-bg": "#2a1416",
+        success: "#4ade80",
+        "success-bg": "#0f2417",
       },
       fontFamily: {
         sans: ['"Inter Variable"', "Inter", "system-ui", "sans-serif"],

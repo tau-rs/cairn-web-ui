@@ -6,7 +6,7 @@ import { cairnStore, useCairn } from "./cairnStore";
 import { TopBar } from "../components/TopBar";
 import { Sidebar } from "../components/Sidebar";
 import { EditorPane } from "../components/EditorPane";
-import { BacklinksPane } from "../components/BacklinksPane";
+import { RightAside } from "../components/RightAside";
 import { DialogHost } from "../components/DialogHost";
 import { Toasts } from "../components/Toasts";
 import { LiveUpdatesBanner } from "../components/LiveUpdatesBanner";
@@ -34,7 +34,7 @@ export default function App() {
         topBar={<TopBar />}
         list={<Sidebar />}
         editor={<EditorPane />}
-        backlinks={<BacklinksPane />}
+        backlinks={<RightAside />}
       />
       <DialogHost commands={commands} onRunCommand={runCommand} />
       <Toasts />

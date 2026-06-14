@@ -9,6 +9,7 @@ import type {
   GraphEdge,
   SearchResult,
   PluginSummary,
+  Revision,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import { extractLinks, stem } from "./wikilink";
@@ -70,9 +71,17 @@ function rewriteWikilinks(
   );
 }
 
+/** Optional seeded git history per note: the revision list (newest first) and
+ *  the note's contents at each revision id. */
+export interface HistoryFixture {
+  revisions: Revision[];
+  contents: Record<string, string>;
+}
+
 /** In-memory faithful mock of the cairn engine + cairn-service dispatch. */
 export class MockClient implements CairnClient {
   private notes: Map<string, string>;
+  private history: Map<string, HistoryFixture>;
   private subscribers = new Set<(e: Event) => void>();
   private commitSeq = 0;
   private plugins: PluginSummary[] = [
@@ -175,8 +184,12 @@ export class MockClient implements CairnClient {
     } as never,
   ];
 
-  constructor(seed: Record<string, string> = {}) {
+  constructor(
+    seed: Record<string, string> = {},
+    history: Record<string, HistoryFixture> = {},
+  ) {
     this.notes = new Map(Object.entries(seed));
+    this.history = new Map(Object.entries(history));
   }
 
   // The mock channel never fails to attach, so it ignores the contract's
@@ -266,6 +279,18 @@ export class MockClient implements CairnClient {
         }
         this.emit({ type: "note_deleted", path: c.from });
         this.emit({ type: "note_changed", path: c.to });
+        this.emit({ type: "reindexed", count: this.notes.size });
+        return { type: "done" };
+      }
+      case "restore_note": {
+        const fix = this.history.get(c.path);
+        const contents = fix?.contents[c.revision];
+        if (contents === undefined) {
+          const err: ContractError = { type: "not_found", what: c.revision };
+          throw err;
+        }
+        this.notes.set(c.path, contents);
+        this.emit({ type: "note_changed", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       }
@@ -386,6 +411,19 @@ export class MockClient implements CairnClient {
       }
       case "list_plugins":
         return { type: "plugins", plugins: this.plugins };
+      case "note_history": {
+        const fix = this.history.get(q.path);
+        return { type: "history", revisions: fix ? fix.revisions : [] };
+      }
+      case "note_at": {
+        const fix = this.history.get(q.path);
+        const contents = fix?.contents[q.revision];
+        if (contents === undefined) {
+          const err: ContractError = { type: "not_found", what: q.revision };
+          throw err;
+        }
+        return { type: "note", contents };
+      }
       default: {
         throw new Error(`mock: unsupported query ${(q as Query).type}`);
       }
