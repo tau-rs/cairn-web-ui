@@ -87,13 +87,13 @@ describe("store broker host", () => {
     ]);
   });
 
-  it("info reports activePath and a non-empty appVersion", () => {
+  it("info reports appVersion and theme but NOT the active path (silent method)", () => {
     const host = createStoreBrokerHost(
       fakeStore({ activePath: "a.md" }),
       stubClient(),
     );
     const info = host.info();
-    expect(info.activePath).toBe("a.md");
+    expect(info).not.toHaveProperty("activePath"); // silent method must not leak the path
     expect(typeof info.appVersion).toBe("string");
     expect(typeof info.theme).toBe("string");
   });

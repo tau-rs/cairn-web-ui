@@ -6,7 +6,11 @@ import type { JsonValue } from "../contract/serde_json/JsonValue";
 import type { CairnClient } from "./types";
 
 export interface BrokerHost {
-  info(): { appVersion: string; theme: string; activePath: string | null };
+  // NOTE: `info` is a SILENT method (no capability required), so it must not
+  // expose anything sensitive. The active note's path is deliberately NOT here —
+  // it would let a zero-grant plugin track which notes the user opens. A plugin
+  // that needs the path requests the gated `activeNote.read` capability instead.
+  info(): { appVersion: string; theme: string };
   notice(text: string): void;
   activeNote(): { path: string; title: string; text: string } | null;
   writeActiveNote(text: string): void;
@@ -43,11 +47,9 @@ export function createStoreBrokerHost(
 ): BrokerHost {
   return {
     info() {
-      const s = store.getState();
       return {
         appVersion: APP_VERSION,
         theme: currentTheme(),
-        activePath: s.activePath,
       };
     },
     notice(text) {

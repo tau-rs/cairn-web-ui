@@ -5,7 +5,7 @@ import type { BrokerHost } from "./pluginBrokerHost";
 
 function host(over: Partial<BrokerHost> = {}): BrokerHost {
   return {
-    info: () => ({ appVersion: "1", theme: "dark", activePath: "a.md" }),
+    info: () => ({ appVersion: "1", theme: "dark" }),
     notice: vi.fn(),
     activeNote: () => ({ path: "a.md", title: "a", text: "hi" }),
     writeActiveNote: vi.fn(),
@@ -71,7 +71,7 @@ describe("plugin broker", () => {
         t: "res",
         id: "1",
         ok: true,
-        result: { appVersion: "1", theme: "dark", activePath: "a.md" },
+        result: { appVersion: "1", theme: "dark" },
       }),
     );
   });
@@ -157,7 +157,7 @@ describe("plugin broker", () => {
 
   it("drops messages beyond the inbound rate cap", async () => {
     const h = host({
-      info: vi.fn(() => ({ appVersion: "1", theme: "dark", activePath: null })),
+      info: vi.fn(() => ({ appVersion: "1", theme: "dark" })),
     });
     const { win, sent } = fakeFrame();
     const b = createBroker({

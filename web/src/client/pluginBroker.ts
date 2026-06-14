@@ -124,6 +124,10 @@ export function createBroker(opts: BrokerOptions): { dispose: () => void } {
     if (e.source !== frame) return; // 1. identity (origin is null → use source)
     const msg = e.data as unknown;
     if (!isReq(msg)) return; // 2. shape-validate, drop malformed
+    // Internal protocol messages (e.g. "__handshake") are owned by IframeHost,
+    // not the broker. Ignore them here so they neither burn a rate slot nor draw
+    // a spurious "unknown method" reply.
+    if (msg.method.startsWith("__")) return;
     if (!withinRateCap()) return; // 3. inbound rate cap (flood guard)
 
     if (!METHODS.has(msg.method)) {

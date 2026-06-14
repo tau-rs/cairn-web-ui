@@ -8,7 +8,8 @@ import {
 } from "../../app/cairnStore";
 import type { PluginWidget } from "../../contract/PluginWidget";
 import { needsConsent } from "../../store/pluginGrantsSlice";
-import { isCapability, type PluginCapability } from "../../client/pluginTier3";
+import type { PluginCapability } from "../../client/pluginTier3";
+import { sanitizeCapabilities } from "../../client/pluginContributions";
 import { createStoreBrokerHost } from "../../client/pluginBrokerHost";
 import { IframeHost } from "./IframeHost";
 import { PermissionPrompt } from "./PermissionPrompt";
@@ -130,11 +131,15 @@ function IframeWidget({
   const grants = useCairn((s) => s.pluginGrants);
 
   // capabilities is not in the vendored PluginSummary yet (TODO(contract-sync)).
-  const caps: PluginCapability[] = useMemo(() => {
-    const raw = (summary as { capabilities?: unknown } | undefined)
-      ?.capabilities;
-    return Array.isArray(raw) ? (raw as unknown[]).filter(isCapability) : [];
-  }, [summary]);
+  // Route the untrusted value through the shared sanitizer (drop-unknown + dedupe
+  // + bound) so the audited capability filter is the one actually on the path.
+  const caps: PluginCapability[] = useMemo(
+    () =>
+      sanitizeCapabilities(
+        (summary as { capabilities?: unknown } | undefined)?.capabilities,
+      ),
+    [summary],
+  );
   const version = summary?.version ?? "0";
   const commandIds = useMemo(
     () => new Set((summary?.commands ?? []).map((c) => c.id)),
