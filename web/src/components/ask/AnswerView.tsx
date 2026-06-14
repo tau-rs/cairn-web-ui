@@ -52,7 +52,7 @@ export function AnswerView(props: {
           </div>
         ))}
       <span className="whitespace-pre-wrap">
-        {renderText(turn.text, onOpenNote)}
+        {isUser ? turn.text : renderText(turn.text, onOpenNote)}
         {streaming && (
           <span
             data-testid="caret"
