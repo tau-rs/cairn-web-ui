@@ -12,6 +12,7 @@ import type {
   Revision,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
+import type { AgentEvent } from "./agent";
 import { extractLinks, stem } from "./wikilink";
 import { extractTags } from "../components/graph/tags";
 
@@ -434,6 +435,43 @@ export class MockClient implements CairnClient {
     const out: Record<string, string[]> = {};
     for (const [path, content] of this.notes) out[path] = extractTags(content);
     return Promise.resolve(out);
+  }
+
+  /** Mock streaming agent: emits a tool round, then text deltas that embed a
+   *  `[[stem]]` citation drawn from a real seeded note, then completes. A
+   *  question containing "fail" emits the failed path instead. Events fire on
+   *  chained microtasks (ordered + async); unsubscribe cancels mid-stream. */
+  ask(question: string, onEvent: (e: AgentEvent) => void): Unsubscribe {
+    let cancelled = false;
+    const fail = question.toLowerCase().includes("fail");
+    const firstPath = [...this.notes.keys()][0];
+    const firstStem = firstPath ? stem(firstPath) : undefined;
+    const cite = firstStem ? ` [[${firstStem}]]` : "";
+    const seq: AgentEvent[] = fail
+      ? [
+          { type: "tool_started", tool: "search_notes" },
+          { type: "tool_completed", tool: "search_notes", ok: true },
+          { type: "failed", message: "stream interrupted (mock)" },
+        ]
+      : [
+          { type: "tool_started", tool: "search_notes" },
+          { type: "tool_completed", tool: "search_notes", ok: true },
+          { type: "text_delta", text: "Based on your notes, " },
+          { type: "text_delta", text: "the answer is grounded in" },
+          { type: "text_delta", text: cite },
+          { type: "text_delta", text: " and complete." },
+          { type: "turn_completed" },
+          { type: "completed" },
+        ];
+    const step = (i: number) => {
+      if (cancelled || i >= seq.length) return;
+      onEvent(seq[i]);
+      queueMicrotask(() => step(i + 1));
+    };
+    queueMicrotask(() => step(0));
+    return () => {
+      cancelled = true;
+    };
   }
 
   /** Test/dev helper: current note paths. */

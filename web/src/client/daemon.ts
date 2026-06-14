@@ -6,6 +6,7 @@ import type {
   QueryResponse,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
+import type { AgentEvent } from "./agent";
 import type { CairnHost } from "./host";
 import {
   assertEvent,
@@ -111,6 +112,24 @@ export class DaemonClient implements CairnClient {
 
   async runQuery(query: Query): Promise<QueryResponse> {
     return assertQueryResponse(await this.post("/query", query));
+  }
+
+  /** Merge-baseline stub: the real `POST /ask` SSE stream is wired in a later
+   *  task. Until then, report a degraded state via onError (like a failed
+   *  attach) and return a no-op unsubscribe. Deferred to a microtask so the
+   *  caller's `unsub` is assigned first. */
+  ask(
+    _question: string,
+    _onEvent: (e: AgentEvent) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) onError?.(new Error("agent stream not available yet"));
+    });
+    return () => {
+      cancelled = true;
+    };
   }
 
   subscribe(

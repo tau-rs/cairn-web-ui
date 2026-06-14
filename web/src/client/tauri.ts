@@ -1,4 +1,4 @@
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc, Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Command,
@@ -8,6 +8,7 @@ import type {
   QueryResponse,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
+import type { AgentEvent } from "./agent";
 import type { CairnHost } from "./host";
 import { confineToRoot } from "./vaultPath";
 import {
@@ -64,6 +65,33 @@ export class TauriClient implements CairnClient {
     const res = await this.runQuery({ type: "list_notes" });
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
+  }
+  /** Stream a note-grounded answer over a Tauri IPC channel. The `ask` command
+   *  forwards each agent increment (mapped to AgentEvent) on the channel and
+   *  resolves when the run ends; a rejection means the call never dispatched
+   *  (the stream failed to attach) — routed to onError like `subscribe`. A
+   *  per-run agent *failure* arrives as a `failed` event, not a rejection.
+   *  Unsubscribe drops any further events (mirrors the mock); the backend run
+   *  finishes in the background. */
+  ask(
+    question: string,
+    onEvent: (e: AgentEvent) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe {
+    let cancelled = false;
+    const channel = new Channel<AgentEvent>();
+    channel.onmessage = (e) => {
+      if (!cancelled) onEvent(e);
+    };
+    // Channel messages are inherently async, so `unsub` is assigned before the
+    // first onEvent (the slice relies on this). The arg name `onEvent` maps to
+    // the command's `on_event: Channel` (Tauri snake_case → camelCase).
+    invoke("ask", { question, onEvent: channel }).catch((err) => {
+      if (!cancelled) onError?.(err);
+    });
+    return () => {
+      cancelled = true;
+    };
   }
 }
 

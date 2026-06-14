@@ -5,6 +5,7 @@ import type {
   CommandResponse,
   QueryResponse,
 } from "../contract";
+import type { AgentEvent } from "./agent";
 
 export type Unsubscribe = () => void;
 
@@ -27,4 +28,13 @@ export interface CairnClient {
    *  Query): the mock parses note content; Tauri stubs {} until the engine
    *  exposes tags. */
   noteTags(): Promise<Record<string, string[]>>;
+  /** Ask the grounded agent a question; `onEvent` receives the stream (see
+   *  AgentEvent). Mirrors `subscribe`'s shape: `onError` fires if the stream
+   *  fails to attach. Returns an Unsubscribe that cancels the in-flight run.
+   *  The real transport is wired in Wave 2 (Track 03); the mock streams now. */
+  ask(
+    question: string,
+    onEvent: (e: AgentEvent) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe;
 }

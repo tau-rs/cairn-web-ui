@@ -62,4 +62,12 @@ describe("useCommands runCommand", () => {
     act(() => result.current.runCommand("close-pane"));
     expect(spy).toHaveBeenCalled();
   });
+
+  it("open-ask sets ask mode to bar", () => {
+    cairnStore.getState().askClose();
+    const { result } = renderHook(() => useCommands(), { wrapper });
+    act(() => result.current.runCommand("open-ask"));
+    expect(cairnStore.getState().ask.mode).toBe("bar");
+    cairnStore.getState().askClose();
+  });
 });
