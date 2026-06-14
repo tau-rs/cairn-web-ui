@@ -14,10 +14,11 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
 
   // Open a note; its backlinks show (index.md links to ideas).
   await sidebar.getByRole("button", { name: "ideas", exact: true }).click();
-  // Exact match: the panel heading is "Backlinks"; a substring match would also
-  // hit the "No backlinks" empty-state span and strict-mode-violate while the
-  // backlinks are still loading.
-  await expect(page.getByText("Backlinks", { exact: true })).toBeVisible();
+  // Anchor on the right-aside "Backlinks" tab: the panel-heading span and the
+  // "No backlinks" empty-state also read "Backlinks", so a plain text match
+  // strict-mode-violates. The tab is the unambiguous, always-present element;
+  // the backlink content itself is asserted on the next line.
+  await expect(page.getByRole("tab", { name: "Backlinks" })).toBeVisible();
   await expect(
     page.locator("aside").last().getByRole("button", { name: "index.md" }),
   ).toBeVisible();
