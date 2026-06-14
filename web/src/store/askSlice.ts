@@ -107,8 +107,9 @@ export function createAskSlice(
         });
       };
 
-      // Assumes client.ask delivers its first event asynchronously (both the mock
-      // and the Tauri transport do), so unsub is assigned before any onEvent/onError runs.
+      // Assumes client.ask delivers its first event asynchronously (the daemon's
+      // fetch, the mock's microtask, and the Tauri stub all do), so unsub is
+      // assigned before any onEvent/onError runs.
       const req: AskRequest = { query: q, top_k: null };
       unsub = client.ask(req, onEvent, (err) => {
         if (token !== runToken) return;

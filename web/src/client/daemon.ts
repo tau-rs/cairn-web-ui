@@ -146,8 +146,13 @@ export class DaemonClient implements CairnClient {
         return;
       }
       if (cancelled) return;
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
         if (!cancelled) onError?.(await this.errorFor(res));
+        return;
+      }
+      if (!res.body) {
+        if (!cancelled)
+          onError?.(new Error("daemon /ask returned an empty stream"));
         return;
       }
       reader = res.body.getReader();
@@ -168,7 +173,9 @@ export class DaemonClient implements CairnClient {
             if (e !== null && !cancelled) onEvent(assertAnswerEvent(e));
           }
         }
-        // Flush a trailing frame with no blank-line terminator.
+        // Flush any bytes the streaming decoder is still holding, then parse a
+        // trailing frame that had no blank-line terminator.
+        buf += decoder.decode();
         const tail = parseSseFrame(buf);
         if (tail !== null && !cancelled) onEvent(assertAnswerEvent(tail));
       } catch (err) {
