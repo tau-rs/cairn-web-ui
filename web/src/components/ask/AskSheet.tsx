@@ -6,7 +6,9 @@ import type { AskSurfaceProps } from "./AskBar";
 /** Tablet/mobile conversation surface: the full turn list + composer inside a
  *  slide-in Drawer. `side="bottom"` is the mobile sheet, `side="right"` the
  *  tablet side sheet. The Drawer's Radix dialog supplies scrim + Escape close. */
-export function AskSheet(props: AskSurfaceProps & { side: "bottom" | "right" }) {
+export function AskSheet(
+  props: AskSurfaceProps & { side: "bottom" | "right" },
+) {
   const { open, turns, streaming, error, onSubmit, onClose, onOpenNote, side } =
     props;
   const [value, setValue] = useState("");
