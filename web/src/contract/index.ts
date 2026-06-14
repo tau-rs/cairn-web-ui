@@ -21,4 +21,6 @@ export {
   PLUGIN_ICON_VALUES,
 } from "./pluginValues";
 export type { Revision } from "./Revision";
+export type { AskRequest } from "./AskRequest";
+export type { AnswerEvent } from "./AnswerEvent";
 export { CONTRACT_SOURCE_COMMIT } from "./source";
