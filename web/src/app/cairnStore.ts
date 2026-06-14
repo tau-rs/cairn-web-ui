@@ -5,6 +5,7 @@ import { makeBackend } from "./makeBackend";
 
 const { client, host } = makeBackend();
 export const cairnStore = createCairnStore(client, host);
+export const cairnClient = client;
 
 export function useCairn<T>(selector: (s: CairnState) => T): T {
   return useStore(cairnStore, selector);

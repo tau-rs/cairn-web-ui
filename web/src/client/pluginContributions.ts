@@ -19,6 +19,14 @@ import {
   type PluginWidget,
 } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
+import {
+  MAX_IFRAME_HTML,
+  MAX_IFRAME_HEIGHT,
+  MIN_IFRAME_HEIGHT,
+  DEFAULT_IFRAME_HEIGHT,
+  isCapability,
+  type PluginCapability,
+} from "./pluginTier3";
 
 /** Local allow-lists. Independent of the contract consts on purpose (this is
  *  trust-boundary code), but a lockstep test asserts they stay supersets of
@@ -28,7 +36,7 @@ export const PLUGIN_SLOTS = [
   "topbar.action",
   "command",
 ] as const;
-export const WIDGET_KINDS = ["text", "action", "list"] as const;
+export const WIDGET_KINDS = ["text", "action", "list", "iframe"] as const;
 const ICONS = PLUGIN_ICON_VALUES;
 
 export const MAX_CONTRIBS_PER_PLUGIN = 64;
@@ -137,6 +145,25 @@ function sanitizeWidget(
       args: args.value,
     };
   }
+  if (kind === "iframe") {
+    if (typeof raw.html !== "string")
+      return drop(report, "iframe widget: missing string html");
+    if (raw.html.length > MAX_IFRAME_HTML)
+      return drop(report, "iframe widget: html too large");
+    let height: number | null = DEFAULT_IFRAME_HEIGHT;
+    if (raw.height === null) height = null;
+    else if (typeof raw.height === "number" && Number.isFinite(raw.height))
+      height = Math.min(
+        MAX_IFRAME_HEIGHT,
+        Math.max(MIN_IFRAME_HEIGHT, raw.height),
+      );
+    // TODO(contract-sync): drop cast after engine adds the iframe PluginWidget variant.
+    return {
+      kind: "iframe",
+      html: raw.html,
+      height,
+    } as unknown as PluginWidget;
+  }
   // kind === "list"
   const itemsRaw = Array.isArray(raw.items) ? raw.items : [];
   const items: PluginListItem[] = [];
@@ -170,6 +197,15 @@ function sanitizeOne(
       `contribution ${raw.id}: command slot requires an action widget`,
     );
 
+  if (
+    (widget as unknown as { kind: string }).kind === "iframe" &&
+    slot !== "sidebar.section"
+  )
+    return drop(
+      report,
+      `contribution ${raw.id}: iframe widget only allowed in sidebar.section`,
+    );
+
   return {
     id: clampStr(raw.id),
     slot: slot as PluginSlot,
@@ -196,6 +232,20 @@ export function sanitizeContributions(
       out.push(c);
       if (report) report.kept += 1;
     }
+  }
+  return out;
+}
+
+/** Validate an untrusted `capabilities` array → known values only. Never throws.
+ *  The output is deduped, so it never exceeds the distinct-capability count; the
+ *  scan itself is bounded by a generous constant (not the capability count) so a
+ *  long run of junk/duplicate entries can't silently push out a valid trailing
+ *  capability while still capping work on an adversarially huge array. */
+export function sanitizeCapabilities(raw: unknown): PluginCapability[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PluginCapability[] = [];
+  for (const v of raw.slice(0, MAX_CONTRIBS_PER_PLUGIN)) {
+    if (isCapability(v) && !out.includes(v)) out.push(v);
   }
   return out;
 }

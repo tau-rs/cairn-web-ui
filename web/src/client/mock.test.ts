@@ -202,12 +202,12 @@ describe("MockClient", () => {
       c.sendCommand({ type: "rename_note", from: "a.md", to: "b.md" }),
     ).rejects.toMatchObject({ type: "invalid_request" });
   });
-  it("list_plugins returns the seeded demo + bare plugins", async () => {
+  it("list_plugins returns the seeded demo + bare + wordcount plugins", async () => {
     const c = new MockClient({});
     const res = await c.runQuery({ type: "list_plugins" });
     expect(res.type).toBe("plugins");
     if (res.type !== "plugins") return;
-    expect(res.plugins.map((p) => p.id)).toEqual(["demo", "bare"]);
+    expect(res.plugins.map((p) => p.id)).toEqual(["demo", "bare", "wordcount"]);
     const demo = res.plugins[0];
     expect(demo).toMatchObject({
       id: "demo",
