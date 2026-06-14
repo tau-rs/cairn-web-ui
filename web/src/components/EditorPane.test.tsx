@@ -27,6 +27,34 @@ function seedSplit() {
   });
 }
 
+function seedRevision() {
+  cairnStore.setState({
+    notePaths: ["a.md"],
+    openNotes: {
+      "a.md": { contents: "current body", dirty: false, saving: false },
+    },
+    panes: [{ tabs: [{ path: "a.md", preview: false }], activePath: "a.md" }],
+    activePane: 0,
+    splitRatio: 1,
+    activePath: "a.md",
+    activeContents: "current body",
+    viewingRevision: { path: "a.md", revision: "r1", contents: "old body" },
+  });
+}
+
+describe("EditorPane revision view", () => {
+  it("renders the read-only RevisionView when a revision is being viewed", async () => {
+    seedRevision();
+    render(
+      <MemoryRouter initialEntries={["/note/a.md"]}>
+        <EditorPane />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/read-only/i)).toBeInTheDocument();
+    expect(screen.getByText("old body")).toBeInTheDocument();
+  });
+});
+
 describe("EditorPane split", () => {
   beforeEach(() => seedSplit());
 
