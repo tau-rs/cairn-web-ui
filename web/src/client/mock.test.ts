@@ -268,7 +268,7 @@ describe("MockClient.ask", () => {
     expect(types[0]).toBe("tool_started");
     expect(types).toContain("tool_completed");
     expect(types).toContain("text_delta");
-    expect(types.at(-1)).toBe("completed");
+    expect(types[types.length - 1]).toBe("completed");
     const text = events
       .filter((e): e is { type: "text_delta"; text: string } => e.type === "text_delta")
       .map((e) => e.text)
@@ -279,7 +279,7 @@ describe("MockClient.ask", () => {
   it("emits the failed path when the question contains 'fail'", async () => {
     const client = new MockClient({ "store.ts": "x" });
     const events = await collect(client, "please fail");
-    expect(events.at(-1)).toEqual({ type: "failed", message: expect.any(String) });
+    expect(events[events.length - 1]).toEqual({ type: "failed", message: expect.any(String) });
   });
 
   it("unsubscribe stops further events", async () => {
@@ -287,8 +287,8 @@ describe("MockClient.ask", () => {
     const seen: AgentEvent[] = [];
     const unsub = client.ask("hello", (e) => seen.push(e));
     unsub();
-    await new Promise((r) => queueMicrotask(() => queueMicrotask(r)));
-    await new Promise((r) => queueMicrotask(() => queueMicrotask(r)));
+    await new Promise<void>((r) => queueMicrotask(() => queueMicrotask(r)));
+    await new Promise<void>((r) => queueMicrotask(() => queueMicrotask(r)));
     expect(seen.length).toBe(0);
   });
 });
