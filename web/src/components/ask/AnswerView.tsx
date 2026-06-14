@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { AskTurn } from "../../store/askReducer";
+import { stem } from "../../client/wikilink";
 
 const CITE = /\[\[([^\]]+)\]\]/g;
 
@@ -83,7 +84,7 @@ export function AnswerView(props: {
               className="mr-2 text-accent underline"
               onClick={() => onOpenNote(c)}
             >
-              {i + 1} {c}
+              {i + 1} {stem(c)}
             </button>
           ))}
         </div>

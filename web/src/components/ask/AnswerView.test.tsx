@@ -28,12 +28,30 @@ describe("AnswerView", () => {
   it("shows a sources footer for assistant turns with citations", () => {
     render(
       <AnswerView
-        turn={turn({ text: "x [[store]]", citations: ["store"] })}
+        turn={turn({ text: "x [[store]]", citations: ["notes/store.md"] })}
         streaming={false}
         onOpenNote={vi.fn()}
       />,
     );
     expect(screen.getByTestId("sources")).toHaveTextContent("store");
+  });
+
+  it("renders a source citation labeled by stem but opens the full path", () => {
+    const turn = {
+      role: "assistant" as const,
+      text: "answer",
+      citations: ["notes/alpha.md"],
+      tools: [],
+    };
+    const onOpenNote = vi.fn();
+    render(
+      <AnswerView turn={turn} streaming={false} onOpenNote={onOpenNote} />,
+    );
+    const btn = screen.getByRole("button", { name: /alpha/ });
+    // label should be the stem, not the full path
+    expect(btn.textContent).not.toContain("notes/");
+    fireEvent.click(btn);
+    expect(onOpenNote).toHaveBeenCalledWith("notes/alpha.md");
   });
 
   it("shows a caret while streaming and a running tool indicator", () => {
