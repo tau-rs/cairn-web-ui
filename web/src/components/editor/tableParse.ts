@@ -87,7 +87,11 @@ export function insertRow(m: TableModel, index: number): TableModel {
   const i = clamp(index, 0, m.rows.length);
   return {
     header: [...m.header],
-    rows: [...m.rows.slice(0, i), blankRow(m.header.length), ...m.rows.slice(i)],
+    rows: [
+      ...m.rows.slice(0, i),
+      blankRow(m.header.length),
+      ...m.rows.slice(i),
+    ],
     align: [...m.align],
   };
 }
@@ -117,7 +121,11 @@ export function moveRow(m: TableModel, from: number, to: number): TableModel {
     to >= m.rows.length
   )
     return m;
-  return { header: [...m.header], rows: splice(m.rows, from, to), align: [...m.align] };
+  return {
+    header: [...m.header],
+    rows: splice(m.rows, from, to),
+    align: [...m.align],
+  };
 }
 
 const insertAt = <T>(arr: T[], i: number, v: T): T[] => [
@@ -153,7 +161,11 @@ export function removeColumn(m: TableModel, index: number): TableModel {
 }
 
 /** Move a column (header, every cell, and align in lockstep). No-op if unchanged. */
-export function moveColumn(m: TableModel, from: number, to: number): TableModel {
+export function moveColumn(
+  m: TableModel,
+  from: number,
+  to: number,
+): TableModel {
   if (
     from === to ||
     from < 0 ||

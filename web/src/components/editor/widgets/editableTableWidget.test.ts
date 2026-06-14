@@ -31,7 +31,11 @@ describe("EditableTableWidget cell key handling", () => {
     });
     const press = (init: KeyboardEventInit) =>
       cell.dispatchEvent(
-        new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }),
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          ...init,
+        }),
       );
     return { press, reachedEditor: () => reachedEditor, view };
   }
@@ -82,9 +86,9 @@ describe("EditableTableWidget structure controls", () => {
     dom
       .querySelector<HTMLElement>(".cm-lp-row-grip")!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const item = [...document.querySelectorAll<HTMLElement>("[role=menuitem]")].find(
-      (n) => n.textContent === "Insert row below",
-    )!;
+    const item = [
+      ...document.querySelectorAll<HTMLElement>("[role=menuitem]"),
+    ].find((n) => n.textContent === "Insert row below")!;
     item.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     // header + delimiter + original row + new blank row = 4 lines
     expect(view.state.doc.toString().split("\n").length).toBe(4);
@@ -96,9 +100,23 @@ describe("EditableTableWidget grip drag", () => {
   it("dragging a row grip reorders the rows", () => {
     const { dom, view } = mount("| A |\n| - |\n| 1 |\n| 2 |");
     const grip = dom.querySelector<HTMLElement>(".cm-lp-row-grip")!; // row 0 ("1")
-    grip.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
-    grip.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, clientY: 9999 }));
-    grip.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientY: 9999 }));
+    grip.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }),
+    );
+    grip.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerId: 1,
+        clientY: 9999,
+      }),
+    );
+    grip.dispatchEvent(
+      new PointerEvent("pointerup", {
+        bubbles: true,
+        pointerId: 1,
+        clientY: 9999,
+      }),
+    );
     // row "1" should have moved after row "2"
     const body = view.state.doc.toString().split("\n").slice(2);
     expect(body).toEqual(["| 2   |", "| 1   |"]);
@@ -127,7 +145,9 @@ describe("EditableTableWidget paste", () => {
 
   it("spills a multi-cell TSV block from the anchored body cell", () => {
     const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
-    dom.querySelector<HTMLElement>("tbody td")!.dispatchEvent(pasteEvent("x\ty\nz\tw"));
+    dom
+      .querySelector<HTMLElement>("tbody td")!
+      .dispatchEvent(pasteEvent("x\ty\nz\tw"));
     const out = view.state.doc.toString();
     expect(out).toContain("| x");
     expect(out).toContain("| z");
@@ -138,7 +158,9 @@ describe("EditableTableWidget paste", () => {
   it("ignores a single-value paste (lets the browser insert text)", () => {
     const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
     const before = view.state.doc.toString();
-    dom.querySelector<HTMLElement>("tbody td")!.dispatchEvent(pasteEvent("hello"));
+    dom
+      .querySelector<HTMLElement>("tbody td")!
+      .dispatchEvent(pasteEvent("hello"));
     expect(view.state.doc.toString()).toBe(before); // no structural dispatch
     view.destroy();
   });
@@ -149,7 +171,9 @@ describe("EditableTableWidget context menu", () => {
     const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
     dom
       .querySelector<HTMLElement>("tbody td")!
-      .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      .dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+      );
     const labels = [...document.querySelectorAll("[role=menuitem]")].map(
       (n) => n.textContent,
     );
@@ -161,7 +185,10 @@ describe("EditableTableWidget context menu", () => {
 
   it("suppresses the native context menu", () => {
     const { dom, view } = mount("| A | B |\n| - | - |\n| 1 | 2 |");
-    const e = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    const e = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+    });
     dom.querySelector<HTMLElement>("tbody td")!.dispatchEvent(e);
     expect(e.defaultPrevented).toBe(true);
     view.destroy();

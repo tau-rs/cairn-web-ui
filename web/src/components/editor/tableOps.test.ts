@@ -6,7 +6,9 @@ const md = "| A | B |\n| --- | --- |\n| 1 | 2 |";
 describe("computeTableEdit", () => {
   it("inserts a row below index 0", () => {
     const out = computeTableEdit(md, { kind: "insertRow", index: 1 });
-    expect(out).toBe("| A   | B   |\n| --- | --- |\n| 1   | 2   |\n|     |     |");
+    expect(out).toBe(
+      "| A   | B   |\n| --- | --- |\n| 1   | 2   |\n|     |     |",
+    );
   });
   it("removes a column", () => {
     const out = computeTableEdit(md, { kind: "removeColumn", index: 1 });

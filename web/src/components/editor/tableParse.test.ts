@@ -48,13 +48,15 @@ describe("serializeTable", () => {
       rows: [["Apple", "3"]],
       align: ["left", "right"],
     });
-    expect(md).toBe(
-      "| Name  | Qty |\n| :---- | --: |\n| Apple | 3   |",
-    );
+    expect(md).toBe("| Name  | Qty |\n| :---- | --: |\n| Apple | 3   |");
   });
   it("uses --- for unaligned columns with a minimum width of 3", () => {
     expect(
-      serializeTable({ header: ["A", "B"], rows: [["1", "2"]], align: ["none", "none"] }),
+      serializeTable({
+        header: ["A", "B"],
+        rows: [["1", "2"]],
+        align: ["none", "none"],
+      }),
     ).toBe("| A   | B   |\n| --- | --- |\n| 1   | 2   |");
   });
   it("serializes a header-only table (no body rows)", () => {
@@ -71,13 +73,21 @@ describe("serializeTable", () => {
     expect(parseTable(serializeTable(model))).toEqual(model);
   });
   it("escapes pipes in cell text and parse unescapes them", () => {
-    const model: TableModel = { header: ["A"], rows: [["x|y"]], align: ["none"] };
+    const model: TableModel = {
+      header: ["A"],
+      rows: [["x|y"]],
+      align: ["none"],
+    };
     const md = serializeTable(model);
     expect(md).toContain("x\\|y");
     expect(parseTable(md)).toEqual(model);
   });
   it("round-trips a cell containing a backslash", () => {
-    const model: TableModel = { header: ["A\\B"], rows: [["x\\"]], align: ["none"] };
+    const model: TableModel = {
+      header: ["A\\B"],
+      rows: [["x\\"]],
+      align: ["none"],
+    };
     expect(parseTable(serializeTable(model))).toEqual(model);
   });
 });

@@ -1,5 +1,10 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
-import { parseTable, serializeTable, parseTSV, type TableModel } from "../tableParse";
+import {
+  parseTable,
+  serializeTable,
+  parseTSV,
+  type TableModel,
+} from "../tableParse";
 import { applyTableOp, type TableOp } from "../tableOps";
 import { readTableFocus } from "../tableFocus";
 import { openTableMenu, type MenuAction } from "./tableMenu";
@@ -49,9 +54,10 @@ export class EditableTableWidget extends WidgetType {
         this.onCommit(this.from, this.to, md);
     });
 
-    // Restore focus to the cell recorded before the last structural op, else
-    // focus the first cell on initial entry.
+    // After layout: align grips to their rows/columns, then restore focus to the
+    // cell recorded before the last structural op (else the first cell on entry).
     requestAnimationFrame(() => {
+      this.positionGrips(wrap, table);
       const target = readTableFocus(view.state);
       if (target && target.pos === this.from) {
         this.focusCell(table, target.row, target.col);
@@ -60,6 +66,28 @@ export class EditableTableWidget extends WidgetType {
       }
     });
     return wrap;
+  }
+
+  /** Align each grip to its column (left+width) / row (top+height) by measuring
+   *  the laid-out cells. Grips are wrapper-absolute; CSS sets the cross-axis edge. */
+  private positionGrips(wrap: HTMLElement, table: HTMLTableElement): void {
+    const base = wrap.getBoundingClientRect();
+    const colGrips = wrap.querySelectorAll<HTMLElement>(".cm-lp-col-grip");
+    table.querySelectorAll<HTMLElement>("thead th").forEach((th, i) => {
+      const r = th.getBoundingClientRect();
+      const g = colGrips[i];
+      if (!g) return;
+      g.style.left = `${r.left - base.left}px`;
+      g.style.width = `${r.width}px`;
+    });
+    const rowGrips = wrap.querySelectorAll<HTMLElement>(".cm-lp-row-grip");
+    table.querySelectorAll<HTMLElement>("tbody tr").forEach((tr, i) => {
+      const r = tr.getBoundingClientRect();
+      const g = rowGrips[i];
+      if (!g) return;
+      g.style.top = `${r.top - base.top}px`;
+      g.style.height = `${r.height}px`;
+    });
   }
 
   /** Read the live model from the DOM, preserving alignment from `base` (alignment
@@ -210,14 +238,49 @@ export class EditableTableWidget extends WidgetType {
     model: TableModel,
     ri: number,
   ): MenuAction[] {
-    const run = (build: (m: TableModel) => TableOp, focus: { row: number; col: number }) =>
-      this.op(view, table, model, build, focus);
+    const run = (
+      build: (m: TableModel) => TableOp,
+      focus: { row: number; col: number },
+    ) => this.op(view, table, model, build, focus);
     return [
-      { label: "Insert row above", run: () => run(() => ({ kind: "insertRow", index: ri }), { row: ri, col: 0 }) },
-      { label: "Insert row below", run: () => run(() => ({ kind: "insertRow", index: ri + 1 }), { row: ri + 1, col: 0 }) },
-      { label: "Move row up", run: () => run(() => ({ kind: "moveRow", from: ri, to: ri - 1 }), { row: ri - 1, col: 0 }) },
-      { label: "Move row down", run: () => run(() => ({ kind: "moveRow", from: ri, to: ri + 1 }), { row: ri + 1, col: 0 }) },
-      { label: "Delete row", danger: true, run: () => run(() => ({ kind: "removeRow", index: ri }), { row: Math.max(0, ri - 1), col: 0 }) },
+      {
+        label: "Insert row above",
+        run: () =>
+          run(() => ({ kind: "insertRow", index: ri }), { row: ri, col: 0 }),
+      },
+      {
+        label: "Insert row below",
+        run: () =>
+          run(() => ({ kind: "insertRow", index: ri + 1 }), {
+            row: ri + 1,
+            col: 0,
+          }),
+      },
+      {
+        label: "Move row up",
+        run: () =>
+          run(() => ({ kind: "moveRow", from: ri, to: ri - 1 }), {
+            row: ri - 1,
+            col: 0,
+          }),
+      },
+      {
+        label: "Move row down",
+        run: () =>
+          run(() => ({ kind: "moveRow", from: ri, to: ri + 1 }), {
+            row: ri + 1,
+            col: 0,
+          }),
+      },
+      {
+        label: "Delete row",
+        danger: true,
+        run: () =>
+          run(() => ({ kind: "removeRow", index: ri }), {
+            row: Math.max(0, ri - 1),
+            col: 0,
+          }),
+      },
     ];
   }
 
@@ -227,14 +290,52 @@ export class EditableTableWidget extends WidgetType {
     model: TableModel,
     ci: number,
   ): MenuAction[] {
-    const run = (build: (m: TableModel) => TableOp, focus: { row: number; col: number }) =>
-      this.op(view, table, model, build, focus);
+    const run = (
+      build: (m: TableModel) => TableOp,
+      focus: { row: number; col: number },
+    ) => this.op(view, table, model, build, focus);
     return [
-      { label: "Insert column left", run: () => run(() => ({ kind: "insertColumn", index: ci }), { row: -1, col: ci }) },
-      { label: "Insert column right", run: () => run(() => ({ kind: "insertColumn", index: ci + 1 }), { row: -1, col: ci + 1 }) },
-      { label: "Move column left", run: () => run(() => ({ kind: "moveColumn", from: ci, to: ci - 1 }), { row: -1, col: ci - 1 }) },
-      { label: "Move column right", run: () => run(() => ({ kind: "moveColumn", from: ci, to: ci + 1 }), { row: -1, col: ci + 1 }) },
-      { label: "Delete column", danger: true, run: () => run(() => ({ kind: "removeColumn", index: ci }), { row: -1, col: Math.max(0, ci - 1) }) },
+      {
+        label: "Insert column left",
+        run: () =>
+          run(() => ({ kind: "insertColumn", index: ci }), {
+            row: -1,
+            col: ci,
+          }),
+      },
+      {
+        label: "Insert column right",
+        run: () =>
+          run(() => ({ kind: "insertColumn", index: ci + 1 }), {
+            row: -1,
+            col: ci + 1,
+          }),
+      },
+      {
+        label: "Move column left",
+        run: () =>
+          run(() => ({ kind: "moveColumn", from: ci, to: ci - 1 }), {
+            row: -1,
+            col: ci - 1,
+          }),
+      },
+      {
+        label: "Move column right",
+        run: () =>
+          run(() => ({ kind: "moveColumn", from: ci, to: ci + 1 }), {
+            row: -1,
+            col: ci + 1,
+          }),
+      },
+      {
+        label: "Delete column",
+        danger: true,
+        run: () =>
+          run(() => ({ kind: "removeColumn", index: ci }), {
+            row: -1,
+            col: Math.max(0, ci - 1),
+          }),
+      },
     ];
   }
 

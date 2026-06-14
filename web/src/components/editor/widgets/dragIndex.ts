@@ -10,7 +10,11 @@ export function dropIndex(p: number, centers: number[]): number {
  *  pre-removal item `centers` and the dragged item's current `fromIndex`. Adjusts
  *  for moveRow/moveColumn's remove-then-insert semantics (downward drags shift the
  *  target left by one) and clamps to a valid index. */
-export function dropTarget(p: number, centers: number[], fromIndex: number): number {
+export function dropTarget(
+  p: number,
+  centers: number[],
+  fromIndex: number,
+): number {
   let to = dropIndex(p, centers);
   if (to > fromIndex) to -= 1; // account for the removed slot on downward moves
   return Math.max(0, Math.min(centers.length - 1, to));
