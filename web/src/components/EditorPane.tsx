@@ -99,10 +99,7 @@ export function EditorPane() {
   const splitRatio = useCairn((s) => s.splitRatio);
   const loading = useCairn((s) => s.loading);
   const viewingRevision = useCairn((s) => s.viewingRevision);
-  // Working-copy buffer of the active note — the "current" side of the diff.
-  const activeContents = useCairn((s) =>
-    s.activePath ? (s.openNotes[s.activePath]?.contents ?? "") : "",
-  );
+  const openNotes = useCairn((s) => s.openNotes);
   const view = isGraph(location) ? "graph" : "editor";
   const bp = useBreakpoint();
   const split = panes.length > 1 && bp !== "mobile";
@@ -135,7 +132,7 @@ export function EditorPane() {
           <RevisionView
             revision={viewingRevision.revision}
             contents={viewingRevision.contents}
-            current={activeContents}
+            current={openNotes[viewingRevision.path]?.contents ?? ""}
             onBack={() => actions.exitRevisionView()}
             onRestore={() =>
               void actions.restoreRevision(viewingRevision.revision)

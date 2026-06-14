@@ -2,34 +2,16 @@ import { describe, it, expect } from "vitest";
 import { lineDiff } from "./lineDiff";
 
 describe("lineDiff", () => {
-  it("returns all context rows for identical text", () => {
+  it("returns all context lines when both sides are identical", () => {
     const rows = lineDiff("a\nb\nc", "a\nb\nc");
-    expect(rows.map((r) => r.type)).toEqual(["ctx", "ctx", "ctx"]);
-    expect(rows.map((r) => r.text)).toEqual(["a", "b", "c"]);
-    expect(rows[0]).toMatchObject({ oldLine: 1, newLine: 1 });
-  });
-
-  it("returns all adds when old is empty", () => {
-    const rows = lineDiff("", "x\ny");
     expect(rows).toEqual([
-      { type: "add", text: "x", oldLine: null, newLine: 1 },
-      { type: "add", text: "y", oldLine: null, newLine: 2 },
+      { type: "ctx", text: "a", oldLine: 1, newLine: 1 },
+      { type: "ctx", text: "b", oldLine: 2, newLine: 2 },
+      { type: "ctx", text: "c", oldLine: 3, newLine: 3 },
     ]);
   });
 
-  it("returns all dels when new is empty", () => {
-    const rows = lineDiff("x\ny", "");
-    expect(rows).toEqual([
-      { type: "del", text: "x", oldLine: 1, newLine: null },
-      { type: "del", text: "y", oldLine: 2, newLine: null },
-    ]);
-  });
-
-  it("returns [] when both are empty", () => {
-    expect(lineDiff("", "")).toEqual([]);
-  });
-
-  it("detects a mid-document insertion", () => {
+  it("marks a purely added line", () => {
     const rows = lineDiff("a\nc", "a\nb\nc");
     expect(rows).toEqual([
       { type: "ctx", text: "a", oldLine: 1, newLine: 1 },
@@ -38,7 +20,7 @@ describe("lineDiff", () => {
     ]);
   });
 
-  it("detects a deletion", () => {
+  it("marks a purely deleted line", () => {
     const rows = lineDiff("a\nb\nc", "a\nc");
     expect(rows).toEqual([
       { type: "ctx", text: "a", oldLine: 1, newLine: 1 },
@@ -47,8 +29,34 @@ describe("lineDiff", () => {
     ]);
   });
 
-  it("treats matching trailing newlines as context, not a spurious diff", () => {
-    const rows = lineDiff("a\nb\n", "a\nb\n");
-    expect(rows.every((r) => r.type === "ctx")).toBe(true);
+  it("emits a deletion then an addition for a changed line", () => {
+    const rows = lineDiff("a\nb\nc", "a\nB\nc");
+    expect(rows).toEqual([
+      { type: "ctx", text: "a", oldLine: 1, newLine: 1 },
+      { type: "del", text: "b", oldLine: 2, newLine: null },
+      { type: "add", text: "B", oldLine: null, newLine: 2 },
+      { type: "ctx", text: "c", oldLine: 3, newLine: 3 },
+    ]);
+  });
+
+  it("preserves blank lines and whitespace", () => {
+    const rows = lineDiff("a\n\n  b", "a\n\n  b");
+    expect(rows).toEqual([
+      { type: "ctx", text: "a", oldLine: 1, newLine: 1 },
+      { type: "ctx", text: "", oldLine: 2, newLine: 2 },
+      { type: "ctx", text: "  b", oldLine: 3, newLine: 3 },
+    ]);
+  });
+
+  it("treats an empty old side as all additions", () => {
+    const rows = lineDiff("", "x\ny");
+    expect(rows).toEqual([
+      { type: "add", text: "x", oldLine: null, newLine: 1 },
+      { type: "add", text: "y", oldLine: null, newLine: 2 },
+    ]);
+  });
+
+  it("treats two empty strings as zero rows", () => {
+    expect(lineDiff("", "")).toEqual([]);
   });
 });
