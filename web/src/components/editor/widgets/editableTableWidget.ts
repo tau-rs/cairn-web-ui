@@ -3,7 +3,7 @@ import { parseTable, serializeTable, parseTSV, type TableModel } from "../tableP
 import { applyTableOp, type TableOp } from "../tableOps";
 import { readTableFocus } from "../tableFocus";
 import { openTableMenu, type MenuAction } from "./tableMenu";
-import { dropIndex } from "./dragIndex";
+import { dropTarget } from "./dragIndex";
 
 export class EditableTableWidget extends WidgetType {
   constructor(
@@ -280,10 +280,14 @@ export class EditableTableWidget extends WidgetType {
       if (down && moved) {
         const list = centers();
         const p = axis === "row" ? e.clientY : e.clientX;
-        const to = Math.min(list.length - 1, dropIndex(p, list));
+        const to = dropTarget(p, list, index);
         if (to !== index) onMove(to);
       }
       down = false;
+    });
+    g.addEventListener("pointercancel", () => {
+      down = false;
+      moved = false;
     });
     g.addEventListener("click", (e) => {
       if (moved) {
