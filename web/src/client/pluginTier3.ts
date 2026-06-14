@@ -73,12 +73,12 @@ export function groupCapabilities(caps: PluginCapability[]): RiskRow[] {
 /** Host-side representation of an iframe widget (post-sanitize). */
 export type IframeWidget = {
   kind: "iframe";
-  html: string;
+  entry: string;
   height: number | null;
 };
 
 // Clamp limits for iframe widgets (sanitizer + broker share these).
-export const MAX_IFRAME_HTML = 256 * 1024; // 256 KiB inlined HTML
+export const MAX_ENTRY = 512; // max length of a relative bundle entry path
 export const MIN_IFRAME_HEIGHT = 80;
 export const MAX_IFRAME_HEIGHT = 600;
 export const DEFAULT_IFRAME_HEIGHT = 240;

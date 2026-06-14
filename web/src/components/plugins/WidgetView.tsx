@@ -38,7 +38,7 @@ export function WidgetView({
         widget={
           widget as unknown as {
             kind: "iframe";
-            html: string;
+            entry: string;
             height: number | null;
           }
         }
@@ -122,7 +122,7 @@ function IframeWidget({
   widget,
 }: {
   plugin: string;
-  widget: { kind: "iframe"; html: string; height: number | null };
+  widget: { kind: "iframe"; entry: string; height: number | null };
 }) {
   const { grantPlugin } = useActions();
   const summary = useCairn(
@@ -170,7 +170,7 @@ function IframeWidget({
   return (
     <IframeHost
       plugin={plugin}
-      html={widget.html}
+      entry={widget.entry}
       height={widget.height}
       granted={grantedSet}
       pluginCommands={commandIds}

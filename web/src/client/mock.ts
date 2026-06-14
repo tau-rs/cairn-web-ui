@@ -153,30 +153,18 @@ export class MockClient implements CairnClient {
       name: "Word Count",
       version: "1.0.0",
       commands: [],
+      uiRoot: "(mock)/wordcount/ui",
       contributions: [
         {
           id: "wc-panel",
-          slot: "sidebar.section",
+          slot: "panel.main",
           title: "Word Count",
           icon: "info",
           order: 100,
           widget: {
             kind: "iframe",
             height: 120,
-            html:
-              "<body style='font:13px sans-serif;margin:6px'>" +
-              "<div id='n'>…</div>" +
-              "<script>" +
-              "parent.postMessage({t:'req',id:'h',method:'__handshake'},'*');" +
-              "function ask(){parent.postMessage({t:'req',id:'r',method:'activeNote.read'},'*')}" +
-              "addEventListener('message',function(e){" +
-              "var d=e.data;" +
-              "if(d&&d.t==='ready'){ask()}" +
-              "if(d&&d.t==='res'&&d.id==='r'&&d.ok){var t=d.result?d.result.text:'';" +
-              "document.getElementById('n').textContent=(t.trim()?t.trim().split(/\\s+/).length:0)+' words'}" +
-              "if(d&&d.t==='event'&&d.topic==='activeNote'){ask()}" +
-              "});" +
-              "</script></body>",
+            entry: "index.html",
           },
         },
       ],

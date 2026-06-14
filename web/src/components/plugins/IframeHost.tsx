@@ -10,9 +10,11 @@ import type { BrokerHost } from "../../client/pluginBrokerHost";
 type Phase = "handshaking" | "ready" | "error";
 
 /**
- * Mounts an untrusted plugin's HTML in a null-origin sandboxed iframe and owns
- * the per-frame broker for its whole lifetime. The sandbox attr is hard-coded
- * (never allow-same-origin) so the frame stays opaque-origin + network-blocked.
+ * Mounts an untrusted plugin's bundle (served at its own opaque
+ * `plugin-sandbox://<id>/` origin) in a sandboxed iframe and owns the per-frame
+ * broker for its whole lifetime. `allow-same-origin` is sound ONLY because the
+ * bundle origin differs from the host origin — asserted before mount; a
+ * same-origin-as-host src renders nothing.
  *
  * Callers MUST pass stable `granted` / `pluginCommands` / `host` references
  * (memoized Sets, singleton host): they are effect deps, so a fresh identity on
@@ -20,7 +22,7 @@ type Phase = "handshaking" | "ready" | "error";
  */
 export function IframeHost({
   plugin,
-  html,
+  entry,
   height,
   granted,
   pluginCommands,
@@ -28,7 +30,7 @@ export function IframeHost({
   handshakeTimeoutMs = BROKER_HANDSHAKE_TIMEOUT_MS,
 }: {
   plugin: string;
-  html: string;
+  entry: string;
   height: number | null;
   granted: ReadonlySet<PluginCapability>;
   pluginCommands: ReadonlySet<string>;
@@ -88,11 +90,11 @@ export function IframeHost({
       unsubNote();
       broker.dispose();
     };
-    // Re-mount the frame (and broker) whenever identity/grant/html changes, or
+    // Re-mount the frame (and broker) whenever identity/grant/entry changes, or
     // when retry bumps `retryKey`.
   }, [
     plugin,
-    html,
+    entry,
     granted,
     pluginCommands,
     host,
@@ -115,12 +117,23 @@ export function IframeHost({
     );
   }
 
+  const src = `plugin-sandbox://${plugin}/${entry}`;
+
+  // allow-same-origin is sound ONLY because the bundle is a DIFFERENT origin
+  // than the host. Never serve same-origin-as-host.
+  if (
+    typeof window !== "undefined" &&
+    new URL(src, window.location.href).origin === window.location.origin
+  ) {
+    return null;
+  }
+
   return (
     <iframe
       ref={ref}
       title={`plugin:${plugin}`}
-      sandbox="allow-scripts"
-      srcDoc={html}
+      sandbox="allow-scripts allow-same-origin"
+      src={src}
       style={{
         width: "100%",
         height: `${height ?? DEFAULT_IFRAME_HEIGHT}px`,

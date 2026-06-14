@@ -20,7 +20,7 @@ import {
 } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
 import {
-  MAX_IFRAME_HTML,
+  MAX_ENTRY,
   MAX_IFRAME_HEIGHT,
   MIN_IFRAME_HEIGHT,
   DEFAULT_IFRAME_HEIGHT,
@@ -35,6 +35,7 @@ export const PLUGIN_SLOTS = [
   "sidebar.section",
   "topbar.action",
   "command",
+  "panel.main",
 ] as const;
 export const WIDGET_KINDS = ["text", "action", "list", "iframe"] as const;
 const ICONS = PLUGIN_ICON_VALUES;
@@ -80,6 +81,16 @@ function clampStr(x: unknown): string {
 /** Coerce an out-of-enum / missing icon to null. */
 function icon(x: unknown): PluginIcon | null {
   return typeof x === "string" && ICON_SET.has(x) ? (x as PluginIcon) : null;
+}
+
+/** A safe relative bundle path: non-empty, ≤MAX_ENTRY, no leading slash, no
+ *  backslash, no `..`/empty segment. Returns null if unsafe. */
+function safeEntry(x: unknown): string | null {
+  if (typeof x !== "string" || x.length === 0 || x.length > MAX_ENTRY)
+    return null;
+  if (x.startsWith("/") || x.includes("\\")) return null;
+  if (x.split("/").some((seg) => seg === ".." || seg === "")) return null;
+  return x;
 }
 
 /** Pass `args` through if it fits the byte budget; otherwise signal oversize.
@@ -146,10 +157,9 @@ function sanitizeWidget(
     };
   }
   if (kind === "iframe") {
-    if (typeof raw.html !== "string")
-      return drop(report, "iframe widget: missing string html");
-    if (raw.html.length > MAX_IFRAME_HTML)
-      return drop(report, "iframe widget: html too large");
+    const entry = safeEntry(raw.entry);
+    if (entry === null)
+      return drop(report, "iframe widget: unsafe or missing entry");
     let height: number | null = DEFAULT_IFRAME_HEIGHT;
     if (raw.height === null) height = null;
     else if (typeof raw.height === "number" && Number.isFinite(raw.height))
@@ -160,7 +170,7 @@ function sanitizeWidget(
     // TODO(contract-sync): drop cast after engine adds the iframe PluginWidget variant.
     return {
       kind: "iframe",
-      html: raw.html,
+      entry,
       height,
     } as unknown as PluginWidget;
   }
@@ -199,11 +209,12 @@ function sanitizeOne(
 
   if (
     (widget as unknown as { kind: string }).kind === "iframe" &&
-    slot !== "sidebar.section"
+    slot !== "sidebar.section" &&
+    slot !== "panel.main"
   )
     return drop(
       report,
-      `contribution ${raw.id}: iframe widget only allowed in sidebar.section`,
+      `contribution ${raw.id}: iframe widget only allowed in sidebar.section or panel.main`,
     );
 
   return {

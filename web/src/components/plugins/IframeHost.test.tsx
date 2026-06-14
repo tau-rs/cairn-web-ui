@@ -15,11 +15,11 @@ const host: BrokerHost = {
 };
 
 describe("IframeHost", () => {
-  it("renders a locked-down sandboxed iframe with the plugin html as srcdoc", () => {
+  it("renders a sandboxed iframe pointed at the plugin-sandbox origin", () => {
     render(
       <IframeHost
         plugin="p"
-        html="<p id='x'>hi</p>"
+        entry="index.html"
         height={200}
         granted={new Set()}
         pluginCommands={new Set()}
@@ -27,8 +27,10 @@ describe("IframeHost", () => {
       />,
     );
     const frame = screen.getByTitle("plugin:p") as HTMLIFrameElement;
-    expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
-    expect(frame.getAttribute("srcdoc")).toContain("hi");
+    expect(frame.getAttribute("sandbox")).toBe(
+      "allow-scripts allow-same-origin",
+    );
+    expect(frame.getAttribute("src")).toBe("plugin-sandbox://p/index.html");
     expect(frame.style.height).toBe("200px");
   });
 
@@ -36,7 +38,7 @@ describe("IframeHost", () => {
     render(
       <IframeHost
         plugin="p"
-        html="<p>no handshake</p>"
+        entry="index.html"
         height={null}
         granted={new Set()}
         pluginCommands={new Set()}
@@ -64,7 +66,7 @@ describe("IframeHost", () => {
     const { container } = render(
       <IframeHost
         plugin="p"
-        html="<p>x</p>"
+        entry="index.html"
         height={null}
         granted={new Set(["activeNote.read"])}
         pluginCommands={new Set()}
@@ -97,7 +99,7 @@ describe("IframeHost", () => {
     render(
       <IframeHost
         plugin="p"
-        html="<p>x</p>"
+        entry="index.html"
         height={null}
         granted={new Set()}
         pluginCommands={new Set()}
@@ -111,7 +113,7 @@ describe("IframeHost", () => {
     render(
       <IframeHost
         plugin="p"
-        html="<p>no handshake</p>"
+        entry="index.html"
         height={null}
         granted={new Set()}
         pluginCommands={new Set()}
