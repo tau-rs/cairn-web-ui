@@ -115,3 +115,45 @@ describe("history slice — showHistory", () => {
     await vi.waitFor(() => expect(store.getState().history).toEqual(REVS));
   });
 });
+
+describe("history slice — race guard", () => {
+  it("a superseded (stale) loadHistory response never clobbers a newer one", async () => {
+    const N1: Revision[] = [
+      { id: "n1", message: "n", timestamp_secs: 1n, author: "t" },
+    ];
+    const X1: Revision[] = [
+      { id: "x1", message: "x", timestamp_secs: 1n, author: "t" },
+    ];
+    const client = new MockClient(
+      { "n.md": "n", "x.md": "x" },
+      {
+        "n.md": { revisions: N1, contents: {} },
+        "x.md": { revisions: X1, contents: {} },
+      },
+    );
+    // Hold n.md's note_history open until we release it, so it can resolve
+    // AFTER x.md's — exercising the historySeq supersession guard.
+    const orig = client.runQuery.bind(client);
+    let releaseN: () => Promise<void> = async () => {};
+    client.runQuery = (q) => {
+      if (q.type === "note_history" && q.path === "n.md") {
+        return new Promise((res) => {
+          releaseN = async () => res(await orig(q));
+        });
+      }
+      return orig(q);
+    };
+    const store = createCairnStore(client);
+    await store.getState().init();
+
+    await store.getState().openNote("n.md");
+    const pN = store.getState().loadHistory(); // in-flight, blocked
+    await store.getState().openNote("x.md");
+    await store.getState().loadHistory(); // resolves first, with x.md
+    expect(store.getState().history).toEqual(X1);
+
+    await releaseN(); // the stale n.md response now resolves
+    await pN;
+    expect(store.getState().history).toEqual(X1); // not clobbered
+  });
+});

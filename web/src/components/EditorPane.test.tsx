@@ -53,6 +53,33 @@ describe("EditorPane revision view", () => {
     expect(await screen.findByText(/read-only/i)).toBeInTheDocument();
     expect(screen.getByText("old body")).toBeInTheDocument();
   });
+
+  it("clears a stale revision view when the active note no longer matches", async () => {
+    // viewingRevision belongs to a.md, but the active note is b.md — the
+    // clear-on-switch effect must drop it so it can't leak across notes.
+    cairnStore.setState({
+      notePaths: ["a.md", "b.md"],
+      openNotes: {
+        "a.md": { contents: "alpha", dirty: false, saving: false },
+        "b.md": { contents: "beta", dirty: false, saving: false },
+      },
+      panes: [{ tabs: [{ path: "b.md", preview: false }], activePath: "b.md" }],
+      activePane: 0,
+      splitRatio: 1,
+      activePath: "b.md",
+      activeContents: "beta",
+      viewingRevision: { path: "a.md", revision: "r1", contents: "old body" },
+    });
+    render(
+      <MemoryRouter initialEntries={["/note/b.md"]}>
+        <EditorPane />
+      </MemoryRouter>,
+    );
+    await vi.waitFor(() =>
+      expect(cairnStore.getState().viewingRevision).toBeNull(),
+    );
+    expect(screen.queryByText(/read-only/i)).toBeNull();
+  });
 });
 
 describe("EditorPane split", () => {
