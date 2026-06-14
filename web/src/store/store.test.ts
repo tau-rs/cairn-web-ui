@@ -1068,6 +1068,24 @@ describe("split panes", () => {
       for (const e of entries) expect(e.plugin).not.toBe("bare");
     }
   });
+
+  it("loadPlugins registers ui-roots for plugins that declare uiRoot", async () => {
+    vi.useRealTimers();
+    const setPluginUiRoots = vi.fn(() => Promise.resolve());
+    const host = {
+      currentCairn: () => Promise.resolve<string | null>("(fixture)"),
+      openCairn: () => Promise.resolve<string | null>("(fixture)"),
+      assetUrl: (p: string) => p,
+      setPluginUiRoots,
+    };
+    // The mock seeds `wordcount` with uiRoot "(mock)/wordcount/ui"; demo/bare
+    // have no uiRoot and must be excluded from the registered map.
+    const store = createCairnStore(new MockClient({}), host);
+    await store.getState().init();
+    expect(setPluginUiRoots).toHaveBeenCalledWith({
+      wordcount: "(mock)/wordcount/ui",
+    });
+  });
 });
 
 describe("mobile ui state", () => {

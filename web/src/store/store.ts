@@ -98,6 +98,8 @@ export interface UiState {
   mobileTab: MobileTab;
   /** Backlinks drawer/sheet open (tablet + mobile shells). */
   backlinksOpen: boolean;
+  /** Bottom plugin dock (panel.main slot): active tab + collapse state. */
+  panelDock: { activeId: string | null; collapsed: boolean };
   /** Per-command keybinding overrides (chord, or null = unbound). Persisted. */
   keybindingOverrides: Overrides;
 }
@@ -110,6 +112,7 @@ export const DEFAULT_UI: UiState = {
   paletteOpen: false,
   mobileTab: "editor",
   backlinksOpen: false,
+  panelDock: { activeId: null, collapsed: false },
   keybindingOverrides: {},
 };
 
@@ -923,6 +926,14 @@ export function createCairnStore(
               pluginEpoch: epoch,
               pluginDropped: report.dropped,
             });
+            // Register each plugin's ui/ dir with the native protocol handler so
+            // its bundle can be served at plugin-sandbox://<id>/. No-op off Tauri.
+            const roots: Record<string, string> = {};
+            for (const p of res.plugins) {
+              const r = (p as { uiRoot?: string | null }).uiRoot;
+              if (r) roots[p.id] = r;
+            }
+            void host.setPluginUiRoots(roots).catch(() => {});
           } else unexpected("Load plugins", res);
         } catch (err) {
           pushError("Load plugins", err);
