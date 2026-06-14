@@ -7,6 +7,7 @@ import {
   emptyAssistantTurn,
   type AskTurn,
 } from "./askReducer";
+import { errMsg } from "./errMsg";
 
 export type AskMode = "closed" | "bar" | "panel";
 
@@ -38,15 +39,6 @@ export const DEFAULT_ASK: AskConversation = {
 
 type Set = StoreApi<CairnState>["setState"];
 type Get = StoreApi<CairnState>["getState"];
-
-// Intentionally simpler than store.ts's errMsg: it does not format ContractError.
-// Acceptable because under the mock the onError path never fires; unify the two
-// when the real agent transport lands (Wave 2).
-function errMsg(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err)
-    return String((err as { message: unknown }).message);
-  return err instanceof Error ? err.message : String(err);
-}
 
 /** Ask conversation slice. Owns the agent-stream subscription in its closure
  *  (like store.ts's eventUnsub), so unmounting the bar on promote can't tear
