@@ -4,8 +4,9 @@ import type {
   Event,
   CommandResponse,
   QueryResponse,
+  AskRequest,
+  AnswerEvent,
 } from "../contract";
-import type { AgentEvent } from "./agent";
 
 export type Unsubscribe = () => void;
 
@@ -28,13 +29,13 @@ export interface CairnClient {
    *  Query): the mock parses note content; Tauri stubs {} until the engine
    *  exposes tags. */
   noteTags(): Promise<Record<string, string[]>>;
-  /** Ask the grounded agent a question; `onEvent` receives the stream (see
-   *  AgentEvent). Mirrors `subscribe`'s shape: `onError` fires if the stream
-   *  fails to attach. Returns an Unsubscribe that cancels the in-flight run.
-   *  The real transport is wired in Wave 2 (Track 03); the mock streams now. */
+  /** Stream a note-grounded answer. `onEvent` receives `AnswerEvent` frames
+   *  (`sources` first, then deltas/tool events, then `completed`/`failed`).
+   *  `onError` fires only on a pre-stream/transport failure; an in-run failure
+   *  is a `failed` event. The returned `Unsubscribe` cancels the stream. */
   ask(
-    question: string,
-    onEvent: (e: AgentEvent) => void,
+    req: AskRequest,
+    onEvent: (e: AnswerEvent) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe;
 }

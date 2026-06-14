@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createCairnStore } from "./store";
 import { MockClient } from "../client/mock";
+import type { AskRequest } from "../contract";
 
 const make = () =>
   createCairnStore(new MockClient({ "store.md": "# Store\n" }));
@@ -24,7 +25,20 @@ describe("ask slice", () => {
     await vi.waitFor(() => expect(s.getState().ask.streaming).toBe(false));
     const ai = s.getState().ask.turns[1];
     expect(ai.text).toContain("grounded");
-    expect(ai.citations).toContain("store");
+    expect(ai.citations).toEqual(["store.md"]);
+  });
+
+  it("forwards an AskRequest to client.ask", () => {
+    const client = new MockClient({ "store.md": "# Store\n" });
+    let captured: AskRequest | undefined;
+    const ask = client.ask.bind(client);
+    client.ask = (req, onEvent) => {
+      captured = req;
+      return ask(req, onEvent);
+    };
+    const s = createCairnStore(client);
+    s.getState().askSubmit("how does it work?");
+    expect(captured).toEqual({ query: "how does it work?", top_k: null });
   });
 
   it("promote flips bar -> panel without touching turns", async () => {

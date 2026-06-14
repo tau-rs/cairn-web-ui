@@ -1,9 +1,9 @@
 import type { StoreApi } from "zustand/vanilla";
 import type { CairnClient, Unsubscribe } from "../client/types";
-import type { AgentEvent } from "../client/agent";
+import type { AskRequest, AnswerEvent } from "../contract";
 import type { CairnState } from "./store";
 import {
-  applyAgentEvent,
+  applyAnswerEvent,
   emptyAssistantTurn,
   type AskTurn,
 } from "./askReducer";
@@ -84,7 +84,7 @@ export function createAskSlice(
         },
       }));
 
-      const onEvent = (e: AgentEvent) => {
+      const onEvent = (e: AnswerEvent) => {
         if (token !== runToken) return;
         if (e.type === "failed") {
           stop();
@@ -102,14 +102,15 @@ export function createAskSlice(
         set((s) => {
           const turns = s.ask.turns.slice();
           const i = turns.length - 1;
-          turns[i] = applyAgentEvent(turns[i], e);
+          turns[i] = applyAnswerEvent(turns[i], e);
           return { ask: { ...s.ask, turns } };
         });
       };
 
       // Assumes client.ask delivers its first event asynchronously (both the mock
       // and the Tauri transport do), so unsub is assigned before any onEvent/onError runs.
-      unsub = client.ask(q, onEvent, (err) => {
+      const req: AskRequest = { query: q, top_k: null };
+      unsub = client.ask(req, onEvent, (err) => {
         if (token !== runToken) return;
         stop();
         set((s) => ({

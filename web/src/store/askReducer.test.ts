@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { applyAgentEvent, emptyAssistantTurn } from "./askReducer";
-import type { AgentEvent } from "../client/agent";
+import { applyAnswerEvent, emptyAssistantTurn } from "./askReducer";
+import type { AnswerEvent } from "../contract";
 
-const reduce = (events: AgentEvent[]) =>
-  events.reduce(applyAgentEvent, emptyAssistantTurn());
+const reduce = (events: AnswerEvent[]) =>
+  events.reduce(applyAnswerEvent, emptyAssistantTurn());
 
-describe("applyAgentEvent", () => {
+describe("applyAnswerEvent", () => {
   it("accumulates text deltas in order", () => {
     const t = reduce([
       { type: "text_delta", text: "Hello " },
@@ -14,12 +14,20 @@ describe("applyAgentEvent", () => {
     expect(t.text).toBe("Hello world");
   });
 
-  it("extracts distinct citations from embedded wikilinks", () => {
-    const t = reduce([
-      { type: "text_delta", text: "see [[store]] and " },
-      { type: "text_delta", text: "[[timer]] and again [[store]]" },
-    ]);
-    expect(t.citations).toEqual(["store", "timer"]);
+  it("sets citations from a sources frame", () => {
+    const t = applyAnswerEvent(emptyAssistantTurn(), {
+      type: "sources",
+      paths: ["a.md", "b.md"],
+    });
+    expect(t.citations).toEqual(["a.md", "b.md"]);
+  });
+
+  it("appends text only on text_delta (no citation scraping)", () => {
+    let t = emptyAssistantTurn();
+    t = applyAnswerEvent(t, { type: "text_delta", text: "see [[a]] " });
+    t = applyAnswerEvent(t, { type: "text_delta", text: "and [[b]]" });
+    expect(t.text).toBe("see [[a]] and [[b]]");
+    expect(t.citations).toEqual([]);
   });
 
   it("tracks tool start then completion", () => {
@@ -32,15 +40,15 @@ describe("applyAgentEvent", () => {
 
   it("ignores unknown event kinds (non-exhaustive safety)", () => {
     const before = emptyAssistantTurn();
-    const after = applyAgentEvent(before, {
+    const after = applyAnswerEvent(before, {
       type: "mystery",
-    } as unknown as AgentEvent);
+    } as unknown as AnswerEvent);
     expect(after).toEqual(before);
   });
 
   it("does not mutate the input turn", () => {
     const before = emptyAssistantTurn();
-    applyAgentEvent(before, { type: "text_delta", text: "x" });
+    applyAnswerEvent(before, { type: "text_delta", text: "x" });
     expect(before.text).toBe("");
   });
 });

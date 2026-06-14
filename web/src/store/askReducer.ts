@@ -1,5 +1,4 @@
-import type { AgentEvent } from "../client/agent";
-import { extractLinks } from "../client/wikilink";
+import type { AnswerEvent } from "../contract";
 
 /** One message in the ask conversation. */
 export interface AskTurn {
@@ -18,12 +17,12 @@ export function emptyAssistantTurn(): AskTurn {
 /** Apply one content event to the in-flight assistant turn. Pure. Lifecycle
  *  events (turn_completed/completed/failed) and unknown kinds are no-ops here —
  *  the slice owns lifecycle (streaming flag, error). */
-export function applyAgentEvent(turn: AskTurn, e: AgentEvent): AskTurn {
+export function applyAnswerEvent(turn: AskTurn, e: AnswerEvent): AskTurn {
   switch (e.type) {
-    case "text_delta": {
-      const text = turn.text + e.text;
-      return { ...turn, text, citations: distinct(extractLinks(text)) };
-    }
+    case "sources":
+      return { ...turn, citations: e.paths };
+    case "text_delta":
+      return { ...turn, text: turn.text + e.text };
     case "tool_started":
       return { ...turn, tools: [...turn.tools, { tool: e.tool, ok: null }] };
     case "tool_completed":
@@ -31,17 +30,6 @@ export function applyAgentEvent(turn: AskTurn, e: AgentEvent): AskTurn {
     default:
       return turn;
   }
-}
-
-function distinct(xs: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const x of xs)
-    if (!seen.has(x)) {
-      seen.add(x);
-      out.push(x);
-    }
-  return out;
 }
 
 /** Mark the most recent still-running tool with this name as done. */

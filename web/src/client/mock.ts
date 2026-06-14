@@ -10,9 +10,10 @@ import type {
   SearchResult,
   PluginSummary,
   Revision,
+  AskRequest,
+  AnswerEvent,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
-import type { AgentEvent } from "./agent";
 import { extractLinks, stem } from "./wikilink";
 import { extractTags } from "../components/graph/tags";
 
@@ -437,23 +438,30 @@ export class MockClient implements CairnClient {
     return Promise.resolve(out);
   }
 
-  /** Mock streaming agent: emits a tool round, then text deltas that embed a
-   *  `[[stem]]` citation drawn from a real seeded note, then completes. A
-   *  question containing "fail" emits the failed path instead. Events fire on
-   *  chained microtasks (ordered + async); unsubscribe cancels mid-stream. */
-  ask(question: string, onEvent: (e: AgentEvent) => void): Unsubscribe {
+  /** Mock streaming agent: emits a `sources` frame first (authoritative
+   *  citations, drawn from a real seeded note), then a tool round, then text
+   *  deltas, then completes. A query containing "fail" emits the failed path
+   *  instead. Events fire on chained microtasks (ordered + async); unsubscribe
+   *  cancels mid-stream. */
+  ask(req: AskRequest, onEvent: (e: AnswerEvent) => void): Unsubscribe {
     let cancelled = false;
-    const fail = question.toLowerCase().includes("fail");
+    const fail = req.query.toLowerCase().includes("fail");
     const firstPath = [...this.notes.keys()][0];
     const firstStem = firstPath ? stem(firstPath) : undefined;
     const cite = firstStem ? ` [[${firstStem}]]` : "";
-    const seq: AgentEvent[] = fail
+    const sources: AnswerEvent = {
+      type: "sources",
+      paths: firstPath ? [firstPath] : [],
+    };
+    const seq: AnswerEvent[] = fail
       ? [
+          sources,
           { type: "tool_started", tool: "search_notes" },
           { type: "tool_completed", tool: "search_notes", ok: true },
           { type: "failed", message: "stream interrupted (mock)" },
         ]
       : [
+          sources,
           { type: "tool_started", tool: "search_notes" },
           { type: "tool_completed", tool: "search_notes", ok: true },
           { type: "text_delta", text: "Based on your notes, " },

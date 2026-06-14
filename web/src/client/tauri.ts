@@ -1,4 +1,4 @@
-import { invoke, convertFileSrc, Channel } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Command,
@@ -6,9 +6,10 @@ import type {
   Event,
   CommandResponse,
   QueryResponse,
+  AskRequest,
+  AnswerEvent,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
-import type { AgentEvent } from "./agent";
 import type { CairnHost } from "./host";
 import { confineToRoot } from "./vaultPath";
 import {
@@ -66,28 +67,19 @@ export class TauriClient implements CairnClient {
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
   }
-  /** Stream a note-grounded answer over a Tauri IPC channel. The `ask` command
-   *  forwards each agent increment (mapped to AgentEvent) on the channel and
-   *  resolves when the run ends; a rejection means the call never dispatched
-   *  (the stream failed to attach) — routed to onError like `subscribe`. A
-   *  per-run agent *failure* arrives as a `failed` event, not a rejection.
-   *  Unsubscribe drops any further events (mirrors the mock); the backend run
-   *  finishes in the background. */
+  /** Desktop ask is deferred to a follow-up PR (it needs an in-process Tauri
+   *  command running `cairn_service::augmented_answer` + an engine rev-bump).
+   *  Until then, report a degraded state so the UI can prompt for daemon mode.
+   *  Deferred to a microtask so `unsub` is assigned before this fires. */
   ask(
-    question: string,
-    onEvent: (e: AgentEvent) => void,
+    _req: AskRequest,
+    _onEvent: (e: AnswerEvent) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe {
     let cancelled = false;
-    const channel = new Channel<AgentEvent>();
-    channel.onmessage = (e) => {
-      if (!cancelled) onEvent(e);
-    };
-    // Channel messages are inherently async, so `unsub` is assigned before the
-    // first onEvent (the slice relies on this). The arg name `onEvent` maps to
-    // the command's `on_event: Channel` (Tauri snake_case → camelCase).
-    invoke("ask", { question, onEvent: channel }).catch((err) => {
-      if (!cancelled) onError?.(err);
+    queueMicrotask(() => {
+      if (!cancelled)
+        onError?.(new Error("desktop ask not wired yet — use daemon mode"));
     });
     return () => {
       cancelled = true;
