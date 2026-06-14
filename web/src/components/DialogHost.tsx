@@ -8,6 +8,8 @@ import {
   CommandPalette,
   type PaletteCommand,
 } from "./command-palette/CommandPalette";
+import { AskBar } from "./ask/AskBar";
+import { resolveStem } from "./ask/citation";
 
 export function DialogHost(props: {
   commands: PaletteCommand[];
@@ -20,6 +22,7 @@ export function DialogHost(props: {
   const plugins = useCairn((s) => s.plugins);
   const committing = useCairn((s) => s.committing);
   const notePaths = useCairn((s) => s.notePaths);
+  const ask = useCairn((s) => s.ask);
 
   return (
     <>
@@ -53,6 +56,22 @@ export function DialogHost(props: {
         onOpenNote={(p) => {
           navigate(noteUrl(p));
           actions.setUi({ paletteOpen: false });
+        }}
+      />
+      <AskBar
+        open={ask.mode === "bar"}
+        turns={ask.turns}
+        streaming={ask.streaming}
+        error={ask.error}
+        onSubmit={actions.askSubmit}
+        onPromote={actions.askPromote}
+        onClose={actions.askClose}
+        onOpenNote={(target) => {
+          const path = resolveStem(notePaths, target);
+          if (path) {
+            navigate(noteUrl(path));
+            actions.askClose();
+          }
         }}
       />
     </>

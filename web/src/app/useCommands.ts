@@ -87,6 +87,9 @@ export function useCommands(): {
       case "open-settings":
         st.setUi({ settingsOpen: true });
         break;
+      case "open-ask":
+        st.askOpen();
+        break;
       case "toggle-editor-mode":
         st.setSettings({
           editorMode:

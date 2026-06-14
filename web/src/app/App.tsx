@@ -12,6 +12,7 @@ import { Toasts } from "../components/Toasts";
 import { LiveUpdatesBanner } from "../components/LiveUpdatesBanner";
 import { useCommands } from "./useCommands";
 import { useGlobalKeys } from "../components/shortcuts/useGlobalKeys";
+import { AskPanelHost } from "../components/ask/AskPanelHost";
 
 export default function App() {
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function App() {
         list={<Sidebar />}
         editor={<EditorPane />}
         backlinks={<BacklinksPane />}
+        ask={<AskPanelHost />}
       />
       <DialogHost commands={commands} onRunCommand={runCommand} />
       <Toasts />

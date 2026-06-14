@@ -371,7 +371,6 @@ export class MockClient implements CairnClient {
   ask(
     question: string,
     onEvent: (e: AgentEvent) => void,
-    _onError?: (err: unknown) => void,
   ): Unsubscribe {
     let cancelled = false;
     const fail = question.toLowerCase().includes("fail");
