@@ -85,4 +85,7 @@ export class TauriHost implements CairnHost {
     if (full === null) return ""; // path escapes the vault — refuse to resolve
     return convertFileSrc(full);
   }
+  async setPluginUiRoots(roots: Record<string, string>): Promise<void> {
+    await invoke("set_plugin_ui_roots", { roots });
+  }
 }

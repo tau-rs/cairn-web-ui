@@ -190,4 +190,8 @@ export class DaemonHost implements CairnHost {
   assetUrl(relPath: string): string {
     return relPath;
   }
+  setPluginUiRoots(_roots: Record<string, string>): Promise<void> {
+    void _roots;
+    return Promise.resolve();
+  }
 }

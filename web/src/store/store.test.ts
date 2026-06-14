@@ -298,6 +298,7 @@ describe("cairn store", () => {
       currentCairn: () => Promise.resolve<string | null>(null),
       openCairn: () => Promise.resolve<string | null>("/tmp/mycairn"),
       assetUrl: (p: string) => p,
+      setPluginUiRoots: () => Promise.resolve(),
     };
     const store = createCairnStore(client, host);
     await store.getState().init();
@@ -318,6 +319,7 @@ describe("cairn store", () => {
       currentCairn: () => Promise.resolve<string | null>(null),
       openCairn: () => Promise.resolve<string | null>("/tmp/second"),
       assetUrl: (p: string) => p,
+      setPluginUiRoots: () => Promise.resolve(),
     };
     // A pinned tab persisted from a prior session of this cairn.
     saveTabs({ tabs: [{ path: "b.md", preview: false }], activePath: "b.md" });

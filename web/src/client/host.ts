@@ -6,6 +6,9 @@ export interface CairnHost {
   openCairn(): Promise<string | null>;
   /** Resolve a local relative asset path to a displayable URL (sync). */
   assetUrl(relPath: string): string;
+  /** Register the per-plugin ui/ dir allow-list with the native protocol
+   *  handler. `{ pluginId: absoluteUiDir }`. No-op off Tauri. */
+  setPluginUiRoots(roots: Record<string, string>): Promise<void>;
 }
 
 const FIXTURE = "(fixture)";
@@ -19,6 +22,7 @@ export const alwaysOpenHost: CairnHost = {
   currentCairn: () => Promise.resolve(FIXTURE),
   openCairn: () => Promise.resolve(FIXTURE),
   assetUrl: () => BLANK_PNG,
+  setPluginUiRoots: () => Promise.resolve(),
 };
 
 /** Class form for parity with MockClient construction. */
@@ -30,4 +34,8 @@ export class MockHost implements CairnHost {
     return Promise.resolve<string | null>(FIXTURE);
   }
   assetUrl: (relPath: string) => string = () => BLANK_PNG;
+  setPluginUiRoots(_roots: Record<string, string>): Promise<void> {
+    void _roots;
+    return Promise.resolve();
+  }
 }
