@@ -77,6 +77,7 @@ function PaneView(props: {
                 editorMode === "livepreview" ? "source" : "livepreview",
             })
           }
+          onShowHistory={focused ? actions.showHistory : undefined}
         />
       </div>
     </div>

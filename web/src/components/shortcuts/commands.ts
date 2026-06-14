@@ -26,6 +26,11 @@ export const COMMAND_DEFS: CommandDef[] = [
   { id: "close-pane", label: "Close pane", defaultBinding: "Mod+Shift+W" },
   { id: "nav-back", label: "Back", defaultBinding: "Mod+[" },
   { id: "nav-forward", label: "Forward", defaultBinding: "Mod+]" },
+  {
+    id: "show-history",
+    label: "Show note history",
+    defaultBinding: "Mod+Shift+H",
+  },
 ];
 
 const DEFAULT_BY_ID: Record<string, string | null> = Object.fromEntries(
