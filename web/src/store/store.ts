@@ -42,6 +42,7 @@ import { loadPanes, savePanes } from "../components/tabs/tabsPersistence";
 import type { SearchSnippet } from "../components/searchHighlight";
 import type { Rename } from "../components/tree/treeMoves";
 import { type RefreshTrace, refreshTrace } from "./trace";
+import { createAskSlice, type AskState } from "./askSlice";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -108,7 +109,7 @@ export const DEFAULT_UI: UiState = {
   keybindingOverrides: {},
 };
 
-export interface CairnState {
+export interface CairnState extends AskState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
   // waits for this so its URL<->store reconciliation can't race the restore.
@@ -511,6 +512,7 @@ export function createCairnStore(
       errors: [],
       loading: { search: false, graph: false, backlinks: false, note: false },
       liveUpdates: "ok",
+      ...createAskSlice(set, get, client),
 
       async init() {
         if (started) return;
