@@ -10,7 +10,6 @@ import {
 } from "./command-palette/CommandPalette";
 import { AskBar } from "./ask/AskBar";
 import { resolveStem } from "./ask/citation";
-import { useBreakpoint } from "./responsive/useBreakpoint";
 
 export function DialogHost(props: {
   commands: PaletteCommand[];
@@ -18,7 +17,6 @@ export function DialogHost(props: {
 }) {
   const navigate = useNavigate();
   const actions = useActions();
-  const breakpoint = useBreakpoint();
   const ui = useCairn((s) => s.ui);
   const settings = useCairn((s) => s.settings);
   const plugins = useCairn((s) => s.plugins);
@@ -68,7 +66,6 @@ export function DialogHost(props: {
         onSubmit={actions.askSubmit}
         onPromote={actions.askPromote}
         onClose={actions.askClose}
-        canPromote={breakpoint === "desktop"}
         onOpenNote={(target) => {
           const path = resolveStem(notePaths, target);
           if (path) {
