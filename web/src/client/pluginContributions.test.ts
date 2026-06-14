@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupBySlot,
   sanitizeContributions,
+  sanitizeCapabilities,
   type SanitizeReport,
   type SlotEntry,
   PLUGIN_SLOTS,
@@ -16,6 +17,12 @@ import {
   type PluginContribution,
   type PluginSummary,
 } from "../contract";
+import {
+  MAX_IFRAME_HTML,
+  MAX_IFRAME_HEIGHT,
+  MIN_IFRAME_HEIGHT,
+  DEFAULT_IFRAME_HEIGHT,
+} from "./pluginTier3";
 
 function freshReport(): SanitizeReport {
   return { kept: 0, dropped: 0, reasons: [] };
@@ -315,5 +322,82 @@ describe("groupBySlot", () => {
 
     expect(grouped["topbar.action"]).toHaveLength(1);
     expect(report.kept).toBe(4);
+  });
+});
+
+describe("Tier-3 iframe widget sanitization", () => {
+  it("accepts an iframe widget and clamps height into range", () => {
+    const out = sanitizeContributions([
+      {
+        id: "wc",
+        slot: "sidebar.section",
+        widget: { kind: "iframe", html: "<p>hi</p>", height: 9999 },
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    const w = out[0].widget as unknown as {
+      kind: string;
+      html: string;
+      height: number | null;
+    };
+    expect(w.kind).toBe("iframe");
+    expect(w.height).toBe(MAX_IFRAME_HEIGHT);
+  });
+
+  it("drops an iframe widget whose html exceeds the byte cap", () => {
+    const report = { kept: 0, dropped: 0, reasons: [] as string[] };
+    const out = sanitizeContributions(
+      [
+        {
+          id: "big",
+          slot: "sidebar.section",
+          widget: {
+            kind: "iframe",
+            html: "x".repeat(MAX_IFRAME_HTML + 1),
+            height: null,
+          },
+        },
+      ],
+      report,
+    );
+    expect(out).toHaveLength(0);
+    expect(report.reasons.join()).toMatch(/html too large/);
+  });
+
+  it("rejects an iframe widget outside sidebar.section", () => {
+    // topbar.action exercises the dedicated iframe-slot guard (command would be
+    // caught earlier by the command-requires-action guard instead).
+    const out = sanitizeContributions([
+      {
+        id: "x",
+        slot: "topbar.action",
+        widget: { kind: "iframe", html: "<p>x</p>", height: null },
+      },
+    ]);
+    expect(out).toHaveLength(0);
+  });
+
+  it("clamps low height up, passes null through, and defaults a non-number", () => {
+    const heightOf = (h: unknown): number | null => {
+      const out = sanitizeContributions([
+        {
+          id: "h",
+          slot: "sidebar.section",
+          widget: { kind: "iframe", html: "<p>x</p>", height: h },
+        },
+      ]);
+      return (out[0].widget as unknown as { height: number | null }).height;
+    };
+    expect(heightOf(1)).toBe(MIN_IFRAME_HEIGHT); // below floor → clamped up
+    expect(heightOf(null)).toBeNull(); // explicit null preserved
+    expect(heightOf("tall")).toBe(DEFAULT_IFRAME_HEIGHT); // non-number → default
+  });
+
+  it("sanitizeCapabilities keeps known values and drops unknown ones", () => {
+    expect(
+      sanitizeCapabilities(["activeNote.write", "filesystem.format", 7]),
+    ).toEqual(["activeNote.write"]);
+    expect(sanitizeCapabilities(null)).toEqual([]);
+    expect(sanitizeCapabilities("nope")).toEqual([]);
   });
 });
