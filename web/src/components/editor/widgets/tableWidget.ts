@@ -13,22 +13,27 @@ export class TableWidget extends WidgetType {
     return other.md === this.md && other.from === this.from;
   }
   toDOM(): HTMLElement {
-    const { header, rows } = parseTable(this.md);
+    const { header, rows, align } = parseTable(this.md);
     const table = document.createElement("table");
     table.className = "cm-lp-table";
+    const css = (i: number): string =>
+      align[i] && align[i] !== "none" ? align[i] : "";
     const thead = table.createTHead();
     const hr = thead.insertRow();
-    for (const h of header) {
+    header.forEach((h, i) => {
       const th = document.createElement("th");
       th.textContent = h;
+      if (css(i)) th.style.textAlign = css(i);
       hr.appendChild(th);
-    }
+    });
     const tbody = table.createTBody();
     for (const r of rows) {
       const tr = tbody.insertRow();
-      for (const c of r) {
-        tr.insertCell().textContent = c;
-      }
+      r.forEach((c, i) => {
+        const td = tr.insertCell();
+        td.textContent = c;
+        if (css(i)) td.style.textAlign = css(i);
+      });
     }
     table.addEventListener("mousedown", (e) => {
       e.preventDefault();
