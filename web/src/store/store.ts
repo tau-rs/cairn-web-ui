@@ -4,13 +4,13 @@ import type { CairnClient, Unsubscribe } from "../client/types";
 import type { TagCount, Event } from "../contract";
 import type { PluginSummary } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
-import { errMsg } from "./errMsg";
 import {
   groupBySlot,
   type SlotEntry,
   type SanitizeReport,
 } from "../client/pluginContributions";
 import { debounce, type Debounced } from "../util/timer";
+import { errMsg } from "./errMsg";
 import type { Overrides } from "../components/shortcuts/commands";
 import {
   loadOverrides,

@@ -1,9 +1,8 @@
 import type { ContractError } from "../contract";
 
-/** Format an error for display. A `ContractError` (the typed Err a client
- *  rejects with) is a tagged object; anything else falls back to its `message`
- *  or string form. Shared by the store and the ask slice so a client rejection
- *  surfaces identically wherever it lands. */
+/** Format an unknown error into a user-facing message. Handles ContractError
+ *  (the tagged object the client rejects with) plus Error/anything else. Shared
+ *  by store.ts and askSlice.ts so both surfaces format engine errors alike. */
 export function errMsg(err: unknown): string {
   // ContractError (rejected by the client) is a tagged object.
   if (err && typeof err === "object" && "type" in err) {
