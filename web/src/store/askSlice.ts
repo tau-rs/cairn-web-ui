@@ -35,6 +35,9 @@ export const DEFAULT_ASK: AskConversation = {
 type Set = StoreApi<CairnState>["setState"];
 type Get = StoreApi<CairnState>["getState"];
 
+// Intentionally simpler than store.ts's errMsg: it does not format ContractError.
+// Acceptable because under the mock the onError path never fires; unify the two
+// when the real agent transport lands (Wave 2).
 function errMsg(err: unknown): string {
   if (err && typeof err === "object" && "message" in err)
     return String((err as { message: unknown }).message);
@@ -106,6 +109,8 @@ export function createAskSlice(
         });
       };
 
+      // Assumes client.ask delivers its first event asynchronously (both the mock
+      // and the Tauri transport do), so unsub is assigned before any onEvent/onError runs.
       unsub = client.ask(q, onEvent, (err) => {
         if (token !== runToken) return;
         stop();
