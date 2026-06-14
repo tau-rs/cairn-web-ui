@@ -24,6 +24,10 @@ import {
   type TreeItemStyle,
 } from "../components/tree/treeIcons";
 import {
+  createPluginGrantsSlice,
+  type PluginGrantsState,
+} from "./pluginGrantsSlice";
+import {
   openOrPreview,
   pinTab as pinTabModel,
   closeTab as closeTabModel,
@@ -108,7 +112,7 @@ export const DEFAULT_UI: UiState = {
   keybindingOverrides: {},
 };
 
-export interface CairnState {
+export interface CairnState extends PluginGrantsState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
   // waits for this so its URL<->store reconciliation can't race the restore.
@@ -505,6 +509,7 @@ export function createCairnStore(
       pluginEpoch: 0,
       pluginDropped: 0,
       notice: null,
+      ...createPluginGrantsSlice(set),
       settings: DEFAULT_SETTINGS,
       ui: DEFAULT_UI,
       treeStyles: loadStyles(),
