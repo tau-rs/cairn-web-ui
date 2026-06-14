@@ -22,7 +22,9 @@ describe("HistoryPane", () => {
     await cairnStore.getState().openNote("index.md");
     renderPane();
     // The dev MockClient fixtures seed no revisions → empty state.
-    await waitFor(() => expect(screen.getByText(/No history/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/No history/i)).toBeInTheDocument(),
+    );
   });
 
   it("mounts with the restore confirm dialog closed", async () => {

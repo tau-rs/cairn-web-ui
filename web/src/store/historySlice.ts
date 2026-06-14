@@ -59,7 +59,9 @@ export function createHistorySlice(deps: HistorySliceDeps): HistorySlice {
         const res = await client.runQuery({ type: "note_history", path });
         if (token !== historySeq) return; // superseded
         if (res.type !== "history") {
-          pushError("Load history", new Error(`unexpected: ${res.type}`), { path });
+          pushError("Load history", new Error(`unexpected: ${res.type}`), {
+            path,
+          });
           return;
         }
         set({ history: res.revisions, historyPath: path });
@@ -76,7 +78,10 @@ export function createHistorySlice(deps: HistorySliceDeps): HistorySlice {
       try {
         const res = await client.runQuery({ type: "note_at", path, revision });
         if (res.type !== "note") {
-          pushError("View revision", new Error(`unexpected: ${res.type}`), { path, revision });
+          pushError("View revision", new Error(`unexpected: ${res.type}`), {
+            path,
+            revision,
+          });
           return;
         }
         set({ viewingRevision: { path, revision, contents: res.contents } });

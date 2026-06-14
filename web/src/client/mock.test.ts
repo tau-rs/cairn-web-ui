@@ -257,7 +257,9 @@ describe("mock history ops", () => {
     ];
     return new MockClient(
       { "n.md": "current body" },
-      { "n.md": { revisions: revs, contents: { r2: "body v2", r1: "body v1" } } },
+      {
+        "n.md": { revisions: revs, contents: { r2: "body v2", r1: "body v1" } },
+      },
     );
   }
 
@@ -281,7 +283,11 @@ describe("mock history ops", () => {
 
   it("note_at returns historical contents", async () => {
     const c = withHistory();
-    const res = await c.runQuery({ type: "note_at", path: "n.md", revision: "r1" });
+    const res = await c.runQuery({
+      type: "note_at",
+      path: "n.md",
+      revision: "r1",
+    });
     expect(res).toEqual({ type: "note", contents: "body v1" });
   });
 
@@ -296,7 +302,11 @@ describe("mock history ops", () => {
     const c = withHistory();
     const events: string[] = [];
     c.subscribe((e) => events.push(e.type));
-    const res = await c.sendCommand({ type: "restore_note", path: "n.md", revision: "r1" });
+    const res = await c.sendCommand({
+      type: "restore_note",
+      path: "n.md",
+      revision: "r1",
+    });
     expect(res).toEqual({ type: "done" });
     const note = await c.runQuery({ type: "get_note", path: "n.md" });
     expect(note).toEqual({ type: "note", contents: "body v1" });

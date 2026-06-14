@@ -11,7 +11,11 @@ export function RestoreConfirmDialog(props: {
     <Modal
       open={props.open}
       onClose={props.onCancel}
-      title="Restore this version?"
+      title={
+        props.revision
+          ? `Restore version ${props.revision}?`
+          : "Restore this version?"
+      }
       description="This overwrites your working copy. Your current edits become uncommitted changes you can still commit or discard."
     >
       <div className="flex justify-end gap-2">

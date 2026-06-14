@@ -132,7 +132,9 @@ export function EditorPane() {
             revision={viewingRevision.revision}
             contents={viewingRevision.contents}
             onBack={() => actions.exitRevisionView()}
-            onRestore={() => void actions.restoreRevision(viewingRevision.revision)}
+            onRestore={() =>
+              void actions.restoreRevision(viewingRevision.revision)
+            }
           />
         ) : (
           <>

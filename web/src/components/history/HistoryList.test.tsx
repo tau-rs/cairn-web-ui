@@ -10,15 +10,36 @@ const REVS: Revision[] = [
 
 describe("HistoryList", () => {
   it("shows a loading state", () => {
-    render(<HistoryList revisions={null} loading onView={vi.fn()} onRestore={vi.fn()} />);
+    render(
+      <HistoryList
+        revisions={null}
+        loading
+        onView={vi.fn()}
+        onRestore={vi.fn()}
+      />,
+    );
     expect(screen.getByText(/Loading/i)).toBeInTheDocument();
   });
   it("shows an empty state", () => {
-    render(<HistoryList revisions={[]} loading={false} onView={vi.fn()} onRestore={vi.fn()} />);
+    render(
+      <HistoryList
+        revisions={[]}
+        loading={false}
+        onView={vi.fn()}
+        onRestore={vi.fn()}
+      />,
+    );
     expect(screen.getByText(/No history/i)).toBeInTheDocument();
   });
   it("renders one row per revision with message + short hash", () => {
-    render(<HistoryList revisions={REVS} loading={false} onView={vi.fn()} onRestore={vi.fn()} />);
+    render(
+      <HistoryList
+        revisions={REVS}
+        loading={false}
+        onView={vi.fn()}
+        onRestore={vi.fn()}
+      />,
+    );
     expect(screen.getByText("second")).toBeInTheDocument();
     expect(screen.getByText("first")).toBeInTheDocument();
     expect(screen.getByText(/r2/)).toBeInTheDocument();
@@ -26,7 +47,14 @@ describe("HistoryList", () => {
   it("fires onView and onRestore with the revision id", () => {
     const onView = vi.fn();
     const onRestore = vi.fn();
-    render(<HistoryList revisions={REVS} loading={false} onView={onView} onRestore={onRestore} />);
+    render(
+      <HistoryList
+        revisions={REVS}
+        loading={false}
+        onView={onView}
+        onRestore={onRestore}
+      />,
+    );
     fireEvent.click(screen.getAllByRole("button", { name: /view/i })[0]);
     fireEvent.click(screen.getAllByRole("button", { name: /restore/i })[0]);
     expect(onView).toHaveBeenCalledWith("r2");

@@ -12,7 +12,8 @@ export function RevisionView(props: {
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-accent/40 bg-accent/10 px-3 py-2 text-xs text-text">
         <span>
-          Viewing <span className="font-mono">{props.revision}</span> — read-only
+          Viewing <span className="font-mono">{props.revision}</span> —
+          read-only
         </span>
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" onClick={props.onBack}>
