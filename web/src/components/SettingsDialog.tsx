@@ -1,6 +1,7 @@
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { Settings } from "./Settings";
+import { DaemonSettings } from "./DaemonSettings";
 import { KeyboardShortcuts } from "./shortcuts/KeyboardShortcuts";
 import { PluginsPanel } from "./plugins/PluginsPanel";
 import { useCairn } from "../app/cairnStore";
@@ -29,6 +30,8 @@ export function SettingsDialog({
   return (
     <Modal open={open} onClose={() => onOpenChange(false)} title="Settings">
       <Settings settings={settings} onChange={onChange} />
+      <div className="my-3 border-t border-border" />
+      <DaemonSettings />
       <div className="my-3 border-t border-border" />
       <KeyboardShortcuts
         overrides={keybindingOverrides}
