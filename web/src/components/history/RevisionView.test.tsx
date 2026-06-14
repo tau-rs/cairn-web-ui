@@ -30,6 +30,21 @@ describe("RevisionView", () => {
     );
   });
 
+  it("shows old/new gutter line numbers on diff rows", () => {
+    render(
+      <RevisionView
+        revision="r1"
+        contents={"a\nb"}
+        current={"a\nb"}
+        onBack={vi.fn()}
+        onRestore={vi.fn()}
+      />,
+    );
+    // Context row "b" is line 2 on both sides.
+    const rowB = screen.getByText("b").closest("[data-diff-row]");
+    expect(rowB?.textContent).toContain("2");
+  });
+
   it("toggles to Full mode showing only the revision contents", () => {
     render(
       <RevisionView

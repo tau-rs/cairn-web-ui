@@ -19,6 +19,7 @@ const ROW_SIGN: Record<DiffRow["type"], string> = {
  * View a past revision. Defaults to a line-level diff against the current
  * working copy (`current`) — the pattern Notion / VS Code Timeline / Obsidian
  * converge on — with a Diff/Full toggle to fall back to the raw revision body.
+ * Each diff row carries old/new gutter line numbers, GitHub/VS Code style.
  */
 export function RevisionView({
   revision,
@@ -91,6 +92,18 @@ export function RevisionView({
               data-diff-row={row.type}
               className={"flex whitespace-pre-wrap " + ROW_STYLE[row.type]}
             >
+              <span
+                aria-hidden
+                className="w-10 shrink-0 select-none px-1 text-right text-faint"
+              >
+                {row.oldLine ?? ""}
+              </span>
+              <span
+                aria-hidden
+                className="w-10 shrink-0 select-none px-1 text-right text-faint"
+              >
+                {row.newLine ?? ""}
+              </span>
               <span aria-hidden className="mr-2 select-none opacity-60">
                 {ROW_SIGN[row.type]}
               </span>
