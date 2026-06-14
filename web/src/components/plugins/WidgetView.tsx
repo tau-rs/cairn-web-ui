@@ -1,5 +1,17 @@
-import { useActions } from "../../app/cairnStore";
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
+import {
+  cairnStore,
+  cairnClient,
+  useActions,
+  useCairn,
+} from "../../app/cairnStore";
 import type { PluginWidget } from "../../contract/PluginWidget";
+import { needsConsent } from "../../store/pluginGrantsSlice";
+import { isCapability, type PluginCapability } from "../../client/pluginTier3";
+import { createStoreBrokerHost } from "../../client/pluginBrokerHost";
+import { IframeHost } from "./IframeHost";
+import { PermissionPrompt } from "./PermissionPrompt";
 import { pluginIconNode } from "./pluginIcon";
 
 /**
@@ -15,6 +27,23 @@ export function WidgetView({
   widget: PluginWidget;
 }) {
   const { invokePlugin } = useActions();
+
+  // TODO(contract-sync): the vendored PluginWidget union lacks "iframe" until the
+  // engine re-sync; treat it here via a narrow cast.
+  if ((widget as { kind: string }).kind === "iframe") {
+    return (
+      <IframeWidget
+        plugin={plugin}
+        widget={
+          widget as unknown as {
+            kind: "iframe";
+            html: string;
+            height: number | null;
+          }
+        }
+      />
+    );
+  }
 
   switch (widget.kind) {
     case "text":
@@ -77,4 +106,70 @@ export function WidgetView({
     default:
       return null;
   }
+}
+
+// Module-singleton broker host: lazily initialized on first IframeWidget render,
+// then stable for the lifetime of the module (IframeHost requires a stable host).
+let brokerHost: ReturnType<typeof createStoreBrokerHost> | null = null;
+function getBrokerHost() {
+  if (!brokerHost) brokerHost = createStoreBrokerHost(cairnStore, cairnClient);
+  return brokerHost;
+}
+
+function IframeWidget({
+  plugin,
+  widget,
+}: {
+  plugin: string;
+  widget: { kind: "iframe"; html: string; height: number | null };
+}) {
+  const { grantPlugin } = useActions();
+  const summary = useCairn(
+    useShallow((s) => s.plugins.find((p) => p.id === plugin)),
+  );
+  const grants = useCairn((s) => s.pluginGrants);
+
+  // capabilities is not in the vendored PluginSummary yet (TODO(contract-sync)).
+  const caps: PluginCapability[] = useMemo(() => {
+    const raw = (summary as { capabilities?: unknown } | undefined)
+      ?.capabilities;
+    return Array.isArray(raw) ? (raw as unknown[]).filter(isCapability) : [];
+  }, [summary]);
+  const version = summary?.version ?? "0";
+  const commandIds = useMemo(
+    () => new Set((summary?.commands ?? []).map((c) => c.id)),
+    [summary],
+  );
+  // All-or-nothing consent: the granted set IS the declared caps once consented,
+  // so building it from `caps` is correct. If partial grants are ever added, this
+  // must become the intersection of caps and the stored grant.
+  const grantedSet = useMemo(() => new Set(caps), [caps]);
+
+  // Stale widget reference for an unloaded plugin → render nothing rather than a
+  // misleading empty-capability consent prompt for a ghost plugin.
+  if (!summary) return null;
+
+  if (needsConsent(grants, plugin, version, caps)) {
+    return (
+      <PermissionPrompt
+        name={summary?.name ?? plugin}
+        capabilities={caps}
+        onAllow={() => grantPlugin(plugin, version, caps)}
+        onDeny={() => {
+          /* leave unmounted; reloading plugins re-triggers the prompt */
+        }}
+      />
+    );
+  }
+
+  return (
+    <IframeHost
+      plugin={plugin}
+      html={widget.html}
+      height={widget.height}
+      granted={grantedSet}
+      pluginCommands={commandIds}
+      host={getBrokerHost()}
+    />
+  );
 }
