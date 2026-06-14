@@ -135,7 +135,9 @@ export function createAskSlice(
     askClose() {
       stop();
       runToken++;
-      set((s) => ({ ask: { ...s.ask, mode: "closed", streaming: false } }));
+      set((s) => ({
+        ask: { ...s.ask, mode: "closed", streaming: false, error: null },
+      }));
     },
   };
 }

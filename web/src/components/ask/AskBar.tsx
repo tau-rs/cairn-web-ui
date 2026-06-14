@@ -16,7 +16,9 @@ export interface AskSurfaceProps {
 
 /** Slim, NON-modal prompt bar (modal={false}: does not block the editor).
  *  Shows the latest assistant turn inline; ⤢ promotes into the docked panel. */
-export function AskBar(props: AskSurfaceProps & { onPromote: () => void }) {
+export function AskBar(
+  props: AskSurfaceProps & { onPromote: () => void; canPromote?: boolean },
+) {
   const {
     open,
     turns,
@@ -26,6 +28,7 @@ export function AskBar(props: AskSurfaceProps & { onPromote: () => void }) {
     onClose,
     onPromote,
     onOpenNote,
+    canPromote = true,
   } = props;
   const [value, setValue] = useState("");
   const last = turns[turns.length - 1];
@@ -59,6 +62,7 @@ export function AskBar(props: AskSurfaceProps & { onPromote: () => void }) {
             </span>
             <input
               autoFocus
+              disabled={streaming}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => {
@@ -91,12 +95,16 @@ export function AskBar(props: AskSurfaceProps & { onPromote: () => void }) {
             </div>
           )}
           <div className="flex items-center justify-between border-t border-border px-3 py-2 text-xs text-faint">
-            <button
-              className="rounded border border-accent px-2 py-0.5 text-accent"
-              onClick={onPromote}
-            >
-              ⤢ Continue in panel
-            </button>
+            {canPromote ? (
+              <button
+                className="rounded border border-accent px-2 py-0.5 text-accent"
+                onClick={onPromote}
+              >
+                ⤢ Continue in panel
+              </button>
+            ) : (
+              <span />
+            )}
             <span>esc to close</span>
           </div>
         </Dialog.Content>

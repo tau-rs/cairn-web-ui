@@ -74,9 +74,16 @@ export class TauriClient implements CairnClient {
     _onEvent: (e: AgentEvent) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe {
-    // Reports immediately (synchronous), unlike subscribe's async onError path.
-    onError?.(new Error("agent stream not available yet"));
-    return () => {};
+    // Wave 2 wires the real stream. Until then the channel is unavailable.
+    // Deferred to a microtask so the caller's `unsub` is assigned before this
+    // fires (matches the mock + the slice's async-delivery assumption).
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) onError?.(new Error("agent stream not available yet"));
+    });
+    return () => {
+      cancelled = true;
+    };
   }
 }
 
