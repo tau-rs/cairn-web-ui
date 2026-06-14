@@ -64,9 +64,12 @@ describe("SlotRenderer", () => {
     await cairnStore.getState().init();
     render(<SlotRenderer slot="sidebar.section" />);
 
-    // Local fallback shows.
-    expect(screen.getByText(/widget unavailable/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    // Local fallback shows (one per throwing widget — use getAllBy since
+    // sidebar.section now has multiple contributions including wordcount).
+    expect(screen.getAllByText(/widget unavailable/i)[0]).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /retry/i })[0],
+    ).toBeInTheDocument();
 
     // App-level reload card must NOT appear.
     expect(screen.queryByText(/Something went wrong/i)).toBeNull();
@@ -84,8 +87,10 @@ describe("SlotRenderer", () => {
     await cairnStore.getState().init();
     render(<SlotRenderer slot="sidebar.section" />);
 
-    const retry = screen.getByRole("button", { name: /retry/i });
-    expect(() => fireEvent.click(retry)).not.toThrow();
+    // Use getAllByRole since sidebar.section now has multiple contributions
+    // (wordcount + demo) and all throw when WidgetView is mocked to throw.
+    const retries = screen.getAllByRole("button", { name: /retry/i });
+    expect(() => fireEvent.click(retries[0])).not.toThrow();
 
     errSpy.mockRestore();
   });

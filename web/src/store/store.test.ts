@@ -329,7 +329,11 @@ describe("cairn store", () => {
 
     // Tags + plugins must reload, not stay empty until an unrelated event.
     expect(store.getState().tags).toEqual([{ tag: "rust", count: 1 }]);
-    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo", "bare"]);
+    expect(store.getState().plugins.map((p) => p.id)).toEqual([
+      "demo",
+      "bare",
+      "wordcount",
+    ]);
     // Persisted pinned tabs restore for the freshly opened cairn.
     const { panes: p1, activePane: ap1 } = store.getState();
     expect(p1[ap1].tabs.map((t) => t.path)).toEqual(["b.md"]);
@@ -587,7 +591,11 @@ describe("cairn store", () => {
     vi.useRealTimers();
     const store = createCairnStore(new MockClient({}));
     await store.getState().init();
-    expect(store.getState().plugins.map((p) => p.id)).toEqual(["demo", "bare"]);
+    expect(store.getState().plugins.map((p) => p.id)).toEqual([
+      "demo",
+      "bare",
+      "wordcount",
+    ]);
   });
   it("invokePlugin sets a notice and applies the side effect", async () => {
     vi.useRealTimers();
@@ -1026,8 +1034,10 @@ describe("split panes", () => {
     const s = store.getState();
     expect(s.pluginEpoch).toBeGreaterThan(0);
     const sidebar = s.pluginContributions["sidebar.section"];
-    expect(sidebar[0].plugin).toBe("demo");
-    expect(sidebar[0].epoch).toBe(s.pluginEpoch);
+    // wordcount (order:100) sorts before demo (order:null); find demo by plugin id.
+    const demoEntry = sidebar.find((e) => e.plugin === "demo");
+    expect(demoEntry).toBeDefined();
+    expect(demoEntry!.epoch).toBe(s.pluginEpoch);
   });
 
   it("invokePlugin forwards args to the plugin (mock echoes args.n)", async () => {
