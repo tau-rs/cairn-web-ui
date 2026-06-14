@@ -58,9 +58,66 @@ fn percent_decode(s: &str) -> Result<String, ServeError> {
     String::from_utf8(out).map_err(|_| ServeError::BadRequest)
 }
 
+use crate::plugin_roots::PluginRoots;
+
+/// The locked-down per-frame CSP set on EVERY served response. `'self'` =
+/// plugin-sandbox://<id>. No network (connect-src 'none'), no inline scripts
+/// (script-src 'self'), only the host may embed the frame.
+const PLUGIN_CSP: &str = "default-src 'none'; script-src 'self'; \
+    style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; \
+    font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; \
+    frame-ancestors tauri://localhost";
+
+/// Expose the CSP constant for the handler in lib.rs.
+pub fn plugin_csp() -> &'static str {
+    PLUGIN_CSP
+}
+
+fn mime_for(path: &Path) -> &'static str {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("html") => "text/html",
+        Some("js") | Some("mjs") => "text/javascript",
+        Some("css") => "text/css",
+        Some("json") => "application/json",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("woff2") => "font/woff2",
+        Some("wasm") => "application/wasm",
+        _ => "application/octet-stream",
+    }
+}
+
+fn status_for(e: &ServeError) -> u16 {
+    match e {
+        ServeError::NotFound => 404,
+        ServeError::Forbidden => 403,
+        ServeError::BadRequest => 400,
+    }
+}
+
+/// Resolve `(id, rel)` against the registered roots and build the response
+/// (bytes + content-type + status), or an error status with an empty body.
+/// The caller (lib.rs) attaches the CSP header from `plugin_csp()`.
+pub fn build_response(roots: &PluginRoots, id: &str, rel: &str) -> (u16, &'static str, Vec<u8>) {
+    let Some(root) = roots.get(id) else {
+        return (404, "text/plain", Vec::new());
+    };
+    match resolve_in_root(&root, rel) {
+        Ok(file) => match std::fs::read(&file) {
+            Ok(bytes) => (200, mime_for(&file), bytes),
+            Err(_) => (404, "text/plain", Vec::new()),
+        },
+        Err(e) => (status_for(&e), "text/plain", Vec::new()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plugin_roots::PluginRoots;
+    use std::collections::HashMap;
     use std::fs;
 
     fn bundle() -> tempfile::TempDir {
@@ -128,5 +185,48 @@ mod tests {
             res,
             Err(ServeError::Forbidden) | Err(ServeError::NotFound)
         ));
+    }
+
+    fn roots_with(id: &str, d: &tempfile::TempDir) -> PluginRoots {
+        let r = PluginRoots::default();
+        r.replace(HashMap::from([(
+            id.to_string(),
+            d.path().join("ui").to_string_lossy().into_owned(),
+        )]));
+        r
+    }
+
+    #[test]
+    fn build_serves_html_with_mime() {
+        let d = bundle();
+        let r = roots_with("wc", &d);
+        let (status, mime, body) = build_response(&r, "wc", "index.html");
+        assert_eq!(status, 200);
+        assert_eq!(mime, "text/html");
+        assert_eq!(body, b"<h1>hi</h1>");
+    }
+
+    #[test]
+    fn build_unknown_id_is_404() {
+        let d = bundle();
+        let r = roots_with("wc", &d);
+        let (status, _, _) = build_response(&r, "other", "index.html");
+        assert_eq!(status, 404);
+    }
+
+    #[test]
+    fn build_traversal_is_403_or_404() {
+        let d = bundle();
+        let r = roots_with("wc", &d);
+        let (status, _, _) = build_response(&r, "wc", "../secret.txt");
+        assert!(status == 403 || status == 404);
+    }
+
+    #[test]
+    fn csp_blocks_network_and_inline_script() {
+        let csp = plugin_csp();
+        assert!(csp.contains("connect-src 'none'"));
+        assert!(csp.contains("script-src 'self'"));
+        assert!(!csp.contains("script-src 'self' 'unsafe-inline'"));
     }
 }
