@@ -1,4 +1,4 @@
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc, Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Command,
@@ -66,20 +66,28 @@ export class TauriClient implements CairnClient {
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
   }
-  /** Wave 2 (Track 03) wires the real agent stream over Tauri IPC. Until then
-   *  the channel is unavailable: report via onError so the UI can show a
-   *  degraded state, and return a no-op unsubscribe. */
+  /** Stream a note-grounded answer over a Tauri IPC channel. The `ask` command
+   *  forwards each agent increment (mapped to AgentEvent) on the channel and
+   *  resolves when the run ends; a rejection means the call never dispatched
+   *  (the stream failed to attach) — routed to onError like `subscribe`. A
+   *  per-run agent *failure* arrives as a `failed` event, not a rejection.
+   *  Unsubscribe drops any further events (mirrors the mock); the backend run
+   *  finishes in the background. */
   ask(
-    _question: string,
-    _onEvent: (e: AgentEvent) => void,
+    question: string,
+    onEvent: (e: AgentEvent) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe {
-    // Wave 2 wires the real stream. Until then the channel is unavailable.
-    // Deferred to a microtask so the caller's `unsub` is assigned before this
-    // fires (matches the mock + the slice's async-delivery assumption).
     let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) onError?.(new Error("agent stream not available yet"));
+    const channel = new Channel<AgentEvent>();
+    channel.onmessage = (e) => {
+      if (!cancelled) onEvent(e);
+    };
+    // Channel messages are inherently async, so `unsub` is assigned before the
+    // first onEvent (the slice relies on this). The arg name `onEvent` maps to
+    // the command's `on_event: Channel` (Tauri snake_case → camelCase).
+    invoke("ask", { question, onEvent: channel }).catch((err) => {
+      if (!cancelled) onError?.(err);
     });
     return () => {
       cancelled = true;

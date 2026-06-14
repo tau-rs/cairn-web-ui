@@ -1,9 +1,10 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient, Unsubscribe } from "../client/types";
-import type { ContractError, TagCount, Event } from "../contract";
+import type { TagCount, Event } from "../contract";
 import type { PluginSummary } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
+import { errMsg } from "./errMsg";
 import {
   groupBySlot,
   type SlotEntry,
@@ -1101,14 +1102,4 @@ export function createCairnStore(
   });
 
   return store;
-}
-
-function errMsg(err: unknown): string {
-  // ContractError (rejected by the client) is a tagged object.
-  if (err && typeof err === "object" && "type" in err) {
-    const e = err as ContractError;
-    if (e.type === "not_found") return `Not found: ${e.what}`;
-    return e.message;
-  }
-  return err instanceof Error ? err.message : String(err);
 }

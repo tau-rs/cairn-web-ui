@@ -3,12 +3,18 @@ use std::sync::{Arc, Mutex};
 
 use cairn_app::{Engine, Event as AppEvent, EventSink};
 use cairn_contract::{Command, CommandResponse, ContractError, Query, QueryResponse};
-use cairn_infra::{GitVcs, InMemoryIndex, LocalFsStore};
-use cairn_service::{app_event_to_wire, dispatch_command, dispatch_query, ServiceError};
+use cairn_infra::{GitVcs, InMemoryIndex, LocalFsStore, NullRuntime, TauConfig, TauServeRuntime};
+use cairn_ports::{AgentEvent, AgentRuntime, AgentSink};
+use cairn_service::{
+    app_event_to_wire, augmented_answer, dispatch_command, dispatch_query, ServiceError,
+};
+use serde::Serialize;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
-/// The concrete engine the desktop app runs.
-type CairnEngine = Engine<LocalFsStore, InMemoryIndex, GitVcs>;
+/// The concrete engine the desktop app runs. `Engine` is non-generic (its ports
+/// are boxed internally); the concrete adapters are pinned by `open_engine`.
+type CairnEngine = Engine;
 
 /// Shared app state: the engine + its path behind a single mutex (None until a
 /// cairn is opened).  `Clone` lets us move the `Arc` into `spawn_blocking`.
@@ -27,8 +33,9 @@ impl<R: Runtime> EventSink for TauriSink<R> {
 
 /// Build (or open) an engine rooted at `dir`, creating the git repo if needed.
 fn open_engine(dir: &Path) -> Result<CairnEngine, ServiceError> {
-    let store = LocalFsStore::open(dir).map_err(|e| ServiceError::Internal(e.to_string()))?;
-    let vcs = GitVcs::open_or_init(dir).map_err(|e| ServiceError::Internal(e.to_string()))?;
+    // `PortError` auto-converts to `ServiceError` via `?` (From impl).
+    let store = LocalFsStore::open(dir)?;
+    let vcs = GitVcs::open_or_init(dir)?;
     Ok(Engine::new(store, InMemoryIndex::default(), vcs))
 }
 
@@ -85,6 +92,112 @@ async fn run_query(
     })?
 }
 
+/// One increment of an agent answer, in the shape the webview's local
+/// `AgentEvent` (web/src/client/agent.ts) expects. The desktop app talks to the
+/// engine in-process, so it serializes the *port* `cairn_ports::AgentEvent`
+/// straight to the webview rather than going through the wire `AnswerEvent`
+/// (which only the daemon transport uses). Citations are not a variant: the
+/// agent embeds cited notes as `[[stem]]` wikilinks inside `text_delta` text.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum AgentEventPayload {
+    TextDelta { text: String },
+    ToolStarted { tool: String },
+    ToolCompleted { tool: String, ok: bool },
+    TurnCompleted,
+    Completed,
+    Failed { message: String },
+}
+
+/// Map a port [`AgentEvent`] to its webview payload. `None` for kinds with no
+/// payload form — `AgentEvent` is `#[non_exhaustive]`, so unknown upstream kinds
+/// are dropped rather than panicking (mirroring the service's wire mapper).
+fn payload_of(e: AgentEvent) -> Option<AgentEventPayload> {
+    match e {
+        AgentEvent::TextDelta(text) => Some(AgentEventPayload::TextDelta { text }),
+        AgentEvent::ToolStarted { tool } => Some(AgentEventPayload::ToolStarted { tool }),
+        AgentEvent::ToolCompleted { tool, ok } => {
+            Some(AgentEventPayload::ToolCompleted { tool, ok })
+        }
+        AgentEvent::TurnCompleted => Some(AgentEventPayload::TurnCompleted),
+        AgentEvent::Completed => Some(AgentEventPayload::Completed),
+        AgentEvent::Failed { message } => Some(AgentEventPayload::Failed { message }),
+        _ => None,
+    }
+}
+
+/// An [`AgentSink`] that forwards each mapped increment to the webview over a
+/// Tauri IPC channel. A dead channel (the webview unsubscribed) just drops sends.
+struct ChannelSink {
+    channel: Channel<AgentEventPayload>,
+}
+impl AgentSink for ChannelSink {
+    fn emit(&mut self, event: AgentEvent) {
+        if let Some(payload) = payload_of(event) {
+            let _ = self.channel.send(payload);
+        }
+    }
+}
+
+/// The agent runtime backing `ask`: tau when `TAU_BIN` is configured, else
+/// `NullRuntime` (which errors before any event). Mirrors the daemon's wiring.
+fn ask_runtime() -> Box<dyn AgentRuntime + Send + Sync> {
+    match TauConfig::from_env() {
+        Some(cfg) => Box::new(TauServeRuntime::new(cfg)),
+        None => Box::new(NullRuntime),
+    }
+}
+
+/// Flatten a pre-stream [`ServiceError`] into a human message for a `failed`
+/// frame (mirrors the webview's `errMsg` formatting of a `ContractError`).
+fn ask_error_message(e: ServiceError) -> String {
+    match ContractError::from(e) {
+        ContractError::NotFound { what } => format!("not found: {what}"),
+        ContractError::InvalidRequest { message } | ContractError::Internal { message } => message,
+    }
+}
+
+/// `ask`: stream a note-grounded answer to `question` over `on_event`.
+///
+/// Runs the whole answer in a blocking task (the agent run spawns a subprocess
+/// and takes seconds). The engine mutex is held for the run's duration because
+/// `augmented_answer` bundles context-gathering with streaming; the lock-minimal
+/// gather/stream split lands once the engine exposes `gather_answer_context` on
+/// the remote (it is currently only on an unpushed branch). A run that fails
+/// *before* streaming (e.g. no `TAU_BIN`) is reported as an inline `failed`
+/// frame — matching the daemon and the mock — rather than rejecting the call.
+#[tauri::command]
+async fn ask(
+    state: State<'_, CairnState>,
+    question: String,
+    on_event: Channel<AgentEventPayload>,
+) -> Result<(), ContractError> {
+    let state = (*state).clone();
+    let runtime = ask_runtime();
+    tauri::async_runtime::spawn_blocking(move || {
+        let guard = state.inner.lock().expect("engine mutex poisoned");
+        let (engine, _path) = guard
+            .as_ref()
+            .ok_or_else(|| ContractError::InvalidRequest {
+                message: "no cairn open".into(),
+            })?;
+        let mut sink = ChannelSink {
+            channel: on_event.clone(),
+        };
+        // Default top_k of 5 mirrors the engine's `AskRequest` default.
+        if let Err(e) = augmented_answer(engine, &question, runtime.as_ref(), &mut sink, 5) {
+            let _ = on_event.send(AgentEventPayload::Failed {
+                message: ask_error_message(e),
+            });
+        }
+        Ok::<(), ContractError>(())
+    })
+    .await
+    .map_err(|e| ContractError::Internal {
+        message: e.to_string(),
+    })?
+}
+
 /// Open a cairn at `dir`: build the engine, reindex (emitting events), record
 /// engine+path atomically in state, and persist the path for next launch.
 fn open_at<R: Runtime>(
@@ -94,9 +207,7 @@ fn open_at<R: Runtime>(
 ) -> Result<(), ServiceError> {
     let mut engine = open_engine(dir)?;
     let mut sink = TauriSink(app.clone());
-    engine
-        .reindex(&mut sink)
-        .map_err(|e| ServiceError::Internal(e.to_string()))?;
+    engine.reindex(&mut sink)?; // PortError → ServiceError via `?`
     *state.inner.lock().expect("engine mutex poisoned") = Some((engine, dir.to_path_buf()));
     if let Err(e) = persist_path(app, dir) {
         eprintln!("cairn: failed to persist cairn path: {e}"); // non-fatal
@@ -202,6 +313,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             send_command,
             run_query,
+            ask,
             pick_and_open_cairn,
             current_cairn
         ])
@@ -218,9 +330,50 @@ mod tests {
     fn test_app() -> tauri::App<tauri::test::MockRuntime> {
         tauri::test::mock_builder()
             .manage(CairnState::default())
-            .invoke_handler(tauri::generate_handler![send_command, run_query])
+            .invoke_handler(tauri::generate_handler![send_command, run_query, ask])
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .expect("build mock app")
+    }
+
+    // Guards the Rust→webview agent-event contract: each port `AgentEvent` must
+    // serialize to exactly the shape web/src/client/agent.ts expects.
+    #[test]
+    fn agent_event_payload_matches_webview_shape() {
+        use serde_json::json;
+        let cases = [
+            (
+                AgentEvent::TextDelta("hi".into()),
+                json!({ "type": "text_delta", "text": "hi" }),
+            ),
+            (
+                AgentEvent::ToolStarted {
+                    tool: "search".into(),
+                },
+                json!({ "type": "tool_started", "tool": "search" }),
+            ),
+            (
+                AgentEvent::ToolCompleted {
+                    tool: "search".into(),
+                    ok: true,
+                },
+                json!({ "type": "tool_completed", "tool": "search", "ok": true }),
+            ),
+            (
+                AgentEvent::TurnCompleted,
+                json!({ "type": "turn_completed" }),
+            ),
+            (AgentEvent::Completed, json!({ "type": "completed" })),
+            (
+                AgentEvent::Failed {
+                    message: "boom".into(),
+                },
+                json!({ "type": "failed", "message": "boom" }),
+            ),
+        ];
+        for (event, want) in cases {
+            let payload = payload_of(event).expect("known variant maps to a payload");
+            assert_eq!(serde_json::to_value(&payload).unwrap(), want);
+        }
     }
 
     #[test]
@@ -289,12 +442,15 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(
-            r,
-            QueryResponse::Paths {
-                paths: vec!["n.md".into()]
+        // `Query::Search` returns rich `SearchResults` (path + score + snippet);
+        // assert on the matched path, not the volatile score/snippet fields.
+        let paths: Vec<String> = match r {
+            QueryResponse::SearchResults { results } => {
+                results.into_iter().map(|hit| hit.path).collect()
             }
-        );
+            other => panic!("expected SearchResults, got {other:?}"),
+        };
+        assert_eq!(paths, vec!["n.md".to_string()]);
     }
 
     #[test]
