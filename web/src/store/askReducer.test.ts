@@ -32,7 +32,9 @@ describe("applyAgentEvent", () => {
 
   it("ignores unknown event kinds (non-exhaustive safety)", () => {
     const before = emptyAssistantTurn();
-    const after = applyAgentEvent(before, { type: "mystery" } as unknown as AgentEvent);
+    const after = applyAgentEvent(before, {
+      type: "mystery",
+    } as unknown as AgentEvent);
     expect(after).toEqual(before);
   });
 

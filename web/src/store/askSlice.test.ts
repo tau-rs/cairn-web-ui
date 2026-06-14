@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { createCairnStore } from "./store";
 import { MockClient } from "../client/mock";
 
-const make = () => createCairnStore(new MockClient({ "store.md": "# Store\n" }));
+const make = () =>
+  createCairnStore(new MockClient({ "store.md": "# Store\n" }));
 
 describe("ask slice", () => {
   it("opens the bar", () => {
@@ -16,7 +17,10 @@ describe("ask slice", () => {
     const s = make();
     s.getState().askSubmit("how does it work?");
     expect(s.getState().ask.streaming).toBe(true);
-    expect(s.getState().ask.turns.map((t) => t.role)).toEqual(["user", "assistant"]);
+    expect(s.getState().ask.turns.map((t) => t.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
     await vi.waitFor(() => expect(s.getState().ask.streaming).toBe(false));
     const ai = s.getState().ask.turns[1];
     expect(ai.text).toContain("grounded");

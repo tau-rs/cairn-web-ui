@@ -15,7 +15,11 @@ describe("AnswerView", () => {
   it("renders text and linkifies inline citations", () => {
     const onOpenNote = vi.fn();
     render(
-      <AnswerView turn={turn({ text: "see [[store]] now" })} streaming={false} onOpenNote={onOpenNote} />,
+      <AnswerView
+        turn={turn({ text: "see [[store]] now" })}
+        streaming={false}
+        onOpenNote={onOpenNote}
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "store" }));
     expect(onOpenNote).toHaveBeenCalledWith("store");
@@ -23,7 +27,11 @@ describe("AnswerView", () => {
 
   it("shows a sources footer for assistant turns with citations", () => {
     render(
-      <AnswerView turn={turn({ text: "x [[store]]", citations: ["store"] })} streaming={false} onOpenNote={vi.fn()} />,
+      <AnswerView
+        turn={turn({ text: "x [[store]]", citations: ["store"] })}
+        streaming={false}
+        onOpenNote={vi.fn()}
+      />,
     );
     expect(screen.getByTestId("sources")).toHaveTextContent("store");
   });
@@ -31,7 +39,10 @@ describe("AnswerView", () => {
   it("shows a caret while streaming and a running tool indicator", () => {
     render(
       <AnswerView
-        turn={turn({ text: "partial", tools: [{ tool: "search_notes", ok: null }] })}
+        turn={turn({
+          text: "partial",
+          tools: [{ tool: "search_notes", ok: null }],
+        })}
         streaming
         onOpenNote={vi.fn()}
       />,
@@ -41,7 +52,13 @@ describe("AnswerView", () => {
   });
 
   it("renders a user turn as plain text with no sources", () => {
-    render(<AnswerView turn={turn({ role: "user", text: "my question" })} streaming={false} onOpenNote={vi.fn()} />);
+    render(
+      <AnswerView
+        turn={turn({ role: "user", text: "my question" })}
+        streaming={false}
+        onOpenNote={vi.fn()}
+      />,
+    );
     expect(screen.getByText("my question")).toBeInTheDocument();
     expect(screen.queryByTestId("sources")).toBeNull();
   });

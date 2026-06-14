@@ -270,7 +270,10 @@ describe("MockClient.ask", () => {
     expect(types).toContain("text_delta");
     expect(types[types.length - 1]).toBe("completed");
     const text = events
-      .filter((e): e is { type: "text_delta"; text: string } => e.type === "text_delta")
+      .filter(
+        (e): e is { type: "text_delta"; text: string } =>
+          e.type === "text_delta",
+      )
       .map((e) => e.text)
       .join("");
     expect(text).toContain("[[store]]");
@@ -279,7 +282,10 @@ describe("MockClient.ask", () => {
   it("emits the failed path when the question contains 'fail'", async () => {
     const client = new MockClient({ "store.md": "x" });
     const events = await collect(client, "please fail");
-    expect(events[events.length - 1]).toEqual({ type: "failed", message: expect.any(String) });
+    expect(events[events.length - 1]).toEqual({
+      type: "failed",
+      message: expect.any(String),
+    });
   });
 
   it("unsubscribe stops further events", async () => {

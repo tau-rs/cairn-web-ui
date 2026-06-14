@@ -2,7 +2,11 @@ import type { StoreApi } from "zustand/vanilla";
 import type { CairnClient, Unsubscribe } from "../client/types";
 import type { AgentEvent } from "../client/agent";
 import type { CairnState } from "./store";
-import { applyAgentEvent, emptyAssistantTurn, type AskTurn } from "./askReducer";
+import {
+  applyAgentEvent,
+  emptyAssistantTurn,
+  type AskTurn,
+} from "./askReducer";
 
 export type AskMode = "closed" | "bar" | "panel";
 
@@ -92,7 +96,9 @@ export function createAskSlice(
         if (token !== runToken) return;
         if (e.type === "failed") {
           stop();
-          set((s) => ({ ask: { ...s.ask, streaming: false, error: e.message } }));
+          set((s) => ({
+            ask: { ...s.ask, streaming: false, error: e.message },
+          }));
           return;
         }
         if (e.type === "completed") {
@@ -114,7 +120,9 @@ export function createAskSlice(
       unsub = client.ask(q, onEvent, (err) => {
         if (token !== runToken) return;
         stop();
-        set((s) => ({ ask: { ...s.ask, streaming: false, error: errMsg(err) } }));
+        set((s) => ({
+          ask: { ...s.ask, streaming: false, error: errMsg(err) },
+        }));
       });
     },
 

@@ -4,7 +4,10 @@ import type { AskTurn } from "../../store/askReducer";
 const CITE = /\[\[([^\]]+)\]\]/g;
 
 /** Render plain text, turning `[[target]]` wikilinks into clickable buttons. */
-function renderText(text: string, onOpenNote: (target: string) => void): ReactNode[] {
+function renderText(
+  text: string,
+  onOpenNote: (target: string) => void,
+): ReactNode[] {
   const parts: ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -46,9 +49,17 @@ export function AnswerView(props: {
     >
       {!isUser &&
         turn.tools.map((t, i) => (
-          <div key={i} data-testid="tool" className="mb-1 flex items-center gap-2 text-xs text-accent">
+          <div
+            key={i}
+            data-testid="tool"
+            className="mb-1 flex items-center gap-2 text-xs text-accent"
+          >
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
-            {t.ok === null ? `running ${t.tool}…` : t.ok ? `${t.tool} ✓` : `${t.tool} ✗`}
+            {t.ok === null
+              ? `running ${t.tool}…`
+              : t.ok
+                ? `${t.tool} ✓`
+                : `${t.tool} ✗`}
           </div>
         ))}
       <span className="whitespace-pre-wrap">
@@ -61,10 +72,17 @@ export function AnswerView(props: {
         )}
       </span>
       {!isUser && turn.citations.length > 0 && (
-        <div data-testid="sources" className="mt-1 border-t border-border pt-1 text-xs text-faint">
+        <div
+          data-testid="sources"
+          className="mt-1 border-t border-border pt-1 text-xs text-faint"
+        >
           Sources:{" "}
           {turn.citations.map((c, i) => (
-            <button key={c} className="mr-2 text-accent underline" onClick={() => onOpenNote(c)}>
+            <button
+              key={c}
+              className="mr-2 text-accent underline"
+              onClick={() => onOpenNote(c)}
+            >
               {i + 1} {c}
             </button>
           ))}
