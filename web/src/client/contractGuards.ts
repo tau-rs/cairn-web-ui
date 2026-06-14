@@ -1,4 +1,9 @@
-import type { Event, CommandResponse, QueryResponse } from "../contract";
+import type {
+  Event,
+  CommandResponse,
+  QueryResponse,
+  AnswerEvent,
+} from "../contract";
 
 /** The known discriminant tags for each contract union. Kept in lockstep with
  *  the vendored contract; the DX3 drift check guards the contract itself, and
@@ -19,6 +24,15 @@ const QUERY_RESPONSE_TYPES = [
   "tags",
   "plugins",
   "history",
+] as const;
+const ANSWER_EVENT_TYPES = [
+  "sources",
+  "text_delta",
+  "tool_started",
+  "tool_completed",
+  "turn_completed",
+  "completed",
+  "failed",
 ] as const;
 
 /** Raised when a value crossing the backend boundary doesn't carry a known
@@ -57,3 +71,5 @@ export const assertCommandResponse = (x: unknown): CommandResponse =>
   assertTagged(x, COMMAND_RESPONSE_TYPES, "command response");
 export const assertQueryResponse = (x: unknown): QueryResponse =>
   assertTagged(x, QUERY_RESPONSE_TYPES, "query response");
+export const assertAnswerEvent = (x: unknown): AnswerEvent =>
+  assertTagged(x, ANSWER_EVENT_TYPES, "answer event");

@@ -10,6 +10,8 @@ import type {
   SearchResult,
   PluginSummary,
   Revision,
+  AskRequest,
+  AnswerEvent,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import { extractLinks, stem } from "./wikilink";
@@ -422,6 +424,50 @@ export class MockClient implements CairnClient {
     const out: Record<string, string[]> = {};
     for (const [path, content] of this.notes) out[path] = extractTags(content);
     return Promise.resolve(out);
+  }
+
+  /** Mock streaming agent: emits a `sources` frame first (authoritative
+   *  citations, drawn from a real seeded note), then a tool round, then text
+   *  deltas, then completes. A query containing "fail" emits the failed path
+   *  instead. Events fire on chained microtasks (ordered + async); unsubscribe
+   *  cancels mid-stream. */
+  ask(req: AskRequest, onEvent: (e: AnswerEvent) => void): Unsubscribe {
+    let cancelled = false;
+    const fail = req.query.toLowerCase().includes("fail");
+    const firstPath = [...this.notes.keys()][0];
+    const firstStem = firstPath ? stem(firstPath) : undefined;
+    const cite = firstStem ? ` [[${firstStem}]]` : "";
+    const sources: AnswerEvent = {
+      type: "sources",
+      paths: firstPath ? [firstPath] : [],
+    };
+    const seq: AnswerEvent[] = fail
+      ? [
+          sources,
+          { type: "tool_started", tool: "search_notes" },
+          { type: "tool_completed", tool: "search_notes", ok: true },
+          { type: "failed", message: "stream interrupted (mock)" },
+        ]
+      : [
+          sources,
+          { type: "tool_started", tool: "search_notes" },
+          { type: "tool_completed", tool: "search_notes", ok: true },
+          { type: "text_delta", text: "Based on your notes, " },
+          { type: "text_delta", text: "the answer is grounded in" },
+          { type: "text_delta", text: cite },
+          { type: "text_delta", text: " and complete." },
+          { type: "turn_completed" },
+          { type: "completed" },
+        ];
+    const step = (i: number) => {
+      if (cancelled || i >= seq.length) return;
+      onEvent(seq[i]);
+      queueMicrotask(() => step(i + 1));
+    };
+    queueMicrotask(() => step(0));
+    return () => {
+      cancelled = true;
+    };
   }
 
   /** Test/dev helper: current note paths. */

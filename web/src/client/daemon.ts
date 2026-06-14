@@ -4,6 +4,8 @@ import type {
   Event,
   CommandResponse,
   QueryResponse,
+  AskRequest,
+  AnswerEvent,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
@@ -11,6 +13,7 @@ import {
   assertEvent,
   assertCommandResponse,
   assertQueryResponse,
+  assertAnswerEvent,
 } from "./contractGuards";
 
 /** Exponential-backoff reconnect, per the standard WebSocket guidance: start at
@@ -113,6 +116,79 @@ export class DaemonClient implements CairnClient {
     return assertQueryResponse(await this.post("/query", query));
   }
 
+  /** Stream a note-grounded answer from `POST /ask` (SSE over POST). The first
+   *  frame is `sources`, then `text_delta`/`tool_*`, then a terminal
+   *  `completed`/`failed`. A pre-stream failure is an HTTP error -> `onError`
+   *  (the typed `ContractError`/401); an in-run failure arrives as a `failed`
+   *  event. `EventSource` can't carry the bearer token, so we read the body via
+   *  `fetch` + `ReadableStream`. Unsubscribe drops further events and cancels
+   *  the reader; the server run finishes harmlessly (no v1 cancel endpoint). */
+  ask(
+    req: AskRequest,
+    onEvent: (e: AnswerEvent) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe {
+    let cancelled = false;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+    // Async IIFE so the returned `unsub` is assigned before any onEvent fires
+    // (the ask slice relies on this).
+    void (async () => {
+      let res: Response;
+      try {
+        res = await this.fetch(`${this.url}/ask`, {
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify(req),
+        });
+      } catch (err) {
+        if (!cancelled) onError?.(err);
+        return;
+      }
+      if (cancelled) return;
+      if (!res.ok) {
+        if (!cancelled) onError?.(await this.errorFor(res));
+        return;
+      }
+      if (!res.body) {
+        if (!cancelled)
+          onError?.(new Error("daemon /ask returned an empty stream"));
+        return;
+      }
+      reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (cancelled) return;
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let sep: number;
+          // SSE frames are separated by a blank line.
+          while ((sep = buf.indexOf("\n\n")) !== -1) {
+            const raw = buf.slice(0, sep);
+            buf = buf.slice(sep + 2);
+            const e = parseSseFrame(raw);
+            if (e !== null && !cancelled) onEvent(assertAnswerEvent(e));
+          }
+        }
+        // Flush any bytes the streaming decoder is still holding, then parse a
+        // trailing frame that had no blank-line terminator.
+        buf += decoder.decode();
+        const tail = parseSseFrame(buf);
+        if (tail !== null && !cancelled) onEvent(assertAnswerEvent(tail));
+      } catch (err) {
+        if (!cancelled) onError?.(err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      void reader?.cancel().catch(() => {});
+    };
+  }
+
   subscribe(
     cb: (e: Event) => void,
     onError?: (err: unknown) => void,
@@ -172,6 +248,18 @@ export class DaemonClient implements CairnClient {
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
   }
+}
+
+/** Extract the JSON payload from one SSE frame: concatenate its `data:` lines
+ *  (ignoring comments/blank/`event:` lines), or null if the frame has no data. */
+function parseSseFrame(raw: string): unknown {
+  const data = raw
+    .split("\n")
+    .filter((l) => l.startsWith("data:"))
+    .map((l) => l.slice(5).replace(/^ /, ""))
+    .join("\n");
+  if (data === "") return null;
+  return JSON.parse(data);
 }
 
 /** App-level cairn lifecycle for daemon mode. There is no browser file picker

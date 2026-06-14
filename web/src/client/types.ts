@@ -4,6 +4,8 @@ import type {
   Event,
   CommandResponse,
   QueryResponse,
+  AskRequest,
+  AnswerEvent,
 } from "../contract";
 
 export type Unsubscribe = () => void;
@@ -27,4 +29,13 @@ export interface CairnClient {
    *  Query): the mock parses note content; Tauri stubs {} until the engine
    *  exposes tags. */
   noteTags(): Promise<Record<string, string[]>>;
+  /** Stream a note-grounded answer. `onEvent` receives `AnswerEvent` frames
+   *  (`sources` first, then deltas/tool events, then `completed`/`failed`).
+   *  `onError` fires only on a pre-stream/transport failure; an in-run failure
+   *  is a `failed` event. The returned `Unsubscribe` cancels the stream. */
+  ask(
+    req: AskRequest,
+    onEvent: (e: AnswerEvent) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe;
 }

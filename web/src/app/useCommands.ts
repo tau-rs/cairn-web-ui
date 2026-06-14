@@ -90,6 +90,9 @@ export function useCommands(): {
       case "show-history":
         st.showHistory();
         break;
+      case "open-ask":
+        st.askOpen();
+        break;
       case "toggle-editor-mode":
         st.setSettings({
           editorMode:

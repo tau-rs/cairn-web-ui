@@ -6,6 +6,8 @@ import type {
   Event,
   CommandResponse,
   QueryResponse,
+  AskRequest,
+  AnswerEvent,
 } from "../contract";
 import type { CairnClient, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
@@ -64,6 +66,24 @@ export class TauriClient implements CairnClient {
     const res = await this.runQuery({ type: "list_notes" });
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
+  }
+  /** Desktop ask is deferred to a follow-up PR (it needs an in-process Tauri
+   *  command running `cairn_service::augmented_answer` + an engine rev-bump).
+   *  Until then, report a degraded state so the UI can prompt for daemon mode.
+   *  Deferred to a microtask so `unsub` is assigned before this fires. */
+  ask(
+    _req: AskRequest,
+    _onEvent: (e: AnswerEvent) => void,
+    onError?: (err: unknown) => void,
+  ): Unsubscribe {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled)
+        onError?.(new Error("desktop ask not wired yet — use daemon mode"));
+    });
+    return () => {
+      cancelled = true;
+    };
   }
 }
 

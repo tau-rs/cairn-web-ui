@@ -3,6 +3,7 @@ import {
   assertEvent,
   assertCommandResponse,
   assertQueryResponse,
+  assertAnswerEvent,
   ContractShapeError,
 } from "./contractGuards";
 
@@ -27,5 +28,31 @@ describe("contractGuards", () => {
     expect(() => assertQueryResponse(null)).toThrow(ContractShapeError);
     expect(() => assertEvent("nope")).toThrow(ContractShapeError);
     expect(() => assertEvent({ type: 5 })).toThrow(ContractShapeError);
+  });
+});
+
+describe("assertAnswerEvent", () => {
+  it("accepts each known AnswerEvent tag", () => {
+    for (const e of [
+      { type: "sources", paths: ["a.md"] },
+      { type: "text_delta", text: "hi" },
+      { type: "tool_started", tool: "search" },
+      { type: "tool_completed", tool: "search", ok: true },
+      { type: "turn_completed" },
+      { type: "completed" },
+      { type: "failed", message: "boom" },
+    ]) {
+      expect(assertAnswerEvent(e)).toBe(e);
+    }
+  });
+
+  it("rejects an unknown tag", () => {
+    expect(() => assertAnswerEvent({ type: "nope" })).toThrow(
+      ContractShapeError,
+    );
+  });
+
+  it("rejects a non-object", () => {
+    expect(() => assertAnswerEvent(null)).toThrow(ContractShapeError);
   });
 });

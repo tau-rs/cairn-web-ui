@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient, Unsubscribe } from "../client/types";
-import type { ContractError, TagCount, Event } from "../contract";
+import type { TagCount, Event } from "../contract";
 import type { PluginSummary } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
 import {
@@ -10,6 +10,7 @@ import {
   type SanitizeReport,
 } from "../client/pluginContributions";
 import { debounce, type Debounced } from "../util/timer";
+import { errMsg } from "./errMsg";
 import type { Overrides } from "../components/shortcuts/commands";
 import {
   loadOverrides,
@@ -47,6 +48,7 @@ import type { SearchSnippet } from "../components/searchHighlight";
 import type { Rename } from "../components/tree/treeMoves";
 import { type RefreshTrace, refreshTrace } from "./trace";
 import { createHistorySlice, type HistorySlice } from "./historySlice";
+import { createAskSlice, type AskState } from "./askSlice";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -116,7 +118,7 @@ export const DEFAULT_UI: UiState = {
   keybindingOverrides: {},
 };
 
-export interface CairnState extends PluginGrantsState, HistorySlice {
+export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
   // waits for this so its URL<->store reconciliation can't race the restore.
@@ -520,6 +522,7 @@ export function createCairnStore(
       errors: [],
       loading: { search: false, graph: false, backlinks: false, note: false },
       liveUpdates: "ok",
+      ...createAskSlice(set, get, client),
 
       async init() {
         if (started) return;
@@ -1118,14 +1121,4 @@ export function createCairnStore(
   });
 
   return store;
-}
-
-function errMsg(err: unknown): string {
-  // ContractError (rejected by the client) is a tagged object.
-  if (err && typeof err === "object" && "type" in err) {
-    const e = err as ContractError;
-    if (e.type === "not_found") return `Not found: ${e.what}`;
-    return e.message;
-  }
-  return err instanceof Error ? err.message : String(err);
 }

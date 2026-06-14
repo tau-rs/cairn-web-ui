@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { MockClient } from "./mock";
-import type { Event } from "../contract";
+import type { Event, AnswerEvent } from "../contract";
 
 function freshNotes() {
   return { "a.md": "links to [[b]]", "b.md": "target note" };
@@ -312,5 +312,48 @@ describe("mock history ops", () => {
     expect(note).toEqual({ type: "note", contents: "body v1" });
     await new Promise<void>((r) => queueMicrotask(r));
     expect(events).toContain("note_changed");
+  });
+});
+
+describe("MockClient.ask", () => {
+  function collect(client: MockClient, q: string): Promise<AnswerEvent[]> {
+    return new Promise((resolve) => {
+      const events: AnswerEvent[] = [];
+      client.ask({ query: q, top_k: null }, (e) => {
+        events.push(e);
+        if (e.type === "completed" || e.type === "failed") resolve(events);
+      });
+    });
+  }
+
+  it("emits sources first and completed last on success", async () => {
+    const client = new MockClient({ "store.md": "# Store\n" });
+    const events = await collect(client, "how does it work?");
+    const types = events.map((e) => e.type);
+    expect(types[0]).toBe("sources");
+    expect(types).toContain("text_delta");
+    expect(types[types.length - 1]).toBe("completed");
+    const sources = events.find((e) => e.type === "sources");
+    expect(sources).toEqual({ type: "sources", paths: ["store.md"] });
+  });
+
+  it("emits the failed path when the question contains 'fail'", async () => {
+    const client = new MockClient({ "store.md": "x" });
+    const events = await collect(client, "please fail");
+    expect(events[events.length - 1]).toEqual({
+      type: "failed",
+      message: "stream interrupted (mock)",
+    });
+  });
+
+  it("unsubscribe stops further events", async () => {
+    const client = new MockClient({ "store.md": "x" });
+    const seen: AnswerEvent[] = [];
+    const unsub = client.ask({ query: "hello", top_k: null }, (e) =>
+      seen.push(e),
+    );
+    unsub();
+    await new Promise<void>((r) => queueMicrotask(() => queueMicrotask(r)));
+    expect(seen.length).toBe(0);
   });
 });

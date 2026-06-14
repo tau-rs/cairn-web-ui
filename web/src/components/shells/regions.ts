@@ -6,4 +6,6 @@ export interface ShellRegions {
   list: ReactNode;
   editor: ReactNode;
   backlinks: ReactNode;
+  /** Optional docked ask panel (desktop shell). */
+  ask?: ReactNode;
 }

@@ -21,6 +21,7 @@ export const COMMAND_DEFS: CommandDef[] = [
     defaultBinding: "Mod+E",
   },
   { id: "open-settings", label: "Open Settings", defaultBinding: "Mod+," },
+  { id: "open-ask", label: "Ask…", defaultBinding: "Mod+Shift+A" },
   { id: "close-tab", label: "Close tab", defaultBinding: "Mod+W" },
   { id: "split-right", label: "Split editor right", defaultBinding: "Mod+\\" },
   { id: "close-pane", label: "Close pane", defaultBinding: "Mod+Shift+W" },

@@ -18,6 +18,7 @@ export function Shell(props: ShellRegions) {
         <aside className="w-56 shrink-0 overflow-auto border-l border-border bg-surface p-2">
           {props.backlinks}
         </aside>
+        {props.ask}
       </div>
     </div>
   );
