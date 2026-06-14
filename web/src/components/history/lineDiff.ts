@@ -70,11 +70,21 @@ export function lineDiff(oldText: string, newText: string): DiffLine[] {
     }
   }
   while (i < n) {
-    rows.push({ type: "del", text: oldLines[i], oldLine: i + 1, newLine: null });
+    rows.push({
+      type: "del",
+      text: oldLines[i],
+      oldLine: i + 1,
+      newLine: null,
+    });
     i++;
   }
   while (j < m) {
-    rows.push({ type: "add", text: newLines[j], oldLine: null, newLine: j + 1 });
+    rows.push({
+      type: "add",
+      text: newLines[j],
+      oldLine: null,
+      newLine: j + 1,
+    });
     j++;
   }
   return rows;
