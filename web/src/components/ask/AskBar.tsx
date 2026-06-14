@@ -39,12 +39,12 @@ export function AskBar(props: AskSurfaceProps & { onPromote: () => void }) {
         >
           <Dialog.Title className="sr-only">Ask</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-border px-3 py-3">
-            <span className="text-accent">✦</span>
+            <span className="text-accent" aria-hidden="true">✦</span>
             <input
               autoFocus
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
               placeholder="Ask about your notes…"
               className="w-full bg-transparent text-sm text-text placeholder:text-faint focus:outline-none"
             />
