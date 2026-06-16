@@ -5,6 +5,7 @@ import {
   backoffDelay,
   RECONNECT_BASE_MS,
   RECONNECT_MAX_MS,
+  ESCALATE_AFTER_ATTEMPTS,
 } from "./daemon";
 import type { AnswerEvent } from "../contract";
 
@@ -248,6 +249,59 @@ describe("DaemonClient subscribe", () => {
       FakeWebSocket.last().emitClose(); // next drop starts from attempt 1 again
       vi.advanceTimersByTime(backoffDelay(1));
       expect(FakeWebSocket.instances).toHaveLength(3);
+    });
+
+    it("emits 'reconnecting' on a transient drop without erroring", () => {
+      const onError = vi.fn();
+      const onStatus = vi.fn();
+      const c = new DaemonClient({
+        url: URL,
+        fetch: vi.fn(),
+        WebSocket: WS,
+        random: () => 1,
+      });
+      c.subscribe(vi.fn(), onError, onStatus);
+      FakeWebSocket.last().emitClose(); // first drop → attempt 1
+      expect(onStatus).toHaveBeenCalledWith("reconnecting");
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it("emits 'live' on a successful (re)open", () => {
+      const onStatus = vi.fn();
+      const c = new DaemonClient({
+        url: URL,
+        fetch: vi.fn(),
+        WebSocket: WS,
+        random: () => 1,
+      });
+      c.subscribe(vi.fn(), vi.fn(), onStatus);
+      FakeWebSocket.last().emitClose();
+      vi.advanceTimersByTime(backoffDelay(1));
+      FakeWebSocket.last().emitOpen(); // healed
+      expect(onStatus).toHaveBeenCalledWith("live");
+    });
+
+    it("stops emitting 'reconnecting' once escalated to onError (no downgrade)", () => {
+      const onError = vi.fn();
+      const onStatus = vi.fn();
+      const c = new DaemonClient({
+        url: URL,
+        fetch: vi.fn(),
+        WebSocket: WS,
+        random: () => 1,
+      });
+      c.subscribe(vi.fn(), onError, onStatus);
+      // Each reconnect immediately drops again → 5 failed attempts.
+      for (let i = 1; i <= 5; i++) {
+        FakeWebSocket.last().emitClose();
+        vi.advanceTimersByTime(backoffDelay(i));
+      }
+      expect(onError).toHaveBeenCalled();
+      // Pill only for attempts 1–(ESCALATE_AFTER_ATTEMPTS-1); remaining attempts escalate via onError instead.
+      const reconnecting = onStatus.mock.calls.filter(
+        (a) => a[0] === "reconnecting",
+      );
+      expect(reconnecting).toHaveLength(ESCALATE_AFTER_ATTEMPTS - 1);
     });
   });
 });

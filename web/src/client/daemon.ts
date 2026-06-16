@@ -192,6 +192,7 @@ export class DaemonClient implements CairnClient {
   subscribe(
     cb: (e: Event) => void,
     onError?: (err: unknown) => void,
+    onStatus?: (s: "reconnecting" | "live") => void,
   ): Unsubscribe {
     const eventsUrl = this.url.replace(/^http/, "ws") + "/events";
     let closed = false;
@@ -203,9 +204,11 @@ export class DaemonClient implements CairnClient {
       if (closed) return;
       attempt += 1;
       // Stay silent for brief blips; surface a degraded state only once the
-      // socket has clearly failed to come back (B′). A successful reconnect
-      // resets `attempt`, so transient drops never reach here.
+      // socket has clearly failed to come back (B′). Below the threshold we
+      // emit the calm "reconnecting" pill instead — mutually exclusive with
+      // onError, so a "down" state is never downgraded back to the pill.
       if (attempt >= ESCALATE_AFTER_ATTEMPTS) onError?.(err);
+      else onStatus?.("reconnecting");
       // Full jitter over the capped exponential ceiling.
       timer = setTimeout(connect, this.random() * backoffDelay(attempt));
     };
@@ -221,6 +224,7 @@ export class DaemonClient implements CairnClient {
       ws = sock;
       sock.onopen = () => {
         attempt = 0;
+        onStatus?.("live");
       };
       sock.onmessage = (ev: { data: unknown }) => {
         try {

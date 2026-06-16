@@ -20,10 +20,14 @@ export interface CairnClient {
   runQuery(q: Query): Promise<QueryResponse>;
   /** Subscribe to push events. `onError` fires if the channel fails to attach,
    *  so the UI can surface a degraded "live updates unavailable" state and
-   *  offer a manual refresh. The mock never errors. */
+   *  offer a manual refresh. The mock never errors. `onStatus` is an optional
+   *  transient signal for transports that reconnect: `"reconnecting"` during
+   *  silent backoff (before `onError` escalation), `"live"` on a successful
+   *  (re)open. Transports with no reconnect concept never call it. */
   subscribe(
     cb: (e: Event) => void,
     onError?: (err: unknown) => void,
+    onStatus?: (s: "reconnecting" | "live") => void,
   ): Unsubscribe;
   /** All notes' tags (path → tags). Client-level capability (not a contract
    *  Query): the mock parses note content; Tauri stubs {} until the engine
