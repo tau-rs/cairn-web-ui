@@ -167,12 +167,11 @@ function sanitizeWidget(
         MAX_IFRAME_HEIGHT,
         Math.max(MIN_IFRAME_HEIGHT, raw.height),
       );
-    // TODO(contract-sync): drop cast after engine adds the iframe PluginWidget variant.
     return {
       kind: "iframe",
       entry,
       height,
-    } as unknown as PluginWidget;
+    };
   }
   // kind === "list"
   const itemsRaw = Array.isArray(raw.items) ? raw.items : [];
