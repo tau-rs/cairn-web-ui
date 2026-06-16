@@ -1,16 +1,54 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { AnswerEvent } from "../contract";
 
 const invoke = vi.fn();
 const listen = vi.fn();
+
+/** Minimal stand-in for Tauri's IPC `Channel`: the Rust side calls `.send(e)`,
+ *  which the runtime delivers to `onmessage`. A test grabs the instance the
+ *  client passed to `invoke` and drives frames through `onmessage`. */
+interface FakeChannel<T> {
+  onmessage: (m: T) => void;
+}
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...a: unknown[]) => invoke(...a),
   convertFileSrc: (p: string) => "asset://" + p,
+  // Defined inline: vi.mock is hoisted above any top-level class/const.
+  Channel: class {
+    onmessage: (m: unknown) => void = () => {};
+  },
 }));
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (...a: unknown[]) => listen(...a),
 }));
 
 import { TauriClient, TauriHost } from "./tauri";
+
+/** Drive `ask`, capturing the `Channel` the client passed to `invoke("ask", …)`
+ *  so the test can replay frames through it. */
+function startAsk(
+  client: TauriClient,
+  onError?: (e: unknown) => void,
+): {
+  channel: FakeChannel<AnswerEvent>;
+  got: AnswerEvent[];
+  unsub: () => void;
+} {
+  let channel: FakeChannel<AnswerEvent> | undefined;
+  invoke.mockImplementationOnce(
+    (_cmd: string, args: Record<string, unknown>) => {
+      channel = args.channel as FakeChannel<AnswerEvent>;
+      return new Promise<void>(() => {}); // pending until the run ends
+    },
+  );
+  const got: AnswerEvent[] = [];
+  const unsub = client.ask(
+    { query: "q", top_k: null },
+    (e) => got.push(e),
+    onError,
+  );
+  return { channel: channel as FakeChannel<AnswerEvent>, got, unsub };
+}
 
 beforeEach(() => {
   invoke.mockReset();
@@ -104,6 +142,74 @@ describe("TauriClient", () => {
     expect(cb).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(1);
     expect(String(onError.mock.calls[0][0])).toMatch(/Malformed event/);
+  });
+});
+
+describe("TauriClient.ask", () => {
+  it("invokes ask with the request + a channel and streams sources -> deltas -> completed in order", () => {
+    const c = new TauriClient();
+    const { channel, got } = startAsk(c);
+    expect(invoke).toHaveBeenCalledWith(
+      "ask",
+      expect.objectContaining({ request: { query: "q", top_k: null } }),
+    );
+    channel.onmessage({ type: "sources", paths: ["a.md", "b.md"] });
+    channel.onmessage({ type: "text_delta", text: "Hello " });
+    channel.onmessage({ type: "text_delta", text: "world" });
+    channel.onmessage({ type: "completed" });
+    expect(got.map((e) => e.type)).toEqual([
+      "sources",
+      "text_delta",
+      "text_delta",
+      "completed",
+    ]);
+    expect(got[0]).toEqual({ type: "sources", paths: ["a.md", "b.md"] });
+  });
+
+  it("delivers an in-run failed frame as an event, not via onError", () => {
+    const c = new TauriClient();
+    const onError = vi.fn();
+    const { channel, got } = startAsk(c, onError);
+    channel.onmessage({ type: "sources", paths: [] });
+    channel.onmessage({ type: "failed", message: "tau not configured" });
+    expect(got[got.length - 1]).toEqual({
+      type: "failed",
+      message: "tau not configured",
+    });
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("routes a pre-stream invoke rejection to onError", async () => {
+    invoke.mockRejectedValueOnce({ type: "internal", message: "boom" });
+    const c = new TauriClient();
+    const onError = vi.fn();
+    c.ask({ query: "q", top_k: null }, vi.fn(), onError);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onError).toHaveBeenCalledWith({ type: "internal", message: "boom" });
+  });
+
+  it("treats a malformed frame as fatal: onError once, and no further frames stream (matches DaemonClient)", () => {
+    const c = new TauriClient();
+    const onError = vi.fn();
+    const { channel, got } = startAsk(c, onError);
+    channel.onmessage({ type: "garbage" } as unknown as AnswerEvent);
+    // A later, well-formed frame must NOT reach onEvent — a malformed frame is a
+    // backend contract violation that ends the stream, like DaemonClient.ask.
+    channel.onmessage({ type: "completed" });
+    expect(got).toHaveLength(0);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(String(onError.mock.calls[0][0])).toMatch(/Malformed answer event/);
+  });
+
+  it("stops forwarding frames after unsubscribe", () => {
+    const c = new TauriClient();
+    const { channel, got, unsub } = startAsk(c);
+    channel.onmessage({ type: "sources", paths: [] });
+    unsub();
+    channel.onmessage({ type: "text_delta", text: "late" });
+    channel.onmessage({ type: "completed" });
+    expect(got.map((e) => e.type)).toEqual(["sources"]);
   });
 });
 
