@@ -165,9 +165,10 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
     backlinks: boolean;
     note: boolean;
   };
-  // "down" when the push-event channel failed to attach — the reactive refresh
-  // model is degraded and data may be stale until a manual refresh.
-  liveUpdates: "ok" | "down";
+  // "reconnecting" while the push channel is in silent backoff (calm pill);
+  // "down" once it has clearly failed (hard banner). Both mean data may be
+  // stale until reconnection or a manual refresh.
+  liveUpdates: "ok" | "reconnecting" | "down";
 
   init(): Promise<void>;
   openCairn(): Promise<void>;
@@ -425,8 +426,10 @@ export function createCairnStore(
     // so the UI can surface the degraded state and offer a manual refresh.
     const connectEvents = () => {
       eventUnsub?.();
-      eventUnsub = client.subscribe(onEvent, () =>
-        set({ liveUpdates: "down" }),
+      eventUnsub = client.subscribe(
+        onEvent,
+        () => set({ liveUpdates: "down" }),
+        (s) => set({ liveUpdates: s === "live" ? "ok" : "reconnecting" }),
       );
     };
 

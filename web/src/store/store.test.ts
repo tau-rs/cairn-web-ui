@@ -108,6 +108,51 @@ describe("cairn store", () => {
     expect(store.getState().liveUpdates).toBe("down");
   });
 
+  it("maps onStatus reconnecting/live onto liveUpdates", async () => {
+    const { client, store } = setup();
+    let statusCb: ((s: "reconnecting" | "live") => void) | undefined;
+    vi.spyOn(client, "subscribe").mockImplementation(
+      (
+        _cb: (e: Event) => void,
+        _onError?: (err: unknown) => void,
+        onStatus?: (s: "reconnecting" | "live") => void,
+      ) => {
+        statusCb = onStatus;
+        return () => {};
+      },
+    );
+    await store.getState().init();
+    expect(store.getState().liveUpdates).toBe("ok");
+    statusCb!("reconnecting");
+    expect(store.getState().liveUpdates).toBe("reconnecting");
+    statusCb!("live");
+    expect(store.getState().liveUpdates).toBe("ok");
+  });
+
+  it("escalates reconnecting to down, then recovers on live", async () => {
+    const { client, store } = setup();
+    let errorCb: ((err: unknown) => void) | undefined;
+    let statusCb: ((s: "reconnecting" | "live") => void) | undefined;
+    vi.spyOn(client, "subscribe").mockImplementation(
+      (
+        _cb: (e: Event) => void,
+        onError?: (err: unknown) => void,
+        onStatus?: (s: "reconnecting" | "live") => void,
+      ) => {
+        errorCb = onError;
+        statusCb = onStatus;
+        return () => {};
+      },
+    );
+    await store.getState().init();
+    statusCb!("reconnecting");
+    expect(store.getState().liveUpdates).toBe("reconnecting");
+    errorCb!(new Error("sustained failure"));
+    expect(store.getState().liveUpdates).toBe("down");
+    statusCb!("live");
+    expect(store.getState().liveUpdates).toBe("ok");
+  });
+
   it("refreshAll re-pulls note paths and clears the degraded state", async () => {
     vi.useRealTimers();
     const { client, store } = setup();
