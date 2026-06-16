@@ -56,6 +56,11 @@ jobs:
       - uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f # beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Pin the model explicitly: the action's built-in default
+          # (claude-sonnet-4-20250514) is retired and now 404s, failing the job
+          # before it can review. Sonnet 4.6 is the current cost-appropriate
+          # model for an advisory PR review.
+          model: claude-sonnet-4-6
           # Dependabot PRs run as a Bot actor; allow it so dependency
           # bumps still get an AI review.
           allowed_bots: "dependabot"
