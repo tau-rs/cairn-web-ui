@@ -29,21 +29,8 @@ export function WidgetView({
 }) {
   const { invokePlugin } = useActions();
 
-  // TODO(contract-sync): the vendored PluginWidget union lacks "iframe" until the
-  // engine re-sync; treat it here via a narrow cast.
-  if ((widget as { kind: string }).kind === "iframe") {
-    return (
-      <IframeWidget
-        plugin={plugin}
-        widget={
-          widget as unknown as {
-            kind: "iframe";
-            entry: string;
-            height: number | null;
-          }
-        }
-      />
-    );
+  if (widget.kind === "iframe") {
+    return <IframeWidget plugin={plugin} widget={widget} />;
   }
 
   switch (widget.kind) {
@@ -122,7 +109,7 @@ function IframeWidget({
   widget,
 }: {
   plugin: string;
-  widget: { kind: "iframe"; entry: string; height: number | null };
+  widget: Extract<PluginWidget, { kind: "iframe" }>;
 }) {
   const { grantPlugin } = useActions();
   const summary = useCairn(
@@ -130,14 +117,11 @@ function IframeWidget({
   );
   const grants = useCairn((s) => s.pluginGrants);
 
-  // capabilities is not in the vendored PluginSummary yet (TODO(contract-sync)).
-  // Route the untrusted value through the shared sanitizer (drop-unknown + dedupe
-  // + bound) so the audited capability filter is the one actually on the path.
+  // Route the declared capabilities through the shared sanitizer (drop-unknown +
+  // dedupe + bound) so the audited capability filter is the one actually on the
+  // path, even though the vendored type is now well-formed.
   const caps: PluginCapability[] = useMemo(
-    () =>
-      sanitizeCapabilities(
-        (summary as { capabilities?: unknown } | undefined)?.capabilities,
-      ),
+    () => sanitizeCapabilities(summary?.capabilities),
     [summary],
   );
   const version = summary?.version ?? "0";
