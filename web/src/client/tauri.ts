@@ -1,4 +1,4 @@
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc, Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Command,
@@ -16,6 +16,7 @@ import {
   assertEvent,
   assertCommandResponse,
   assertQueryResponse,
+  assertAnswerEvent,
 } from "./contractGuards";
 
 /** Talks to the Rust backend over Tauri IPC. Rejections are ContractError
@@ -67,19 +68,41 @@ export class TauriClient implements CairnClient {
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
   }
-  /** Desktop ask is deferred to a follow-up PR (it needs an in-process Tauri
-   *  command running `cairn_service::augmented_answer` + an engine rev-bump).
-   *  Until then, report a degraded state so the UI can prompt for daemon mode.
-   *  Deferred to a microtask so `unsub` is assigned before this fires. */
+  /** Stream a note-grounded answer in-process via the `ask` Tauri command. The
+   *  Rust side gathers context, emits a leading `sources` frame, then forwards
+   *  each agent increment as an `AnswerEvent` over the IPC `Channel`; the
+   *  terminal frame is `completed`/`failed`. A pre-stream failure (no cairn
+   *  open, internal error) rejects the invoke -> `onError` (the typed
+   *  `ContractError`); an in-run failure arrives as a `failed` event. A
+   *  malformed frame routes to `onError` rather than mis-dispatching (S5).
+   *  Unsubscribe drops further events; the Rust run finishes harmlessly (no v1
+   *  cancellation). `onmessage`/the returned `unsub` are assigned synchronously,
+   *  before the invoke round-trips, so no frame can arrive un-guarded. */
   ask(
-    _req: AskRequest,
-    _onEvent: (e: AnswerEvent) => void,
+    req: AskRequest,
+    onEvent: (e: AnswerEvent) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe {
     let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled)
-        onError?.(new Error("desktop ask not wired yet — use daemon mode"));
+    const channel = new Channel<AnswerEvent>();
+    channel.onmessage = (raw) => {
+      if (cancelled) return;
+      let e: AnswerEvent;
+      try {
+        e = assertAnswerEvent(raw);
+      } catch (err) {
+        // A malformed frame is a fatal backend contract violation: stop the
+        // stream (drop any later frames) so desktop and daemon transports
+        // behave identically — DaemonClient.ask ends its read loop on the same
+        // assertion throw.
+        cancelled = true;
+        onError?.(err);
+        return;
+      }
+      onEvent(e);
+    };
+    void invoke("ask", { request: req, channel }).catch((err) => {
+      if (!cancelled) onError?.(err);
     });
     return () => {
       cancelled = true;

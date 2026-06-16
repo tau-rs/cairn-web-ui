@@ -5,22 +5,53 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use cairn_app::{Engine, Event as AppEvent, EventSink};
-use cairn_contract::{Command, CommandResponse, ContractError, Query, QueryResponse};
-use cairn_infra::{GitVcs, InMemoryIndex, LocalFsStore};
-use cairn_service::{app_event_to_wire, dispatch_command, dispatch_query, ServiceError};
+use cairn_contract::{
+    AnswerEvent, AskRequest, Command, CommandResponse, ContractError, Query, QueryResponse,
+};
+use cairn_infra::{GitVcs, LocalFsStore, NullRuntime, TantivyIndex, TauConfig, TauServeRuntime};
+use cairn_ports::{AgentEvent, AgentRuntime, AgentSink};
+use cairn_service::{
+    agent_event_to_wire, app_event_to_wire, dispatch_command, dispatch_query,
+    gather_answer_context, ServiceError,
+};
 use tauri::http::Response;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use plugin_roots::{set_plugin_ui_roots, PluginRoots};
 
-/// The concrete engine the desktop app runs.
-type CairnEngine = Engine<LocalFsStore, InMemoryIndex, GitVcs>;
+/// The concrete engine the desktop app runs. `Engine` boxes its adapters, so the
+/// type alias is just a readable name for the one engine this shell builds.
+type CairnEngine = Engine;
 
 /// Shared app state: the engine + its path behind a single mutex (None until a
-/// cairn is opened).  `Clone` lets us move the `Arc` into `spawn_blocking`.
-#[derive(Clone, Default)]
+/// cairn is opened), plus the agent runtime backing `ask`. `Clone` lets us move
+/// the `Arc`s into `spawn_blocking`.
+#[derive(Clone)]
 struct CairnState {
     inner: Arc<Mutex<Option<(CairnEngine, PathBuf)>>>,
+    /// Agent runtime for `ask`. Built from the environment at startup:
+    /// `TauServeRuntime` when `TAU_BIN` is set, else `NullRuntime` (which errors
+    /// at answer time, surfaced as a single `Failed` frame).
+    runtime: Arc<dyn AgentRuntime + Send + Sync>,
+}
+
+/// Build the agent runtime from the process environment. `TAU_BIN` (+ optional
+/// `TAU_AGENT`/`TAU_PROJECT`) selects the real `tau serve` runtime; absent, the
+/// `NullRuntime` placeholder errors at answer time.
+fn runtime_from_env() -> Arc<dyn AgentRuntime + Send + Sync> {
+    match TauConfig::from_env() {
+        Some(cfg) => Arc::new(TauServeRuntime::new(cfg)),
+        None => Arc::new(NullRuntime),
+    }
+}
+
+impl Default for CairnState {
+    fn default() -> Self {
+        Self {
+            inner: Arc::default(),
+            runtime: runtime_from_env(),
+        }
+    }
 }
 
 /// An `EventSink` that forwards engine events to the webview as wire events.
@@ -33,9 +64,13 @@ impl<R: Runtime> EventSink for TauriSink<R> {
 
 /// Build (or open) an engine rooted at `dir`, creating the git repo if needed.
 fn open_engine(dir: &Path) -> Result<CairnEngine, ServiceError> {
-    let store = LocalFsStore::open(dir).map_err(|e| ServiceError::Internal(e.to_string()))?;
-    let vcs = GitVcs::open_or_init(dir).map_err(|e| ServiceError::Internal(e.to_string()))?;
-    Ok(Engine::new(store, InMemoryIndex::default(), vcs))
+    let store =
+        LocalFsStore::open(dir).map_err(|e| ServiceError::Internal(e.to_string().into()))?;
+    let vcs =
+        GitVcs::open_or_init(dir).map_err(|e| ServiceError::Internal(e.to_string().into()))?;
+    let index =
+        TantivyIndex::in_memory().map_err(|e| ServiceError::Internal(e.to_string().into()))?;
+    Ok(Engine::new(store, index, vcs))
 }
 
 fn run_command_blocking<R: Runtime>(
@@ -75,6 +110,73 @@ async fn send_command<R: Runtime>(
     })?
 }
 
+/// Stream a note-grounded answer into `emit`: gather retrieval context under the
+/// engine lock, emit the leading `Sources` frame, then run the agent lock-free
+/// and forward each increment as a wire `AnswerEvent`. Mirrors the daemon's
+/// `ask_handler`. A gather failure (no cairn open, search error) returns `Err`
+/// before any frame; an agent failure is delivered as a terminal `Failed` frame.
+fn stream_answer(
+    state: &CairnState,
+    req: &AskRequest,
+    emit: &mut dyn FnMut(AnswerEvent),
+) -> Result<(), ServiceError> {
+    let top_k = req.top_k.unwrap_or(5);
+    // Gather retrieval context under the engine lock, then drop the guard before
+    // the (seconds-long) agent run so it never blocks commands/queries.
+    let (prompt, cited) = {
+        let guard = state.inner.lock().expect("engine mutex poisoned");
+        let (engine, _path) = guard
+            .as_ref()
+            .ok_or_else(|| ServiceError::InvalidRequest("no cairn open".into()))?;
+        gather_answer_context(engine, &req.query, top_k)?
+    };
+    emit(AnswerEvent::Sources { paths: cited });
+
+    // Adapt the agent's `AgentEvent` stream into wire `AnswerEvent` frames.
+    struct WireSink<'a> {
+        emit: &'a mut dyn FnMut(AnswerEvent),
+    }
+    impl AgentSink for WireSink<'_> {
+        fn emit(&mut self, event: AgentEvent) {
+            if let Some(wire) = agent_event_to_wire(event) {
+                (self.emit)(wire);
+            }
+        }
+    }
+    let mut sink = WireSink { emit };
+    // A run that starts then fails reports via `AgentEvent::Failed` on the sink;
+    // an `Err` means it failed before any event (e.g. tau not configured) —
+    // route it through the same mapping so the UI sees one terminal `Failed`.
+    if let Err(e) = state.runtime.answer(&prompt, &mut sink) {
+        sink.emit(AgentEvent::Failed {
+            message: e.to_string(),
+        });
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn ask(
+    state: State<'_, CairnState>,
+    request: AskRequest,
+    channel: tauri::ipc::Channel<AnswerEvent>,
+) -> Result<(), ContractError> {
+    let state = (*state).clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut emit = |e: AnswerEvent| {
+            // A closed channel (webview dropped the stream) turns sends into
+            // no-ops; the run still finishes (no v1 cancellation), matching the
+            // daemon's fire-and-forget producer.
+            let _ = channel.send(e);
+        };
+        stream_answer(&state, &request, &mut emit).map_err(ContractError::from)
+    })
+    .await
+    .map_err(|e| ContractError::Internal {
+        message: e.to_string(),
+    })?
+}
+
 // No R: Runtime generic — queries are read-only and never emit events.
 #[tauri::command]
 async fn run_query(
@@ -102,7 +204,7 @@ fn open_at<R: Runtime>(
     let mut sink = TauriSink(app.clone());
     engine
         .reindex(&mut sink)
-        .map_err(|e| ServiceError::Internal(e.to_string()))?;
+        .map_err(|e| ServiceError::Internal(e.to_string().into()))?;
     *state.inner.lock().expect("engine mutex poisoned") = Some((engine, dir.to_path_buf()));
     if let Err(e) = persist_path(app, dir) {
         eprintln!("cairn: failed to persist cairn path: {e}"); // non-fatal
@@ -227,6 +329,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             send_command,
             run_query,
+            ask,
             pick_and_open_cairn,
             current_cairn,
             set_plugin_ui_roots
@@ -315,12 +418,110 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(
-            r,
-            QueryResponse::Paths {
-                paths: vec!["n.md".into()]
+        // The Tantivy-backed engine answers Search with rich SearchResults
+        // (path + score + snippet), not bare Paths.
+        match r {
+            QueryResponse::SearchResults { results } => assert_eq!(
+                results.iter().map(|x| x.path.as_str()).collect::<Vec<_>>(),
+                vec!["n.md"]
+            ),
+            other => panic!("expected SearchResults, got {other:?}"),
+        }
+    }
+
+    /// An `AgentRuntime` that emits a scripted sequence of `AgentEvent`s then
+    /// succeeds — stands in for a real `tau serve` run.
+    struct ScriptedRuntime(Vec<AgentEvent>);
+    impl AgentRuntime for ScriptedRuntime {
+        fn answer(
+            &self,
+            _prompt: &str,
+            sink: &mut dyn AgentSink,
+        ) -> Result<(), cairn_ports::PortError> {
+            for e in &self.0 {
+                sink.emit(e.clone());
             }
+            Ok(())
+        }
+    }
+
+    fn open_state(dir: &Path, runtime: Arc<dyn AgentRuntime + Send + Sync>) -> CairnState {
+        let engine = open_engine(dir).unwrap();
+        CairnState {
+            inner: Arc::new(Mutex::new(Some((engine, dir.to_path_buf())))),
+            runtime,
+        }
+    }
+
+    #[test]
+    fn ask_streams_sources_then_mapped_answer_events() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = open_state(
+            tmp.path(),
+            Arc::new(ScriptedRuntime(vec![
+                AgentEvent::TextDelta("Hel".into()),
+                AgentEvent::TextDelta("lo".into()),
+                AgentEvent::Completed,
+            ])),
         );
+        let mut got: Vec<AnswerEvent> = Vec::new();
+        stream_answer(
+            &state,
+            &AskRequest {
+                query: "anything".into(),
+                top_k: None,
+            },
+            &mut |e| got.push(e),
+        )
+        .unwrap();
+        // First frame is always Sources (possibly empty), then the agent run.
+        assert!(matches!(got.first(), Some(AnswerEvent::Sources { .. })));
+        assert_eq!(
+            &got[1..],
+            &[
+                AnswerEvent::TextDelta { text: "Hel".into() },
+                AnswerEvent::TextDelta { text: "lo".into() },
+                AnswerEvent::Completed,
+            ]
+        );
+    }
+
+    #[test]
+    fn ask_without_open_cairn_errs_before_any_frame() {
+        let state = CairnState {
+            inner: Arc::new(Mutex::new(None)),
+            runtime: Arc::new(ScriptedRuntime(vec![])),
+        };
+        let mut got: Vec<AnswerEvent> = Vec::new();
+        let r = stream_answer(
+            &state,
+            &AskRequest {
+                query: "x".into(),
+                top_k: None,
+            },
+            &mut |e| got.push(e),
+        );
+        assert!(matches!(r, Err(ServiceError::InvalidRequest(_))));
+        assert!(got.is_empty());
+    }
+
+    #[test]
+    fn ask_emits_terminal_failed_when_runtime_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        // NullRuntime errors before any event (tau not configured).
+        let state = open_state(tmp.path(), Arc::new(NullRuntime));
+        let mut got: Vec<AnswerEvent> = Vec::new();
+        stream_answer(
+            &state,
+            &AskRequest {
+                query: "x".into(),
+                top_k: None,
+            },
+            &mut |e| got.push(e),
+        )
+        .unwrap();
+        assert!(matches!(got.first(), Some(AnswerEvent::Sources { .. })));
+        assert!(matches!(got.last(), Some(AnswerEvent::Failed { .. })));
     }
 
     #[test]
