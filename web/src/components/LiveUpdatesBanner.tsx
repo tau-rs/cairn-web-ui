@@ -3,7 +3,7 @@ import { Button } from "./ui/Button";
 /** Surfaces the degraded "live updates unavailable" state and offers a manual
  *  refresh. Stacks above the error/notice toasts (bottom-28). */
 export function LiveUpdatesBanner(props: {
-  status: "ok" | "down";
+  status: "ok" | "reconnecting" | "down";
   onRefresh: () => void;
 }) {
   if (props.status === "ok") return null;
