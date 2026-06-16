@@ -70,12 +70,8 @@ export function groupCapabilities(caps: PluginCapability[]): RiskRow[] {
   );
 }
 
-/** Host-side representation of an iframe widget (post-sanitize). */
-export type IframeWidget = {
-  kind: "iframe";
-  entry: string;
-  height: number | null;
-};
+// The iframe widget shape now comes from the vendored contract
+// (`Extract<PluginWidget, { kind: "iframe" }>`); no host-side copy needed.
 
 // Clamp limits for iframe widgets (sanitizer + broker share these).
 export const MAX_ENTRY = 512; // max length of a relative bundle entry path

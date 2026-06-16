@@ -149,7 +149,6 @@ export class MockClient implements CairnClient {
       commands: [],
       contributions: [],
     },
-    // TODO(contract-sync): drop the `as never` once the engine adds the iframe widget variant + capabilities field.
     {
       id: "wordcount",
       name: "Word Count",
@@ -171,7 +170,7 @@ export class MockClient implements CairnClient {
         },
       ],
       capabilities: ["activeNote.read"],
-    } as never,
+    },
   ];
 
   constructor(

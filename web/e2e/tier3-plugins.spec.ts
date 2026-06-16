@@ -26,3 +26,22 @@ test("Tier-3 word-count plugin: consent -> read -> revoke", async ({
   await page.getByRole("button", { name: /done/i }).click();
   await expect(page.locator('iframe[title="plugin:wordcount"]')).toHaveCount(0);
 });
+
+test("Tier-3 iframe widget renders in the panel.main bottom dock", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  // The word-count contribution targets the `panel.main` slot, so it renders in
+  // the bottom Plugin panel dock (not the sidebar). The dock is present from the
+  // start, hosting the activeNote.read consent prompt until granted.
+  const dock = page.locator('section[aria-label="Plugin panel"]');
+  await expect(dock).toBeVisible();
+  await expect(dock.getByText(/wants to:/i)).toBeVisible();
+
+  // Granting consent mounts the sandboxed iframe (entry served from its uiRoot
+  // bundle) inside the dock — exercising the contract's iframe `entry` +
+  // `panel.main` slot end to end.
+  await dock.getByRole("button", { name: /^allow$/i }).click();
+  await expect(dock.locator('iframe[title="plugin:wordcount"]')).toBeVisible();
+});
