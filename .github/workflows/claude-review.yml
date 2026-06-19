@@ -53,7 +53,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f # beta
+      # Dependabot-triggered runs never receive repository Actions secrets
+      # (GitHub security policy), so CLAUDE_CODE_OAUTH_TOKEN is empty and the
+      # action below would hard-fail validation. Probe for the token first and
+      # skip the review gracefully when it is absent — the job still succeeds,
+      # so the check stays green on dep bumps. Add the token to Dependabot
+      # secrets (gh secret set CLAUDE_CODE_OAUTH_TOKEN --app dependabot) to
+      # have dependency PRs reviewed too.
+      - name: Check token availability
+        id: token
+        env:
+          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$OAUTH_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN unavailable (expected on Dependabot PRs); skipping AI review."
+          fi
+
+      - if: steps.token.outputs.available == 'true'
+        uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f # beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Pin the model explicitly: the action's built-in default
