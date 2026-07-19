@@ -1,13 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { GraphView } from "./GraphView";
+import type { GraphNode } from "../contract";
 
 // react-force-graph-2d only mounts once the container has a measured size,
 // which it never does in jsdom, so these tests exercise the chrome (overlay,
 // controls) without the canvas.
 function setup(over = {}) {
   const props = {
-    nodes: [] as string[],
+    nodes: [] as GraphNode[],
     edges: [] as { from: string; to: string }[],
     tagsByNote: {} as Record<string, string[]>,
     activePath: null as string | null,

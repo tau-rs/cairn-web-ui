@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient, Unsubscribe } from "../client/types";
-import type { TagCount, Event } from "../contract";
+import type { TagCount, Event, GraphNode } from "../contract";
 import type { PluginSummary } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
 import {
@@ -139,7 +139,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   searchResults: string[] | null;
   searchSnippets: Record<string, SearchSnippet> | null;
   backlinks: string[];
-  graph: { nodes: string[]; edges: { from: string; to: string }[] } | null;
+  graph: { nodes: GraphNode[]; edges: { from: string; to: string }[] } | null;
   noteTags: Record<string, string[]>;
   tags: TagCount[];
   activeTag: string | null;
@@ -1003,7 +1003,12 @@ export function createCairnStore(
         setLoading("graph", true);
         try {
           try {
-            const res = await client.runQuery({ type: "get_graph" });
+            // Whole-vault graph; local-neighborhood focusing is done
+            // client-side in GraphView, so we always fetch the full scope.
+            const res = await client.runQuery({
+              type: "get_graph",
+              scope: { type: "full" },
+            });
             if (token !== seq.graph) return; // superseded by a newer reload
             if (res.type === "graph")
               set({ graph: { nodes: res.nodes, edges: res.edges } });

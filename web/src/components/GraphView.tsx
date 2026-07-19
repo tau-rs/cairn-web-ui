@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import ForceGraph2D from "react-force-graph-2d";
+import type { GraphNode } from "../contract";
 import {
   buildGraphData,
   buildAdjacency,
@@ -37,7 +38,7 @@ import {
 } from "./graph/localGraph";
 
 export function GraphView(props: {
-  nodes: string[];
+  nodes: GraphNode[];
   edges: { from: string; to: string }[];
   tagsByNote: Record<string, string[]>; // path → tags, for color-group matching
   activePath: string | null;
@@ -50,17 +51,23 @@ export function GraphView(props: {
     saveLocalGraph(next);
   };
 
+  // Topology helpers work on note paths; project the enriched GraphNode[] once.
+  const nodePaths = useMemo(
+    () => props.nodes.map((n) => n.path),
+    [props.nodes],
+  );
+
   // Global graph — memoized on [nodes, edges] ONLY, so opening a note in global
   // mode never restarts the simulation.
   const globalData = useMemo(
-    () => buildGraphData(props.nodes, props.edges),
-    [props.nodes, props.edges],
+    () => buildGraphData(nodePaths, props.edges),
+    [nodePaths, props.edges],
   );
   // Adjacency from a fresh string-keyed build (the `data.links` array gets
   // mutated by react-force-graph, so don't read neighbor ids from it).
   const globalAdj = useMemo(
-    () => buildAdjacency(buildGraphData(props.nodes, props.edges).links),
-    [props.nodes, props.edges],
+    () => buildAdjacency(buildGraphData(nodePaths, props.edges).links),
+    [nodePaths, props.edges],
   );
 
   // Local subgraph — computed ONLY when local mode is on with a note open;
@@ -69,9 +76,9 @@ export function GraphView(props: {
   const localSub = useMemo(
     () =>
       useLocal
-        ? localSubgraph(props.nodes, props.edges, props.activePath, local.depth)
+        ? localSubgraph(nodePaths, props.edges, props.activePath, local.depth)
         : null,
-    [useLocal, props.nodes, props.edges, props.activePath, local.depth],
+    [useLocal, nodePaths, props.edges, props.activePath, local.depth],
   );
   const localData = useMemo(
     () => (localSub ? buildGraphData(localSub.nodes, localSub.edges) : null),

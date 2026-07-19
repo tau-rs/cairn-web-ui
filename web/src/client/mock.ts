@@ -7,6 +7,7 @@ import type {
   ContractError,
   NoteSummary,
   GraphEdge,
+  GraphNode,
   SearchResult,
   PluginSummary,
   Revision,
@@ -354,7 +355,16 @@ export class MockClient implements CairnClient {
       }
       case "get_graph": {
         const byStem = this.stemIndex();
-        const nodes = [...this.notes.keys()].sort();
+        // Enriched nodes (GraphNode): path + display title + a synthetic mtime.
+        // mtime is display-only for now (dual-basis; not used for diffing), so
+        // a stable placeholder is fine until the temporal mock seeds real ones.
+        const nodes: GraphNode[] = [...this.notes.entries()]
+          .map(([path, raw]) => ({
+            path,
+            title: displayTitle(path, raw),
+            mtime_secs: 0n,
+          }))
+          .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
         const seen = new Set<string>();
         const edges: GraphEdge[] = [];
         for (const [from, raw] of this.notes.entries()) {
@@ -377,6 +387,38 @@ export class MockClient implements CairnClient {
               ? -1
               : 1,
         );
+        if (q.scope.type === "focused") {
+          // BFS over undirected edges from the focus note to `depth` hops,
+          // mirroring GraphScope::Focused. Unknown focus → empty graph.
+          const { path: root, depth } = q.scope;
+          if (!nodes.some((n) => n.path === root)) {
+            return { type: "graph", nodes: [], edges: [] };
+          }
+          const adj = new Map<string, string[]>();
+          for (const e of edges) {
+            (adj.get(e.from) ?? adj.set(e.from, []).get(e.from)!).push(e.to);
+            (adj.get(e.to) ?? adj.set(e.to, []).get(e.to)!).push(e.from);
+          }
+          const reached = new Set([root]);
+          let frontier = [root];
+          for (let d = 0; d < depth && frontier.length; d++) {
+            const next: string[] = [];
+            for (const n of frontier)
+              for (const m of adj.get(n) ?? [])
+                if (!reached.has(m)) {
+                  reached.add(m);
+                  next.push(m);
+                }
+            frontier = next;
+          }
+          return {
+            type: "graph",
+            nodes: nodes.filter((n) => reached.has(n.path)),
+            edges: edges.filter(
+              (e) => reached.has(e.from) && reached.has(e.to),
+            ),
+          };
+        }
         return { type: "graph", nodes, edges };
       }
       case "list_tags": {

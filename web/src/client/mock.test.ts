@@ -70,10 +70,42 @@ describe("MockClient", () => {
 
   it("get_graph returns sorted nodes and resolved directed edges", async () => {
     const c = new MockClient(freshNotes());
-    expect(await c.runQuery({ type: "get_graph" })).toEqual({
+    expect(
+      await c.runQuery({ type: "get_graph", scope: { type: "full" } }),
+    ).toEqual({
       type: "graph",
-      nodes: ["a.md", "b.md"],
+      nodes: [
+        { path: "a.md", title: "a", mtime_secs: 0n },
+        { path: "b.md", title: "b", mtime_secs: 0n },
+      ],
       edges: [{ from: "a.md", to: "b.md" }],
+    });
+  });
+
+  it("get_graph focused scope returns the neighborhood within depth", async () => {
+    // a -> b -> c chain; focus b @ depth 1 reaches a and c, not the isolated d.
+    const c = new MockClient({
+      "a.md": "links [[b]]",
+      "b.md": "links [[c]]",
+      "c.md": "leaf",
+      "d.md": "isolated",
+    });
+    expect(
+      await c.runQuery({
+        type: "get_graph",
+        scope: { type: "focused", path: "b.md", depth: 1 },
+      }),
+    ).toEqual({
+      type: "graph",
+      nodes: [
+        { path: "a.md", title: "a", mtime_secs: 0n },
+        { path: "b.md", title: "b", mtime_secs: 0n },
+        { path: "c.md", title: "c", mtime_secs: 0n },
+      ],
+      edges: [
+        { from: "a.md", to: "b.md" },
+        { from: "b.md", to: "c.md" },
+      ],
     });
   });
 

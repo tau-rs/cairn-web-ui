@@ -302,7 +302,7 @@ describe("cairn store", () => {
     await store.getState().loadGraph();
     const g = store.getState().graph;
     expect(g).not.toBeNull();
-    expect([...g!.nodes].sort()).toEqual(["a.md", "b.md"]);
+    expect(g!.nodes.map((n) => n.path).sort()).toEqual(["a.md", "b.md"]);
     expect(g!.edges).toEqual([{ from: "a.md", to: "b.md" }]);
   });
 
@@ -317,7 +317,9 @@ describe("cairn store", () => {
       contents: "x",
     });
     await vi.waitFor(() =>
-      expect(store.getState().graph!.nodes).toContain("c.md"),
+      expect(store.getState().graph!.nodes.map((n) => n.path)).toContain(
+        "c.md",
+      ),
     );
   });
 
