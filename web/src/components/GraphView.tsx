@@ -64,10 +64,15 @@ export function GraphView(props: {
 
   // Effective source: live uses props; snapshot uses the historical graph
   // (still honoring local mode); compare builds a diff-styled global graph.
-  const srcNodes = temporal.source
-    ? temporal.source.nodes.map((n) => n.path)
-    : nodePaths;
-  const srcEdges = temporal.source ? temporal.source.edges : props.edges;
+  const srcNodes = useMemo(
+    () =>
+      temporal.source ? temporal.source.nodes.map((n) => n.path) : nodePaths,
+    [temporal.source, nodePaths],
+  );
+  const srcEdges = useMemo(
+    () => (temporal.source ? temporal.source.edges : props.edges),
+    [temporal.source, props.edges],
+  );
 
   const compareData = useMemo(
     () =>
