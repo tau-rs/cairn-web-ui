@@ -109,6 +109,67 @@ describe("MockClient", () => {
     });
   });
 
+  it("graph_at builds the graph from the vault snapshot at that revspec", async () => {
+    const c = new MockClient(
+      freshNotes(),
+      {},
+      {
+        r1: { notes: { "a.md": "start" } },
+        r2: { notes: { "a.md": "links [[b]]", "b.md": "hi" } },
+      },
+    );
+    expect(
+      await c.runQuery({
+        type: "graph_at",
+        revision: "r2",
+        scope: { type: "full" },
+      }),
+    ).toEqual({
+      type: "graph",
+      nodes: [
+        { path: "a.md", title: "a", mtime_secs: 0n },
+        { path: "b.md", title: "b", mtime_secs: 0n },
+      ],
+      edges: [{ from: "a.md", to: "b.md" }],
+    });
+  });
+
+  it("graph_at rejects an unknown revspec", async () => {
+    const c = new MockClient(freshNotes());
+    await expect(
+      c.runQuery({
+        type: "graph_at",
+        revision: "nope",
+        scope: { type: "full" },
+      }),
+    ).rejects.toEqual({ type: "not_found", what: "nope" });
+  });
+
+  it("graph_diff reports added and removed nodes and edges", async () => {
+    const c = new MockClient(
+      freshNotes(),
+      {},
+      {
+        r1: { notes: { "a.md": "lone" } },
+        r2: { notes: { "a.md": "links [[b]]", "b.md": "hi" } },
+      },
+    );
+    expect(
+      await c.runQuery({
+        type: "graph_diff",
+        from: "r1",
+        to: "r2",
+        scope: { type: "full" },
+      }),
+    ).toEqual({
+      type: "graph_diff",
+      nodes_added: [{ path: "b.md", title: "b", mtime_secs: 0n }],
+      nodes_removed: [],
+      edges_added: [{ from: "a.md", to: "b.md" }],
+      edges_removed: [],
+    });
+  });
+
   it("write_note upserts and emits note_changed then reindexed; returns done", async () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];
