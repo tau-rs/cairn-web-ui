@@ -1215,4 +1215,61 @@ describe("temporal graph", () => {
     expect(store.getState().temporal.snapshot).toBeNull();
     expect(store.getState().temporal.diff).toBeNull();
   });
+
+  it("a slow loadSnapshot resolving after loadDiff does not clobber the compare view", async () => {
+    const { client, store } = setup({ vaultSnapshots: snaps });
+    await store.getState().init();
+
+    // Gate the snapshot's own graph_at("r1") call so it resolves AFTER the
+    // subsequent loadDiff — simulating click 1 (snapshot r1) being slower
+    // than click 2 (compare r1..r2).
+    let resolveGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      resolveGate = resolve;
+    });
+    const original = client.runQuery.bind(client);
+    vi.spyOn(client, "runQuery").mockImplementation(async (q) => {
+      if (q.type === "graph_at" && q.revision === "r1") await gate;
+      return original(q);
+    });
+
+    const snapshotPromise = store.getState().loadSnapshot("r1");
+    await store.getState().loadDiff("r1", "r2");
+    const afterDiff = store.getState().temporal;
+    expect(afterDiff.diff?.nodes_added.map((n) => n.path)).toEqual(["b.md"]);
+
+    // Now let the slow snapshot resolve — it must be superseded (shared
+    // temporalData token) and must NOT overwrite the diff/snapshot the
+    // compare view is showing.
+    resolveGate();
+    await snapshotPromise;
+
+    const afterSnapshot = store.getState().temporal;
+    expect(afterSnapshot.diff).toEqual(afterDiff.diff);
+    expect(afterSnapshot.snapshot).toEqual(afterDiff.snapshot);
+  });
+
+  it("clearTemporal supersedes an in-flight loadSnapshot so it can't repopulate after going live", async () => {
+    const { client, store } = setup({ vaultSnapshots: snaps });
+    await store.getState().init();
+
+    let resolveGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      resolveGate = resolve;
+    });
+    const original = client.runQuery.bind(client);
+    vi.spyOn(client, "runQuery").mockImplementation(async (q) => {
+      if (q.type === "graph_at" && q.revision === "r2") await gate;
+      return original(q);
+    });
+
+    const pending = store.getState().loadSnapshot("r2");
+    store.getState().clearTemporal(); // user returns to Live before it resolves
+    resolveGate();
+    await pending;
+
+    const t = store.getState().temporal;
+    expect(t.snapshot).toBeNull();
+    expect(t.diff).toBeNull();
+  });
 });

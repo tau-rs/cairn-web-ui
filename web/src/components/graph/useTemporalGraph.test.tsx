@@ -59,4 +59,28 @@ describe("useTemporalGraph", () => {
     act(() => result.current.setSelection({ kind: "snapshot", at: 0 }));
     expect(result.current.source?.nodes.map((n) => n.path)).toEqual(["a.md"]);
   });
+
+  it("dispatches loadDiff with the mapped revisions and surfaces the seeded diff on a compare selection", () => {
+    const seededSnapshot = {
+      nodes: [
+        { path: "a.md", title: "a", mtime_secs: 0n },
+        { path: "b.md", title: "b", mtime_secs: 0n },
+      ],
+      edges: [{ from: "a.md", to: "b.md" }],
+    };
+    const seededDiff = {
+      nodes_added: [{ path: "b.md", title: "b", mtime_secs: 0n }],
+      nodes_removed: [],
+      edges_added: [{ from: "a.md", to: "b.md" }],
+      edges_removed: [],
+    };
+    cairnStore.setState({
+      temporal: { timeline: TL, snapshot: seededSnapshot, diff: seededDiff },
+    });
+    const { result } = renderHook(() => useTemporalGraph("a.md"));
+    act(() => result.current.setSelection({ kind: "compare", from: 1, to: 0 })); // from=TL[1].id="r1", to=TL[0].id="r2"
+    expect(cairnStore.getState().loadDiff).toHaveBeenCalledWith("r1", "r2");
+    expect(result.current.mode).toBe("compare");
+    expect(result.current.diff).toEqual(seededDiff);
+  });
 });

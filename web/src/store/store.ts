@@ -257,13 +257,16 @@ export function createCairnStore(
   // Monotonic request tokens: a slow response only applies if no newer request
   // of the same kind has started since. runSearch + filterByTag share `results`
   // because both write the search overlay, so the newest of either wins.
+  // loadSnapshot + loadDiff share `temporalData` because both write
+  // temporal.snapshot (and diff): without a shared token, a slow loadSnapshot
+  // resolving after a loadDiff would still pass its own guard and clobber the
+  // compare view with a stale historical graph + null diff.
   const seq = {
     backlinks: 0,
     results: 0,
     graph: 0,
     timeline: 0,
-    snapshot: 0,
-    diff: 0,
+    temporalData: 0,
   };
 
   // Monotonic id for queued error toasts (auto-dismiss keys off it).
@@ -1079,14 +1082,14 @@ export function createCairnStore(
       },
 
       async loadSnapshot(revision) {
-        const token = ++seq.snapshot;
+        const token = ++seq.temporalData;
         try {
           const res = await client.runQuery({
             type: "graph_at",
             revision,
             scope: { type: "full" },
           });
-          if (token !== seq.snapshot) return;
+          if (token !== seq.temporalData) return; // superseded by a newer snapshot/diff/clear
           if (res.type === "graph")
             set((s) => ({
               temporal: {
@@ -1097,12 +1100,12 @@ export function createCairnStore(
             }));
           else unexpected("Load snapshot", res);
         } catch (err) {
-          if (token === seq.snapshot) pushError("Load snapshot", err);
+          if (token === seq.temporalData) pushError("Load snapshot", err);
         }
       },
 
       async loadDiff(from, to) {
-        const token = ++seq.diff;
+        const token = ++seq.temporalData;
         try {
           const [base, delta] = await Promise.all([
             client.runQuery({
@@ -1117,7 +1120,7 @@ export function createCairnStore(
               scope: { type: "full" },
             }),
           ]);
-          if (token !== seq.diff) return;
+          if (token !== seq.temporalData) return; // superseded by a newer snapshot/diff/clear
           if (base.type === "graph" && delta.type === "graph_diff")
             set((s) => ({
               temporal: {
@@ -1133,11 +1136,15 @@ export function createCairnStore(
             }));
           else unexpected("Load diff", base.type === "graph" ? delta : base);
         } catch (err) {
-          if (token === seq.diff) pushError("Load diff", err);
+          if (token === seq.temporalData) pushError("Load diff", err);
         }
       },
 
       clearTemporal() {
+        // Bump the shared token so any in-flight loadSnapshot/loadDiff is
+        // superseded and can't repopulate snapshot/diff after the user left
+        // compare/snapshot mode for live.
+        ++seq.temporalData;
         set((s) => ({
           temporal: { ...s.temporal, snapshot: null, diff: null },
         }));

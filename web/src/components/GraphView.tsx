@@ -219,9 +219,18 @@ export function GraphView(props: {
       ctx.beginPath();
       ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
       // Hover focus: dim non-neighbors (keep their group hue at low alpha).
-      // Disappeared ghosts render at a fixed low alpha regardless of hover.
+      // Disappeared ghosts and unchanged (compare-mode base) nodes render at a
+      // fixed low alpha regardless of hover, so the appeared/disappeared deltas
+      // pop against a dimmed base. `state` is only set in compare mode, so live
+      // mode is unaffected.
       ctx.globalAlpha =
-        nodeState === "disappeared" ? 0.4 : hl && !inHL && !active ? 0.25 : 1;
+        nodeState === "disappeared"
+          ? 0.4
+          : nodeState === "unchanged"
+            ? 0.5
+            : hl && !inHL && !active
+              ? 0.25
+              : 1;
       ctx.fillStyle = base;
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -269,6 +278,7 @@ export function GraphView(props: {
       const st = link.state;
       if (st === "appeared") return "#22c55e";
       if (st === "disappeared") return "#6b728066";
+      if (st === "unchanged") return "#2a2a30";
       const h = hoverRef.current;
       if (!h) return "#3a3a44";
       const sid =
