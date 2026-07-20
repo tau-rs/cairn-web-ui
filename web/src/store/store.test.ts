@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createCairnStore, DEFAULT_SETTINGS, ERROR_TOAST_MS } from "./store";
-import { MockClient } from "../client/mock";
+import {
+  MockClient,
+  type HistoryFixture,
+  type VaultSnapshot,
+} from "../client/mock";
 import {
   loadOverrides,
   saveOverrides,
@@ -24,11 +28,17 @@ beforeEach(() => vi.useFakeTimers());
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.useRealTimers());
 
-function setup() {
-  const client = new MockClient({
-    "a.md": "links to [[b]]",
-    "b.md": "target note",
-  });
+function setup(
+  opts: {
+    history?: Record<string, HistoryFixture>;
+    vaultSnapshots?: Record<string, VaultSnapshot>;
+  } = {},
+) {
+  const client = new MockClient(
+    { "a.md": "links to [[b]]", "b.md": "target note" },
+    opts.history ?? {},
+    opts.vaultSnapshots ?? {},
+  );
   const store = createCairnStore(client);
   return { client, store };
 }
@@ -1151,5 +1161,58 @@ describe("mobile ui state", () => {
     store.getState().setUi({ mobileTab: "files", backlinksOpen: true });
     expect(store.getState().ui.mobileTab).toBe("files");
     expect(store.getState().ui.backlinksOpen).toBe(true);
+  });
+});
+
+describe("temporal graph", () => {
+  const snaps = {
+    r1: { notes: { "a.md": "lone" } },
+    r2: { notes: { "a.md": "links [[b]]", "b.md": "hi" } },
+  };
+
+  it("loadTimeline populates the timeline from note_history", async () => {
+    const history = {
+      "a.md": {
+        revisions: [
+          { id: "r2", message: "add b", timestamp_secs: 20n, author: "x" },
+          { id: "r1", message: "init", timestamp_secs: 10n, author: "x" },
+        ],
+        contents: { r1: "lone", r2: "links [[b]]" },
+      },
+    };
+    const { store } = setup({ history });
+    await store.getState().init();
+    await store.getState().loadTimeline("a.md");
+    expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
+      "r2",
+      "r1",
+    ]);
+  });
+
+  it("loadSnapshot fills snapshot from graph_at and clears diff", async () => {
+    const { store } = setup({ vaultSnapshots: snaps });
+    await store.getState().init();
+    await store.getState().loadSnapshot("r2");
+    const t = store.getState().temporal;
+    expect(t.snapshot?.nodes.map((n) => n.path)).toEqual(["a.md", "b.md"]);
+    expect(t.diff).toBeNull();
+  });
+
+  it("loadDiff fills base snapshot + deltas", async () => {
+    const { store } = setup({ vaultSnapshots: snaps });
+    await store.getState().init();
+    await store.getState().loadDiff("r1", "r2");
+    const t = store.getState().temporal;
+    expect(t.snapshot?.nodes.map((n) => n.path)).toEqual(["a.md", "b.md"]);
+    expect(t.diff?.nodes_added.map((n) => n.path)).toEqual(["b.md"]);
+  });
+
+  it("clearTemporal drops snapshot and diff but keeps the timeline", async () => {
+    const { store } = setup({ vaultSnapshots: snaps });
+    await store.getState().init();
+    await store.getState().loadSnapshot("r2");
+    store.getState().clearTemporal();
+    expect(store.getState().temporal.snapshot).toBeNull();
+    expect(store.getState().temporal.diff).toBeNull();
   });
 });
