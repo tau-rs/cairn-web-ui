@@ -306,13 +306,16 @@ export class MockClient implements CairnClient {
   ): { nodes: GraphNode[]; edges: GraphEdge[] } {
     const byStem = new Map<string, string>();
     for (const path of notes.keys()) byStem.set(stem(path), path);
-    // Enriched nodes (GraphNode): path + display title + a synthetic mtime.
-    // mtime is display-only for now (dual-basis; not used for diffing), so
-    // a stable placeholder is fine until the temporal mock seeds real ones.
-    const nodes: GraphNode[] = [...notes.entries()]
+    // Enriched nodes: path + display title + frontmatter tags + a synthetic
+    // mtime. mtime is display-only for now (dual-basis; not used for diffing),
+    // so a stable placeholder is fine until the temporal mock seeds real ones.
+    // `degree` is attached at return (via withDegree) from the returned edge
+    // set so it mirrors the engine's "within the returned graph" semantics.
+    const nodes = [...notes.entries()]
       .map(([path, raw]) => ({
         path,
         title: displayTitle(path, raw),
+        tags: extractTags(raw),
         mtime_secs: 0n,
       }))
       .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
@@ -338,6 +341,19 @@ export class MockClient implements CairnClient {
           ? -1
           : 1,
     );
+    // Attach undirected degree (forward links + backlinks) over the returned
+    // edge set, producing the GraphNode shape the contract now requires.
+    const withDegree = (
+      ns: (typeof nodes)[number][],
+      es: GraphEdge[],
+    ): GraphNode[] => {
+      const deg = new Map<string, number>();
+      for (const e of es) {
+        deg.set(e.from, (deg.get(e.from) ?? 0) + 1);
+        deg.set(e.to, (deg.get(e.to) ?? 0) + 1);
+      }
+      return ns.map((n) => ({ ...n, degree: deg.get(n.path) ?? 0 }));
+    };
     if (scope.type === "focused") {
       // BFS over undirected edges from the focus note to `depth` hops,
       // mirroring GraphScope::Focused. Unknown focus → empty graph.
@@ -362,12 +378,18 @@ export class MockClient implements CairnClient {
             }
         frontier = next;
       }
+      const fEdges = edges.filter(
+        (e) => reached.has(e.from) && reached.has(e.to),
+      );
       return {
-        nodes: nodes.filter((n) => reached.has(n.path)),
-        edges: edges.filter((e) => reached.has(e.from) && reached.has(e.to)),
+        nodes: withDegree(
+          nodes.filter((n) => reached.has(n.path)),
+          fEdges,
+        ),
+        edges: fEdges,
       };
     }
-    return { nodes, edges };
+    return { nodes: withDegree(nodes, edges), edges };
   }
 
   async runQuery(q: Query): Promise<QueryResponse> {

@@ -5,7 +5,13 @@ import { GraphView } from "./GraphView";
 import { cairnStore } from "../app/cairnStore";
 import type { GraphNode, Revision } from "../contract";
 
-const gnode = (p: string): GraphNode => ({ path: p, title: p, mtime_secs: 0n });
+const gnode = (p: string): GraphNode => ({
+  path: p,
+  title: p,
+  degree: 0,
+  tags: [],
+  mtime_secs: 0n,
+});
 const TL: Revision[] = [
   { id: "r2", message: "add b", timestamp_secs: 20n, author: "x" },
   { id: "r1", message: "init", timestamp_secs: 10n, author: "x" },

@@ -63,7 +63,13 @@ describe("labelAlpha", () => {
 import { buildCompareGraphData } from "./graphData";
 import type { GraphNode, GraphEdge } from "../../contract";
 
-const gn = (path: string): GraphNode => ({ path, title: path, mtime_secs: 0n });
+const gn = (path: string): GraphNode => ({
+  path,
+  title: path,
+  degree: 0,
+  tags: [],
+  mtime_secs: 0n,
+});
 const ge = (from: string, to: string): GraphEdge => ({ from, to });
 
 describe("buildCompareGraphData", () => {
