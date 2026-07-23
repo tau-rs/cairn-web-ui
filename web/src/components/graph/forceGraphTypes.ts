@@ -11,6 +11,9 @@ export interface RFNode {
   id: string;
   label: string;
   degree: number;
+  // Live (server-fed) build path only; unset on the temporal/compare build.
+  tags?: string[];
+  mtimeSecs?: number;
   x?: number;
   y?: number;
   fx?: number; // d3 pin (set to freeze, undefined to release)
