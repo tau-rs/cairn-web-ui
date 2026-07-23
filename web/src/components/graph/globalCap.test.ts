@@ -31,4 +31,22 @@ describe("capByDegree", () => {
     expect(r.nodes.map((x) => x.path).sort()).toEqual(["hub", "mid"]);
     expect(r.edges).toEqual([{ from: "hub", to: "mid" }]); // mid→leaf dropped
   });
+  it("does not truncate when the total exactly equals the limit", () => {
+    const nodes = [n("a", 0), n("b", 0)];
+    const r = capByDegree(nodes, [], 2);
+    expect(r.truncated).toBe(false);
+    expect(r.nodes).toHaveLength(2);
+  });
+  it("keeps the highest-degree nodes regardless of input order", () => {
+    // Input is ASCENDING by degree, so a broken/absent sort keeps the wrong
+    // (low-degree) node and this assertion fails.
+    const nodes = [n("low", 1), n("high", 9)];
+    const r = capByDegree(nodes, [], 1);
+    expect(r.nodes.map((x) => x.path)).toEqual(["high"]);
+  });
+  it("breaks degree ties by path for determinism", () => {
+    const nodes = [n("b", 3), n("a", 3)];
+    const r = capByDegree(nodes, [], 1);
+    expect(r.nodes.map((x) => x.path)).toEqual(["a"]); // "a" < "b"
+  });
 });

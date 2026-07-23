@@ -1,5 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { recencyRing, DEFAULT_RECENCY } from "./recency";
+import { describe, it, expect, beforeEach } from "vitest";
+import {
+  recencyRing,
+  DEFAULT_RECENCY,
+  RECENCY_WINDOW_RANGE,
+  loadRecency,
+  saveRecency,
+} from "./recency";
 
 describe("recencyRing", () => {
   const now = 1_000_000; // secs
@@ -21,5 +27,46 @@ describe("recencyRing", () => {
   });
   it("DEFAULT_RECENCY is off, 30 days", () => {
     expect(DEFAULT_RECENCY).toEqual({ enabled: false, windowDays: 30 });
+  });
+});
+
+describe("loadRecency / saveRecency", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("returns the default when nothing is stored", () => {
+    expect(loadRecency()).toEqual(DEFAULT_RECENCY);
+  });
+  it("round-trips a saved setting", () => {
+    saveRecency({ enabled: true, windowDays: 45 });
+    expect(loadRecency()).toEqual({ enabled: true, windowDays: 45 });
+  });
+  it("coerces enabled and clamps windowDays into range", () => {
+    saveRecency({
+      enabled: 1 as unknown as boolean,
+      windowDays: 9999,
+    });
+    expect(loadRecency()).toEqual({
+      enabled: true,
+      windowDays: RECENCY_WINDOW_RANGE.max,
+    });
+    saveRecency({ enabled: false, windowDays: -5 });
+    expect(loadRecency()).toEqual({
+      enabled: false,
+      windowDays: RECENCY_WINDOW_RANGE.min,
+    });
+  });
+  it("falls back to the default window when windowDays is not a number", () => {
+    localStorage.setItem(
+      "cairn.graph.recency",
+      JSON.stringify({ enabled: true, windowDays: "soon" }),
+    );
+    expect(loadRecency()).toEqual({
+      enabled: true,
+      windowDays: DEFAULT_RECENCY.windowDays,
+    });
+  });
+  it("returns the default on malformed JSON", () => {
+    localStorage.setItem("cairn.graph.recency", "{not json");
+    expect(loadRecency()).toEqual(DEFAULT_RECENCY);
   });
 });
