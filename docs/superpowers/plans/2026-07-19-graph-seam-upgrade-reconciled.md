@@ -1,5 +1,7 @@
 # Graph Seam Upgrade Implementation Plan (RECONCILED to engine shapes)
 
+> ⛔ **SUPERSEDED by `2026-07-23-graph-seam-upgrade-v3.md`.** This v2 planned against a still-gated, nothing-vendored baseline. PR #105 then shipped the engine migration + temporal graph-viz (re-vendored contract, migrated pipeline), so v3 rebases onto that reality: it drops the temporal + suggested-edges + server-side-scope work and keeps only the degree/tags/cap/filter/recency upgrade layer. Retained here for its pure-helper task bodies (Tasks 1–3), which v3 reuses verbatim.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **This is the reconciled successor to `2026-07-18-graph-seam-upgrade.md`.** The engine shipped the graph seam (PRs #106/#107) BEFORE the frozen brief and diverged from it. Per `docs/superpowers/specs/2026-07-19-graph-seam-contract-reconcile-design.md`, the decision is: **the UI adapts to the engine's shapes.** The shape deltas below are already folded into the tasks — read the "Reconciliation deltas" section before starting.
