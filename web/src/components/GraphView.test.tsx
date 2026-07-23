@@ -45,6 +45,20 @@ describe("GraphView", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  it("shows the cap banner when the global graph exceeds the node cap", () => {
+    // 1501 > GLOBAL_NODE_CAP (1500) → capByDegree truncates in the global view.
+    const many = Array.from({ length: 1501 }, (_, i) => gnode(`n${i}.md`));
+    setup({ nodes: many, edges: [] });
+    expect(
+      screen.getByText(/most-connected of 1501 notes/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no cap banner under the node cap", () => {
+    setup({ nodes: [gnode("a.md"), gnode("b.md")], edges: [] });
+    expect(screen.queryByText(/most-connected of/i)).toBeNull();
+  });
+
   it("disables the temporal toggle when no note is open", () => {
     vi.spyOn(cairnStore.getState(), "loadTimeline").mockResolvedValue();
     setup({ nodes: [gnode("a.md")], activePath: null });
