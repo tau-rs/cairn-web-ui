@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import ForceGraph2D from "react-force-graph-2d";
+import type { GraphNode } from "../contract";
 import {
   buildGraphData,
   buildAdjacency,
@@ -35,9 +36,12 @@ import {
   loadLocalGraph,
   saveLocalGraph,
 } from "./graph/localGraph";
+import { TemporalScrubber } from "./graph/TemporalScrubber";
+import { useTemporalGraph } from "./graph/useTemporalGraph";
+import { buildCompareGraphData } from "./graph/graphData";
 
 export function GraphView(props: {
-  nodes: string[];
+  nodes: GraphNode[];
   edges: { from: string; to: string }[];
   tagsByNote: Record<string, string[]>; // path → tags, for color-group matching
   activePath: string | null;
@@ -50,17 +54,45 @@ export function GraphView(props: {
     saveLocalGraph(next);
   };
 
+  // Topology helpers work on note paths; project the enriched GraphNode[] once.
+  const nodePaths = useMemo(
+    () => props.nodes.map((n) => n.path),
+    [props.nodes],
+  );
+
+  const temporal = useTemporalGraph(props.activePath);
+
+  // Effective source: live uses props; snapshot uses the historical graph
+  // (still honoring local mode); compare builds a diff-styled global graph.
+  const srcNodes = useMemo(
+    () =>
+      temporal.source ? temporal.source.nodes.map((n) => n.path) : nodePaths,
+    [temporal.source, nodePaths],
+  );
+  const srcEdges = useMemo(
+    () => (temporal.source ? temporal.source.edges : props.edges),
+    [temporal.source, props.edges],
+  );
+
+  const compareData = useMemo(
+    () =>
+      temporal.mode === "compare" && temporal.source && temporal.diff
+        ? buildCompareGraphData(temporal.source, temporal.diff)
+        : null,
+    [temporal.mode, temporal.source, temporal.diff],
+  );
+
   // Global graph — memoized on [nodes, edges] ONLY, so opening a note in global
   // mode never restarts the simulation.
   const globalData = useMemo(
-    () => buildGraphData(props.nodes, props.edges),
-    [props.nodes, props.edges],
+    () => buildGraphData(srcNodes, srcEdges),
+    [srcNodes, srcEdges],
   );
   // Adjacency from a fresh string-keyed build (the `data.links` array gets
   // mutated by react-force-graph, so don't read neighbor ids from it).
   const globalAdj = useMemo(
-    () => buildAdjacency(buildGraphData(props.nodes, props.edges).links),
-    [props.nodes, props.edges],
+    () => buildAdjacency(buildGraphData(srcNodes, srcEdges).links),
+    [srcNodes, srcEdges],
   );
 
   // Local subgraph — computed ONLY when local mode is on with a note open;
@@ -69,9 +101,9 @@ export function GraphView(props: {
   const localSub = useMemo(
     () =>
       useLocal
-        ? localSubgraph(props.nodes, props.edges, props.activePath, local.depth)
+        ? localSubgraph(srcNodes, srcEdges, props.activePath, local.depth)
         : null,
-    [useLocal, props.nodes, props.edges, props.activePath, local.depth],
+    [useLocal, srcNodes, srcEdges, props.activePath, local.depth],
   );
   const localData = useMemo(
     () => (localSub ? buildGraphData(localSub.nodes, localSub.edges) : null),
@@ -85,8 +117,14 @@ export function GraphView(props: {
     [localSub],
   );
 
-  const data = localData ?? globalData;
-  const adjacency = localAdj ?? globalAdj;
+  const forcedGlobal = temporal.mode === "compare"; // compare is global-only
+  const data =
+    compareData ?? (forcedGlobal ? globalData : (localData ?? globalData));
+  const adjacency = compareData
+    ? buildAdjacency(compareData.links)
+    : forcedGlobal
+      ? globalAdj
+      : (localAdj ?? globalAdj);
   const rfData = asGraphData(data);
 
   const fgRef = useRef<FG | undefined>(undefined);
@@ -161,15 +199,38 @@ export function GraphView(props: {
       const active = node.id === props.activePath;
       const inHL = hl ? hl.has(node.id) : true;
       const r = nodeRadius(node.degree);
-      const base = active
-        ? "#6366f1"
-        : (matchGroupColor(node.id, props.tagsByNote[node.id] ?? [], groups) ??
-          "#cdd0e0");
+      const nodeState = (node as { state?: string }).state;
+      const stateColor =
+        nodeState === "appeared"
+          ? "#22c55e"
+          : nodeState === "disappeared"
+            ? "#6b7280"
+            : null;
+      const base =
+        stateColor ??
+        (active
+          ? "#6366f1"
+          : (matchGroupColor(
+              node.id,
+              props.tagsByNote[node.id] ?? [],
+              groups,
+            ) ?? "#cdd0e0"));
 
       ctx.beginPath();
       ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
       // Hover focus: dim non-neighbors (keep their group hue at low alpha).
-      ctx.globalAlpha = hl && !inHL && !active ? 0.25 : 1;
+      // Disappeared ghosts and unchanged (compare-mode base) nodes render at a
+      // fixed low alpha regardless of hover, so the appeared/disappeared deltas
+      // pop against a dimmed base. `state` is only set in compare mode, so live
+      // mode is unaffected.
+      ctx.globalAlpha =
+        nodeState === "disappeared"
+          ? 0.4
+          : nodeState === "unchanged"
+            ? 0.5
+            : hl && !inHL && !active
+              ? 0.25
+              : 1;
       ctx.fillStyle = base;
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -206,9 +267,18 @@ export function GraphView(props: {
     [],
   );
 
-  // Link colors react to hover (links touching the hovered node light up).
+  // Link colors react to hover (links touching the hovered node light up);
+  // diff state (compare mode) takes priority over hover styling.
   const linkColor = useCallback(
-    (link: { source: RFNode | string; target: RFNode | string }) => {
+    (link: {
+      source: RFNode | string;
+      target: RFNode | string;
+      state?: string;
+    }) => {
+      const st = link.state;
+      if (st === "appeared") return "#22c55e";
+      if (st === "disappeared") return "#6b728066";
+      if (st === "unchanged") return "#2a2a30";
       const h = hoverRef.current;
       if (!h) return "#3a3a44";
       const sid =
@@ -217,6 +287,12 @@ export function GraphView(props: {
         typeof link.target === "string" ? link.target : link.target.id;
       return sid === h || tid === h ? "#6366f1aa" : "#26262e66";
     },
+    [],
+  );
+
+  // Dashed styling for disappeared (removed) links in compare mode.
+  const linkLineDash = useCallback(
+    (link: { state?: string }) => (link.state === "disappeared" ? [4, 3] : []),
     [],
   );
 
@@ -233,13 +309,18 @@ export function GraphView(props: {
         {(["local", "global"] as const).map((m) => {
           const isLocal = m === "local";
           const selected = local.enabled === isLocal;
+          const compareLocked = temporal.mode === "compare";
           return (
             <button
               key={m}
               type="button"
               aria-pressed={selected}
+              disabled={compareLocked}
+              title={
+                compareLocked ? "Compare shows the whole graph" : undefined
+              }
               className={
-                "px-2.5 py-1 capitalize " +
+                "px-2.5 py-1 capitalize disabled:cursor-not-allowed disabled:opacity-50 " +
                 (selected
                   ? "bg-accent text-accent-fg"
                   : "bg-surface text-muted hover:text-text")
@@ -269,6 +350,31 @@ export function GraphView(props: {
           >
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </IconButton>
+        <IconButton
+          label="Graph history"
+          className="border border-border bg-surface"
+          disabled={temporal.disabled}
+          title={
+            temporal.disabled
+              ? "Open a note to scrub its history"
+              : "Graph history"
+          }
+          onClick={() => temporal.setOpen(!temporal.open)}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 3" />
           </svg>
         </IconButton>
         {panelOpen && (
@@ -319,6 +425,7 @@ export function GraphView(props: {
             nodeCanvasObject={paintNode}
             nodePointerAreaPaint={paintPointer}
             linkColor={linkColor}
+            linkLineDash={linkLineDash}
             linkWidth={1}
             autoPauseRedraw={false}
             enableNodeDrag
@@ -334,6 +441,13 @@ export function GraphView(props: {
             }}
           />
         )
+      )}
+      {temporal.open && !temporal.disabled && temporal.timeline && (
+        <TemporalScrubber
+          timeline={temporal.timeline}
+          selection={temporal.selection}
+          onSelect={temporal.setSelection}
+        />
       )}
     </div>
   );

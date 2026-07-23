@@ -59,3 +59,44 @@ describe("labelAlpha", () => {
     expect(mid).toBeLessThan(1);
   });
 });
+
+import { buildCompareGraphData } from "./graphData";
+import type { GraphNode, GraphEdge } from "../../contract";
+
+const gn = (path: string): GraphNode => ({ path, title: path, mtime_secs: 0n });
+const ge = (from: string, to: string): GraphEdge => ({ from, to });
+
+describe("buildCompareGraphData", () => {
+  // base `to` = {a,b,c}, a-b, b-c ; diff: c appeared (+ b-c), x disappeared (+ a-x)
+  const base = {
+    nodes: [gn("a"), gn("b"), gn("c")],
+    edges: [ge("a", "b"), ge("b", "c")],
+  };
+  const diff = {
+    nodes_added: [gn("c")],
+    nodes_removed: [gn("x")],
+    edges_added: [ge("b", "c")],
+    edges_removed: [ge("a", "x")],
+  };
+
+  it("labels appeared / disappeared / unchanged and injects removed nodes", () => {
+    const { nodes, links } = buildCompareGraphData(base, diff);
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n.state]));
+    expect(byId).toEqual({
+      a: "unchanged",
+      b: "unchanged",
+      c: "appeared",
+      x: "disappeared",
+    });
+    const linkState = links.map((l) => [l.source, l.target, l.state]);
+    expect(linkState).toContainEqual(["a", "b", "unchanged"]);
+    expect(linkState).toContainEqual(["b", "c", "appeared"]);
+    expect(linkState).toContainEqual(["a", "x", "disappeared"]);
+  });
+
+  it("never emits a changed state", () => {
+    const { nodes, links } = buildCompareGraphData(base, diff);
+    expect(nodes.every((n) => n.state !== "changed")).toBe(true);
+    expect(links.every((l) => l.state !== "changed")).toBe(true);
+  });
+});

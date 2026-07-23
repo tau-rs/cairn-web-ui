@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient, Unsubscribe } from "../client/types";
-import type { TagCount, Event } from "../contract";
+import type { TagCount, Event, GraphNode, Revision } from "../contract";
 import type { PluginSummary } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
 import {
@@ -118,6 +118,19 @@ export const DEFAULT_UI: UiState = {
   keybindingOverrides: {},
 };
 
+export type GraphDiff = {
+  nodes_added: GraphNode[];
+  nodes_removed: GraphNode[];
+  edges_added: { from: string; to: string }[];
+  edges_removed: { from: string; to: string }[];
+};
+
+const EMPTY_TEMPORAL = {
+  timeline: null,
+  snapshot: null,
+  diff: null,
+} as const;
+
 export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
@@ -139,7 +152,15 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   searchResults: string[] | null;
   searchSnippets: Record<string, SearchSnippet> | null;
   backlinks: string[];
-  graph: { nodes: string[]; edges: { from: string; to: string }[] } | null;
+  graph: { nodes: GraphNode[]; edges: { from: string; to: string }[] } | null;
+  temporal: {
+    timeline: Revision[] | null;
+    snapshot: {
+      nodes: GraphNode[];
+      edges: { from: string; to: string }[];
+    } | null;
+    diff: GraphDiff | null;
+  };
   noteTags: Record<string, string[]>;
   tags: TagCount[];
   activeTag: string | null;
@@ -205,6 +226,10 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   closeSearch(): void;
   refreshBacklinks(): Promise<void>;
   loadGraph(): Promise<void>;
+  loadTimeline(path: string): Promise<void>;
+  loadSnapshot(revision: string): Promise<void>;
+  loadDiff(from: string, to: string): Promise<void>;
+  clearTemporal(): void;
   commitManual(message: string): Promise<void>;
   autoCommit(): Promise<void>;
   rearmInterval(): void;
@@ -232,7 +257,17 @@ export function createCairnStore(
   // Monotonic request tokens: a slow response only applies if no newer request
   // of the same kind has started since. runSearch + filterByTag share `results`
   // because both write the search overlay, so the newest of either wins.
-  const seq = { backlinks: 0, results: 0, graph: 0 };
+  // loadSnapshot + loadDiff share `temporalData` because both write
+  // temporal.snapshot (and diff): without a shared token, a slow loadSnapshot
+  // resolving after a loadDiff would still pass its own guard and clobber the
+  // compare view with a stale historical graph + null diff.
+  const seq = {
+    backlinks: 0,
+    results: 0,
+    graph: 0,
+    timeline: 0,
+    temporalData: 0,
+  };
 
   // Monotonic id for queued error toasts (auto-dismiss keys off it).
   let errorSeq = 0;
@@ -449,6 +484,7 @@ export function createCairnStore(
         saving: false,
         backlinks: [],
         graph: null,
+        temporal: { ...EMPTY_TEMPORAL },
         noteTags: {},
         searchResults: null,
         searchSnippets: null,
@@ -510,6 +546,7 @@ export function createCairnStore(
       searchSnippets: null,
       backlinks: [],
       graph: null,
+      temporal: { ...EMPTY_TEMPORAL },
       noteTags: {},
       tags: [],
       activeTag: null,
@@ -1003,7 +1040,12 @@ export function createCairnStore(
         setLoading("graph", true);
         try {
           try {
-            const res = await client.runQuery({ type: "get_graph" });
+            // Whole-vault graph; local-neighborhood focusing is done
+            // client-side in GraphView, so we always fetch the full scope.
+            const res = await client.runQuery({
+              type: "get_graph",
+              scope: { type: "full" },
+            });
             if (token !== seq.graph) return; // superseded by a newer reload
             if (res.type === "graph")
               set({ graph: { nodes: res.nodes, edges: res.edges } });
@@ -1022,6 +1064,90 @@ export function createCairnStore(
         } finally {
           if (token === seq.graph) setLoading("graph", false);
         }
+      },
+
+      async loadTimeline(path) {
+        const token = ++seq.timeline;
+        try {
+          const res = await client.runQuery({ type: "note_history", path });
+          if (token !== seq.timeline) return;
+          if (res.type === "history")
+            set((s) => ({
+              temporal: { ...s.temporal, timeline: res.revisions },
+            }));
+          else unexpected("Load timeline", res);
+        } catch (err) {
+          if (token === seq.timeline) pushError("Load timeline", err, { path });
+        }
+      },
+
+      async loadSnapshot(revision) {
+        const token = ++seq.temporalData;
+        try {
+          const res = await client.runQuery({
+            type: "graph_at",
+            revision,
+            scope: { type: "full" },
+          });
+          if (token !== seq.temporalData) return; // superseded by a newer snapshot/diff/clear
+          if (res.type === "graph")
+            set((s) => ({
+              temporal: {
+                ...s.temporal,
+                snapshot: { nodes: res.nodes, edges: res.edges },
+                diff: null,
+              },
+            }));
+          else unexpected("Load snapshot", res);
+        } catch (err) {
+          if (token === seq.temporalData) pushError("Load snapshot", err);
+        }
+      },
+
+      async loadDiff(from, to) {
+        const token = ++seq.temporalData;
+        try {
+          const [base, delta] = await Promise.all([
+            client.runQuery({
+              type: "graph_at",
+              revision: to,
+              scope: { type: "full" },
+            }),
+            client.runQuery({
+              type: "graph_diff",
+              from,
+              to,
+              scope: { type: "full" },
+            }),
+          ]);
+          if (token !== seq.temporalData) return; // superseded by a newer snapshot/diff/clear
+          if (base.type === "graph" && delta.type === "graph_diff")
+            set((s) => ({
+              temporal: {
+                ...s.temporal,
+                snapshot: { nodes: base.nodes, edges: base.edges },
+                diff: {
+                  nodes_added: delta.nodes_added,
+                  nodes_removed: delta.nodes_removed,
+                  edges_added: delta.edges_added,
+                  edges_removed: delta.edges_removed,
+                },
+              },
+            }));
+          else unexpected("Load diff", base.type === "graph" ? delta : base);
+        } catch (err) {
+          if (token === seq.temporalData) pushError("Load diff", err);
+        }
+      },
+
+      clearTemporal() {
+        // Bump the shared token so any in-flight loadSnapshot/loadDiff is
+        // superseded and can't repopulate snapshot/diff after the user left
+        // compare/snapshot mode for live.
+        ++seq.temporalData;
+        set((s) => ({
+          temporal: { ...s.temporal, snapshot: null, diff: null },
+        }));
       },
 
       async commitManual(message) {

@@ -7,6 +7,8 @@ import type {
   ContractError,
   NoteSummary,
   GraphEdge,
+  GraphNode,
+  GraphScope,
   SearchResult,
   PluginSummary,
   Revision,
@@ -80,10 +82,17 @@ export interface HistoryFixture {
   contents: Record<string, string>;
 }
 
+/** A full note-set at one revspec — the mock's synthetic vault history, used by
+ *  graph_at / graph_diff so the temporal surface is testable offline. */
+export interface VaultSnapshot {
+  notes: Record<string, string>;
+}
+
 /** In-memory faithful mock of the cairn engine + cairn-service dispatch. */
 export class MockClient implements CairnClient {
   private notes: Map<string, string>;
   private history: Map<string, HistoryFixture>;
+  private vaultSnapshots: Map<string, VaultSnapshot>;
   private subscribers = new Set<(e: Event) => void>();
   private commitSeq = 0;
   private plugins: PluginSummary[] = [
@@ -176,9 +185,11 @@ export class MockClient implements CairnClient {
   constructor(
     seed: Record<string, string> = {},
     history: Record<string, HistoryFixture> = {},
+    vaultSnapshots: Record<string, VaultSnapshot> = {},
   ) {
     this.notes = new Map(Object.entries(seed));
     this.history = new Map(Object.entries(history));
+    this.vaultSnapshots = new Map(Object.entries(vaultSnapshots));
   }
 
   // The mock channel never fails to attach, so it ignores the contract's
@@ -289,6 +300,76 @@ export class MockClient implements CairnClient {
     }
   }
 
+  private buildGraph(
+    notes: Map<string, string>,
+    scope: GraphScope,
+  ): { nodes: GraphNode[]; edges: GraphEdge[] } {
+    const byStem = new Map<string, string>();
+    for (const path of notes.keys()) byStem.set(stem(path), path);
+    // Enriched nodes (GraphNode): path + display title + a synthetic mtime.
+    // mtime is display-only for now (dual-basis; not used for diffing), so
+    // a stable placeholder is fine until the temporal mock seeds real ones.
+    const nodes: GraphNode[] = [...notes.entries()]
+      .map(([path, raw]) => ({
+        path,
+        title: displayTitle(path, raw),
+        mtime_secs: 0n,
+      }))
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    const seen = new Set<string>();
+    const edges: GraphEdge[] = [];
+    for (const [from, raw] of notes.entries()) {
+      for (const target of extractLinks(splitFrontmatter(raw).body)) {
+        const to = byStem.get(target);
+        if (to && !seen.has(`${from} ${to}`)) {
+          seen.add(`${from} ${to}`);
+          edges.push({ from, to });
+        }
+      }
+    }
+    edges.sort((a, b) =>
+      a.from === b.from
+        ? a.to < b.to
+          ? -1
+          : a.to > b.to
+            ? 1
+            : 0
+        : a.from < b.from
+          ? -1
+          : 1,
+    );
+    if (scope.type === "focused") {
+      // BFS over undirected edges from the focus note to `depth` hops,
+      // mirroring GraphScope::Focused. Unknown focus → empty graph.
+      const { path: root, depth } = scope;
+      if (!nodes.some((n) => n.path === root)) return { nodes: [], edges: [] };
+      const adj = new Map<string, string[]>();
+      const addAdj = (a: string, b: string) =>
+        (adj.get(a) ?? adj.set(a, []).get(a)!).push(b);
+      for (const e of edges) {
+        addAdj(e.from, e.to);
+        addAdj(e.to, e.from);
+      }
+      const reached = new Set([root]);
+      let frontier = [root];
+      for (let d = 0; d < depth && frontier.length; d++) {
+        const next: string[] = [];
+        for (const n of frontier)
+          for (const m of adj.get(n) ?? [])
+            if (!reached.has(m)) {
+              reached.add(m);
+              next.push(m);
+            }
+        frontier = next;
+      }
+      return {
+        nodes: nodes.filter((n) => reached.has(n.path)),
+        edges: edges.filter((e) => reached.has(e.from) && reached.has(e.to)),
+      };
+    }
+    return { nodes, edges };
+  }
+
   async runQuery(q: Query): Promise<QueryResponse> {
     switch (q.type) {
       case "get_note": {
@@ -352,33 +433,8 @@ export class MockClient implements CairnClient {
           .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
         return { type: "notes", notes };
       }
-      case "get_graph": {
-        const byStem = this.stemIndex();
-        const nodes = [...this.notes.keys()].sort();
-        const seen = new Set<string>();
-        const edges: GraphEdge[] = [];
-        for (const [from, raw] of this.notes.entries()) {
-          for (const target of extractLinks(splitFrontmatter(raw).body)) {
-            const to = byStem.get(target);
-            if (to && !seen.has(`${from} ${to}`)) {
-              seen.add(`${from} ${to}`);
-              edges.push({ from, to });
-            }
-          }
-        }
-        edges.sort((a, b) =>
-          a.from === b.from
-            ? a.to < b.to
-              ? -1
-              : a.to > b.to
-                ? 1
-                : 0
-            : a.from < b.from
-              ? -1
-              : 1,
-        );
-        return { type: "graph", nodes, edges };
-      }
+      case "get_graph":
+        return { type: "graph", ...this.buildGraph(this.notes, q.scope) };
       case "list_tags": {
         const counts = new Map<string, number>();
         for (const raw of this.notes.values()) {
@@ -412,6 +468,39 @@ export class MockClient implements CairnClient {
           throw err;
         }
         return { type: "note", contents };
+      }
+      case "graph_at": {
+        const snap = this.vaultSnapshots.get(q.revision);
+        if (!snap) {
+          const err: ContractError = { type: "not_found", what: q.revision };
+          throw err;
+        }
+        const notes = new Map(Object.entries(snap.notes));
+        return { type: "graph", ...this.buildGraph(notes, q.scope) };
+      }
+      case "graph_diff": {
+        const load = (rev: string): Map<string, string> => {
+          const snap = this.vaultSnapshots.get(rev);
+          if (!snap) {
+            const err: ContractError = { type: "not_found", what: rev };
+            throw err;
+          }
+          return new Map(Object.entries(snap.notes));
+        };
+        const a = this.buildGraph(load(q.from), q.scope);
+        const b = this.buildGraph(load(q.to), q.scope);
+        const aNodes = new Set(a.nodes.map((n) => n.path));
+        const bNodes = new Set(b.nodes.map((n) => n.path));
+        const eKey = (e: GraphEdge) => `${e.from}->${e.to}`;
+        const aEdges = new Set(a.edges.map(eKey));
+        const bEdges = new Set(b.edges.map(eKey));
+        return {
+          type: "graph_diff",
+          nodes_added: b.nodes.filter((n) => !aNodes.has(n.path)),
+          nodes_removed: a.nodes.filter((n) => !bNodes.has(n.path)),
+          edges_added: b.edges.filter((e) => !aEdges.has(eKey(e))),
+          edges_removed: a.edges.filter((e) => !bEdges.has(eKey(e))),
+        };
       }
       default: {
         throw new Error(`mock: unsupported query ${(q as Query).type}`);

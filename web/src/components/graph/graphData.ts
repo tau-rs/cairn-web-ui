@@ -1,13 +1,18 @@
 import { stem } from "../../client/wikilink";
+import type { GraphNode, GraphEdge } from "../../contract";
+
+export type GraphState = "appeared" | "disappeared" | "unchanged" | "changed";
 
 export interface GNode {
   id: string;
   label: string;
   degree: number;
+  state?: GraphState;
 }
 export interface GLink {
   source: string;
   target: string;
+  state?: GraphState;
 }
 
 /** Build force-graph data: degree = count of links touching the node
@@ -66,4 +71,69 @@ export function labelAlpha(zoom: number): number {
   if (zoom <= lo) return 0;
   if (zoom >= hi) return 1;
   return (zoom - lo) / (hi - lo);
+}
+
+const edgeKey = (e: { from: string; to: string }) => `${e.from}|${e.to}`;
+
+/** Force-graph data for COMPARE mode: the `to` graph (base) styled by the
+ *  from→to diff. Added nodes/edges = "appeared"; removed = "disappeared" and
+ *  re-injected (they are absent from the base `to` graph); everything else =
+ *  "unchanged". Degree is undirected over base ∪ removed edges. Never emits
+ *  "changed" — the engine reports no such delta. */
+export function buildCompareGraphData(
+  base: { nodes: GraphNode[]; edges: GraphEdge[] },
+  diff: {
+    nodes_added: GraphNode[];
+    nodes_removed: GraphNode[];
+    edges_added: GraphEdge[];
+    edges_removed: GraphEdge[];
+  },
+): { nodes: GNode[]; links: GLink[] } {
+  const appearedNodes = new Set(diff.nodes_added.map((n) => n.path));
+  const appearedEdges = new Set(diff.edges_added.map(edgeKey));
+
+  // Node id list: base nodes + injected removed ghosts (dedup by path).
+  const ids: string[] = [];
+  const stateOf = new Map<string, GraphState>();
+  for (const n of base.nodes) {
+    ids.push(n.path);
+    stateOf.set(n.path, appearedNodes.has(n.path) ? "appeared" : "unchanged");
+  }
+  for (const n of diff.nodes_removed) {
+    if (!stateOf.has(n.path)) {
+      ids.push(n.path);
+      stateOf.set(n.path, "disappeared");
+    }
+  }
+  const present = new Set(ids);
+
+  // Edges: base ∪ removed (removed are absent from base). Filter to present
+  // endpoints so a ghost edge only shows if both endpoints render.
+  const seen = new Set<string>();
+  const rawLinks: GLink[] = [];
+  const push = (e: { from: string; to: string }, state: GraphState) => {
+    const k = edgeKey(e);
+    if (seen.has(k)) return;
+    if (!present.has(e.from) || !present.has(e.to)) return;
+    seen.add(k);
+    rawLinks.push({ source: e.from, target: e.to, state });
+  };
+  for (const e of base.edges)
+    push(e, appearedEdges.has(edgeKey(e)) ? "appeared" : "unchanged");
+  for (const e of diff.edges_removed) push(e, "disappeared");
+
+  const degree = new Map<string, number>();
+  for (const id of ids) degree.set(id, 0);
+  for (const l of rawLinks) {
+    degree.set(l.source, (degree.get(l.source) ?? 0) + 1);
+    degree.set(l.target, (degree.get(l.target) ?? 0) + 1);
+  }
+
+  const nodes: GNode[] = ids.map((id) => ({
+    id,
+    label: stem(id),
+    degree: degree.get(id) ?? 0,
+    state: stateOf.get(id),
+  }));
+  return { nodes, links: rawLinks };
 }
