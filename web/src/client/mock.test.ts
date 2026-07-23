@@ -75,10 +75,53 @@ describe("MockClient", () => {
     ).toEqual({
       type: "graph",
       nodes: [
-        { path: "a.md", title: "a", mtime_secs: 0n },
-        { path: "b.md", title: "b", mtime_secs: 0n },
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
       ],
       edges: [{ from: "a.md", to: "b.md" }],
+    });
+  });
+
+  it("get_graph populates undirected degree and frontmatter tags per node", async () => {
+    // hub links to two leaves; hub has frontmatter tags, leaves have none.
+    const c = new MockClient({
+      "hub.md": "---\ntags: [x, y]\n---\n[[leaf1]] and [[leaf2]]",
+      "leaf1.md": "one",
+      "leaf2.md": "two",
+    });
+    const res = await c.runQuery({
+      type: "get_graph",
+      scope: { type: "full" },
+    });
+    expect(res).toEqual({
+      type: "graph",
+      nodes: [
+        {
+          path: "hub.md",
+          title: "hub",
+          degree: 2,
+          tags: ["x", "y"],
+          mtime_secs: 0n,
+        },
+        {
+          path: "leaf1.md",
+          title: "leaf1",
+          degree: 1,
+          tags: [],
+          mtime_secs: 0n,
+        },
+        {
+          path: "leaf2.md",
+          title: "leaf2",
+          degree: 1,
+          tags: [],
+          mtime_secs: 0n,
+        },
+      ],
+      edges: [
+        { from: "hub.md", to: "leaf1.md" },
+        { from: "hub.md", to: "leaf2.md" },
+      ],
     });
   });
 
@@ -98,9 +141,9 @@ describe("MockClient", () => {
     ).toEqual({
       type: "graph",
       nodes: [
-        { path: "a.md", title: "a", mtime_secs: 0n },
-        { path: "b.md", title: "b", mtime_secs: 0n },
-        { path: "c.md", title: "c", mtime_secs: 0n },
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "b.md", title: "b", degree: 2, tags: [], mtime_secs: 0n },
+        { path: "c.md", title: "c", degree: 1, tags: [], mtime_secs: 0n },
       ],
       edges: [
         { from: "a.md", to: "b.md" },
@@ -127,8 +170,8 @@ describe("MockClient", () => {
     ).toEqual({
       type: "graph",
       nodes: [
-        { path: "a.md", title: "a", mtime_secs: 0n },
-        { path: "b.md", title: "b", mtime_secs: 0n },
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
       ],
       edges: [{ from: "a.md", to: "b.md" }],
     });
@@ -163,7 +206,9 @@ describe("MockClient", () => {
       }),
     ).toEqual({
       type: "graph_diff",
-      nodes_added: [{ path: "b.md", title: "b", mtime_secs: 0n }],
+      nodes_added: [
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
+      ],
       nodes_removed: [],
       edges_added: [{ from: "a.md", to: "b.md" }],
       edges_removed: [],

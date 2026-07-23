@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildGraphData,
+  buildGraphDataFromNodes,
   buildAdjacency,
   nodeRadius,
   labelAlpha,
@@ -63,7 +64,13 @@ describe("labelAlpha", () => {
 import { buildCompareGraphData } from "./graphData";
 import type { GraphNode, GraphEdge } from "../../contract";
 
-const gn = (path: string): GraphNode => ({ path, title: path, mtime_secs: 0n });
+const gn = (path: string): GraphNode => ({
+  path,
+  title: path,
+  degree: 0,
+  tags: [],
+  mtime_secs: 0n,
+});
 const ge = (from: string, to: string): GraphEdge => ({ from, to });
 
 describe("buildCompareGraphData", () => {
@@ -98,5 +105,37 @@ describe("buildCompareGraphData", () => {
     const { nodes, links } = buildCompareGraphData(base, diff);
     expect(nodes.every((n) => n.state !== "changed")).toBe(true);
     expect(links.every((l) => l.state !== "changed")).toBe(true);
+  });
+});
+
+describe("buildGraphDataFromNodes", () => {
+  const gnode = (
+    path: string,
+    degree: number,
+    tags: string[],
+    mtime: bigint,
+  ): GraphNode => ({ path, title: path, degree, tags, mtime_secs: mtime });
+
+  it("carries server degree, tags and coerced mtimeSecs onto GNode", () => {
+    const nodes = [
+      gnode("a.md", 5, ["topic"], 1700000000n),
+      gnode("b.md", 2, [], 1600000000n),
+    ];
+    const edges = [{ from: "a.md", to: "b.md" }];
+    const { nodes: gn, links } = buildGraphDataFromNodes(nodes, edges);
+    const byId = Object.fromEntries(gn.map((n) => [n.id, n]));
+    // degree is the SERVER value, not recomputed from the (filtered) links.
+    expect(byId["a.md"].degree).toBe(5);
+    expect(byId["a.md"].tags).toEqual(["topic"]);
+    expect(byId["a.md"].mtimeSecs).toBe(1700000000);
+    expect(byId["a.md"].label).toBe("a");
+    expect(byId["b.md"].degree).toBe(2);
+    expect(links).toEqual([{ source: "a.md", target: "b.md" }]);
+  });
+
+  it("drops links whose endpoint is not a present node", () => {
+    const nodes = [gnode("a.md", 1, [], 0n)];
+    const edges = [{ from: "a.md", to: "gone.md" }];
+    expect(buildGraphDataFromNodes(nodes, edges).links).toEqual([]);
   });
 });

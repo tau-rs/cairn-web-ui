@@ -8,6 +8,10 @@ export interface GNode {
   label: string;
   degree: number;
   state?: GraphState;
+  // Present only on the live (server-fed) build path; the string-based
+  // buildGraphData and the temporal buildCompareGraphData leave these unset.
+  tags?: string[];
+  mtimeSecs?: number;
 }
 export interface GLink {
   source: string;
@@ -38,6 +42,30 @@ export function buildGraphData(
     id,
     label: stem(id),
     degree: degree.get(id) ?? 0,
+  }));
+  return { nodes: gnodes, links };
+}
+
+/** Live-path builder: like buildGraphData but consumes enriched GraphNode[] and
+ *  carries the SERVER degree, frontmatter tags, and coerced `mtimeSecs` onto each
+ *  GNode. Degree is the server's undirected count over the full returned graph —
+ *  not recomputed from these (possibly capped/filtered) links — so hub size still
+ *  reflects true connectivity. Links are filtered to present endpoints. */
+export function buildGraphDataFromNodes(
+  nodes: GraphNode[],
+  edges: { from: string; to: string }[],
+): { nodes: GNode[]; links: GLink[] } {
+  const ids = new Set(nodes.map((n) => n.path));
+  const links: GLink[] = edges
+    .filter((e) => ids.has(e.from) && ids.has(e.to))
+    .map((e) => ({ source: e.from, target: e.to }));
+
+  const gnodes: GNode[] = nodes.map((n) => ({
+    id: n.path,
+    label: stem(n.path),
+    degree: n.degree,
+    tags: n.tags,
+    mtimeSecs: Number(n.mtime_secs),
   }));
   return { nodes: gnodes, links };
 }

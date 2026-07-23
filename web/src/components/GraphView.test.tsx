@@ -5,7 +5,13 @@ import { GraphView } from "./GraphView";
 import { cairnStore } from "../app/cairnStore";
 import type { GraphNode, Revision } from "../contract";
 
-const gnode = (p: string): GraphNode => ({ path: p, title: p, mtime_secs: 0n });
+const gnode = (p: string): GraphNode => ({
+  path: p,
+  title: p,
+  degree: 0,
+  tags: [],
+  mtime_secs: 0n,
+});
 const TL: Revision[] = [
   { id: "r2", message: "add b", timestamp_secs: 20n, author: "x" },
   { id: "r1", message: "init", timestamp_secs: 10n, author: "x" },
@@ -37,6 +43,20 @@ describe("GraphView", () => {
   it("shows no loading overlay when not loading", () => {
     setup({ loading: false });
     expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("shows the cap banner when the global graph exceeds the node cap", () => {
+    // 1501 > GLOBAL_NODE_CAP (1500) → capByDegree truncates in the global view.
+    const many = Array.from({ length: 1501 }, (_, i) => gnode(`n${i}.md`));
+    setup({ nodes: many, edges: [] });
+    expect(
+      screen.getByText(/most-connected of 1501 notes/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no cap banner under the node cap", () => {
+    setup({ nodes: [gnode("a.md"), gnode("b.md")], edges: [] });
+    expect(screen.queryByText(/most-connected of/i)).toBeNull();
   });
 
   it("disables the temporal toggle when no note is open", () => {

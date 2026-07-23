@@ -3,10 +3,24 @@ import ForceGraph2D from "react-force-graph-2d";
 import type { GraphNode } from "../contract";
 import {
   buildGraphData,
+  buildGraphDataFromNodes,
   buildAdjacency,
   nodeRadius,
   labelAlpha,
 } from "./graph/graphData";
+import { capByDegree } from "./graph/globalCap";
+import {
+  type FilterSettings,
+  applyFilters,
+  loadFilter,
+  saveFilter,
+} from "./graph/graphFilter";
+import {
+  type RecencySettings,
+  recencyRing,
+  loadRecency,
+  saveRecency,
+} from "./graph/recency";
 import {
   type RFNode,
   type FG,
@@ -117,16 +131,6 @@ export function GraphView(props: {
     [localSub],
   );
 
-  const forcedGlobal = temporal.mode === "compare"; // compare is global-only
-  const data =
-    compareData ?? (forcedGlobal ? globalData : (localData ?? globalData));
-  const adjacency = compareData
-    ? buildAdjacency(compareData.links)
-    : forcedGlobal
-      ? globalAdj
-      : (localAdj ?? globalAdj);
-  const rfData = asGraphData(data);
-
   const fgRef = useRef<FG | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverRef = useRef<string | null>(null);
@@ -145,6 +149,74 @@ export function GraphView(props: {
     setGroups(next);
     saveColorGroups(next);
   };
+
+  // Filter (min-degree / hidden tag groups / hide-ungrouped) and recency-ring
+  // settings, held component-local + persisted like forceSettings/colorGroups.
+  // They gate the live build path and node paint; driven by GraphGroupsPanel.
+  const [filter, setFilter] = useState<FilterSettings>(loadFilter);
+  const changeFilter = (next: FilterSettings) => {
+    setFilter(next);
+    saveFilter(next);
+  };
+  const [recency, setRecency] = useState<RecencySettings>(loadRecency);
+  const changeRecency = (next: RecencySettings) => {
+    setRecency(next);
+    saveRecency(next);
+  };
+
+  // Live (pure, non-temporal) build path: consume the server-enriched
+  // GraphNode[] so degree/tags/mtime survive to the canvas. Global view is
+  // capped by degree (banner when truncated); local view is already bounded by
+  // the BFS depth so it skips the cap. Both then run through applyFilters.
+  const isLive = temporal.source == null;
+  const liveGlobalCap = useMemo(
+    () => capByDegree(props.nodes, props.edges),
+    [props.nodes, props.edges],
+  );
+  const liveSource = useMemo(() => {
+    if (useLocal && localSub) {
+      const keep = new Set(localSub.nodes);
+      return {
+        nodes: props.nodes.filter((n) => keep.has(n.path)),
+        edges: localSub.edges,
+      };
+    }
+    return { nodes: liveGlobalCap.nodes, edges: liveGlobalCap.edges };
+  }, [useLocal, localSub, props.nodes, liveGlobalCap]);
+  const liveFiltered = useMemo(
+    () => applyFilters(liveSource.nodes, liveSource.edges, filter, groups),
+    [liveSource, filter, groups],
+  );
+  const liveData = useMemo(
+    () => buildGraphDataFromNodes(liveFiltered.nodes, liveFiltered.edges),
+    [liveFiltered],
+  );
+  const liveAdj = useMemo(
+    () =>
+      buildAdjacency(
+        buildGraphDataFromNodes(liveFiltered.nodes, liveFiltered.edges).links,
+      ),
+    [liveFiltered],
+  );
+  // Cap banner shows only in the live global overview, when nodes were dropped.
+  const capTruncated = isLive && !useLocal && liveGlobalCap.truncated;
+
+  const forcedGlobal = temporal.mode === "compare"; // compare is global-only
+  const data = compareData
+    ? compareData
+    : isLive
+      ? liveData
+      : forcedGlobal
+        ? globalData
+        : (localData ?? globalData);
+  const adjacency = compareData
+    ? buildAdjacency(compareData.links)
+    : isLive
+      ? liveAdj
+      : forcedGlobal
+        ? globalAdj
+        : (localAdj ?? globalAdj);
+  const rfData = asGraphData(data);
 
   // Size the canvas to the container.
   useEffect(() => {
@@ -235,6 +307,23 @@ export function GraphView(props: {
       ctx.fill();
       ctx.globalAlpha = 1;
 
+      // Recency ring: an outer halo whose brightness/width fades with the note's
+      // age, drawn only in the live path (mtimeSecs is unset on temporal builds).
+      if (recency.enabled && node.mtimeSecs !== undefined) {
+        const ring = recencyRing(
+          node.mtimeSecs,
+          Date.now() / 1000,
+          recency.windowDays,
+        );
+        if (ring) {
+          ctx.beginPath();
+          ctx.arc(node.x ?? 0, node.y ?? 0, r + 2.5, 0, 2 * Math.PI);
+          ctx.strokeStyle = `rgba(245, 158, 11, ${ring.alpha})`;
+          ctx.lineWidth = ring.width;
+          ctx.stroke();
+        }
+      }
+
       let alpha = labelAlpha(scale);
       if (active || node.id === hoverRef.current) alpha = 1;
       if (alpha > 0) {
@@ -248,7 +337,7 @@ export function GraphView(props: {
         ctx.globalAlpha = 1;
       }
     },
-    [props.activePath, adjacency, groups, props.tagsByNote],
+    [props.activePath, adjacency, groups, props.tagsByNote, recency],
   );
 
   const paintPointer = useCallback(
@@ -303,6 +392,15 @@ export function GraphView(props: {
       {props.loading && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-bg/50">
           <Spinner label="Loading graph" />
+        </div>
+      )}
+      {capTruncated && (
+        <div
+          role="status"
+          className="absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] text-muted shadow-lg"
+        >
+          Showing {liveData.nodes.length} most-connected of{" "}
+          {liveGlobalCap.total} notes
         </div>
       )}
       <div className="absolute left-2 top-2 z-10 flex overflow-hidden rounded-md border border-border text-[11px]">
@@ -400,7 +498,14 @@ export function GraphView(props: {
                 }
               />
             </div>
-            <GraphGroupsPanel groups={groups} onChange={changeGroups} />
+            <GraphGroupsPanel
+              groups={groups}
+              onChange={changeGroups}
+              filter={filter}
+              onFilterChange={changeFilter}
+              recency={recency}
+              onRecencyChange={changeRecency}
+            />
             <GraphForcesPanel
               settings={forces}
               onChange={changeForces}
