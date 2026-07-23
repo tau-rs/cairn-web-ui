@@ -9,8 +9,18 @@ import {
   labelAlpha,
 } from "./graph/graphData";
 import { capByDegree } from "./graph/globalCap";
-import { applyFilters, loadFilter } from "./graph/graphFilter";
-import { recencyRing, loadRecency } from "./graph/recency";
+import {
+  type FilterSettings,
+  applyFilters,
+  loadFilter,
+  saveFilter,
+} from "./graph/graphFilter";
+import {
+  type RecencySettings,
+  recencyRing,
+  loadRecency,
+  saveRecency,
+} from "./graph/recency";
 import {
   type RFNode,
   type FG,
@@ -141,10 +151,18 @@ export function GraphView(props: {
   };
 
   // Filter (min-degree / hidden tag groups / hide-ungrouped) and recency-ring
-  // settings, read once from localStorage. Task 6 upgrades these to interactive
-  // panel-driven state; here they gate the live build path and node paint.
-  const filter = useMemo(loadFilter, []);
-  const recency = useMemo(loadRecency, []);
+  // settings, held component-local + persisted like forceSettings/colorGroups.
+  // They gate the live build path and node paint; driven by GraphGroupsPanel.
+  const [filter, setFilter] = useState<FilterSettings>(loadFilter);
+  const changeFilter = (next: FilterSettings) => {
+    setFilter(next);
+    saveFilter(next);
+  };
+  const [recency, setRecency] = useState<RecencySettings>(loadRecency);
+  const changeRecency = (next: RecencySettings) => {
+    setRecency(next);
+    saveRecency(next);
+  };
 
   // Live (pure, non-temporal) build path: consume the server-enriched
   // GraphNode[] so degree/tags/mtime survive to the canvas. Global view is
@@ -480,7 +498,14 @@ export function GraphView(props: {
                 }
               />
             </div>
-            <GraphGroupsPanel groups={groups} onChange={changeGroups} />
+            <GraphGroupsPanel
+              groups={groups}
+              onChange={changeGroups}
+              filter={filter}
+              onFilterChange={changeFilter}
+              recency={recency}
+              onRecencyChange={changeRecency}
+            />
             <GraphForcesPanel
               settings={forces}
               onChange={changeForces}
