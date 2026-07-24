@@ -2,6 +2,7 @@ import { Eye, EyeOff } from "lucide-react";
 import type { ColorGroup } from "./colorGroups";
 import type { FilterSettings } from "./graphFilter";
 import { type RecencySettings, RECENCY_WINDOW_RANGE } from "./recency";
+import type { SuggestionsSettings } from "./suggestionsOverlay";
 
 const norm = (q: string) => q.trim().toLowerCase();
 
@@ -33,9 +34,19 @@ export function GraphGroupsPanel(props: {
   onFilterChange: (next: FilterSettings) => void;
   recency: RecencySettings;
   onRecencyChange: (next: RecencySettings) => void;
+  suggestions: SuggestionsSettings;
+  onSuggestionsChange: (next: SuggestionsSettings) => void;
 }) {
-  const { groups, onChange, filter, onFilterChange, recency, onRecencyChange } =
-    props;
+  const {
+    groups,
+    onChange,
+    filter,
+    onFilterChange,
+    recency,
+    onRecencyChange,
+    suggestions,
+    onSuggestionsChange,
+  } = props;
   const update = (i: number, patch: Partial<ColorGroup>) =>
     onChange(groups.map((g, j) => (j === i ? { ...g, ...patch } : g)));
   const remove = (i: number) => onChange(groups.filter((_, j) => j !== i));
@@ -173,6 +184,20 @@ export function GraphGroupsPanel(props: {
             />
           </div>
         )}
+      </div>
+
+      {/* Suggested links overlay */}
+      <div className="mt-3 border-t border-border pt-3">
+        <label className="flex items-center gap-2 text-[11px] text-text">
+          <input
+            type="checkbox"
+            aria-label="Suggested links"
+            className="accent-accent"
+            checked={suggestions.enabled}
+            onChange={(e) => onSuggestionsChange({ enabled: e.target.checked })}
+          />
+          Suggested links
+        </label>
       </div>
     </div>
   );
