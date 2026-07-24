@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-import type { GraphNode } from "../contract";
+import type { GraphNode, SuggestedEdge, SuggestionScope } from "../contract";
 import {
   buildGraphData,
   buildGraphDataFromNodes,
   buildAdjacency,
+  buildSuggestedLinks,
   nodeRadius,
   labelAlpha,
 } from "./graph/graphData";
@@ -53,6 +54,12 @@ import {
 import { TemporalScrubber } from "./graph/TemporalScrubber";
 import { useTemporalGraph } from "./graph/useTemporalGraph";
 import { buildCompareGraphData } from "./graph/graphData";
+import {
+  type SuggestionsSettings,
+  loadSuggestionsSettings,
+  saveSuggestionsSettings,
+  suggestionScopeFor,
+} from "./graph/suggestionsOverlay";
 
 export function GraphView(props: {
   nodes: GraphNode[];
@@ -61,6 +68,8 @@ export function GraphView(props: {
   activePath: string | null;
   loading?: boolean;
   onOpenNote: (path: string) => void;
+  suggestions: SuggestedEdge[] | null;
+  onLoadSuggestions: (scope: SuggestionScope) => void;
 }) {
   const [local, setLocal] = useState<LocalGraphSettings>(loadLocalGraph);
   const changeLocal = (next: LocalGraphSettings) => {
@@ -163,6 +172,13 @@ export function GraphView(props: {
     setRecency(next);
     saveRecency(next);
   };
+  const [suggestOverlay, setSuggestOverlay] = useState<SuggestionsSettings>(
+    loadSuggestionsSettings,
+  );
+  const changeSuggestOverlay = (next: SuggestionsSettings) => {
+    setSuggestOverlay(next);
+    saveSuggestionsSettings(next);
+  };
 
   // Live (pure, non-temporal) build path: consume the server-enriched
   // GraphNode[] so degree/tags/mtime survive to the canvas. Global view is
@@ -191,6 +207,21 @@ export function GraphView(props: {
     () => buildGraphDataFromNodes(liveFiltered.nodes, liveFiltered.edges),
     [liveFiltered],
   );
+  const suggestedLinks = useMemo(() => {
+    if (!suggestOverlay.enabled || !props.suggestions) return [];
+    const visible = new Set(liveData.nodes.map((n) => n.id));
+    return buildSuggestedLinks(props.suggestions, visible, liveData.links);
+  }, [suggestOverlay.enabled, props.suggestions, liveData]);
+  const liveDataWithSuggestions = useMemo(
+    () =>
+      suggestedLinks.length
+        ? {
+            nodes: liveData.nodes,
+            links: [...liveData.links, ...suggestedLinks],
+          }
+        : liveData,
+    [liveData, suggestedLinks],
+  );
   const liveAdj = useMemo(
     () =>
       buildAdjacency(
@@ -201,11 +232,30 @@ export function GraphView(props: {
   // Cap banner shows only in the live global overview, when nodes were dropped.
   const capTruncated = isLive && !useLocal && liveGlobalCap.truncated;
 
+  // Scope follows the graph's own full/local mode (see suggestionScopeFor).
+  const suggestionScope = suggestionScopeFor(
+    suggestOverlay.enabled,
+    useLocal,
+    props.activePath,
+  );
+  // Stable string key so vault scope doesn't refetch on every note switch.
+  const scopeKey = suggestionScope
+    ? suggestionScope.type === "note"
+      ? `note:${suggestionScope.path}`
+      : "vault"
+    : null;
+  const onLoadSuggestions = props.onLoadSuggestions;
+  useEffect(() => {
+    if (suggestionScope) onLoadSuggestions(suggestionScope);
+    // scopeKey encodes enabled + scope + path; refetch only when it changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, onLoadSuggestions]);
+
   const forcedGlobal = temporal.mode === "compare"; // compare is global-only
   const data = compareData
     ? compareData
     : isLive
-      ? liveData
+      ? liveDataWithSuggestions
       : forcedGlobal
         ? globalData
         : (localData ?? globalData);
@@ -363,7 +413,9 @@ export function GraphView(props: {
       source: RFNode | string;
       target: RFNode | string;
       state?: string;
+      kind?: string;
     }) => {
+      if (link.kind === "suggested") return "#8b8fa3aa";
       const st = link.state;
       if (st === "appeared") return "#22c55e";
       if (st === "disappeared") return "#6b728066";
@@ -379,9 +431,30 @@ export function GraphView(props: {
     [],
   );
 
-  // Dashed styling for disappeared (removed) links in compare mode.
+  // Dashed styling for disappeared (removed) links in compare mode, and for
+  // suggested links in the overlay.
   const linkLineDash = useCallback(
-    (link: { state?: string }) => (link.state === "disappeared" ? [4, 3] : []),
+    (link: { state?: string; kind?: string }) =>
+      link.kind === "suggested"
+        ? [4, 4]
+        : link.state === "disappeared"
+          ? [4, 3]
+          : [],
+    [],
+  );
+
+  // Suggested links get width from their similarity weight (0..1); real links
+  // stay at the constant 1.
+  const linkWidth = useCallback(
+    (link: { kind?: string; weight?: number }) =>
+      link.kind === "suggested" ? 0.5 + (link.weight ?? 0) * 2 : 1,
+    [],
+  );
+
+  // Native hover tooltip: suggested links show their "why" text.
+  const linkLabel = useCallback(
+    (link: { kind?: string; why?: string | null }) =>
+      link.kind === "suggested" ? (link.why ?? "") : "",
     [],
   );
 
@@ -505,6 +578,8 @@ export function GraphView(props: {
               onFilterChange={changeFilter}
               recency={recency}
               onRecencyChange={changeRecency}
+              suggestions={suggestOverlay}
+              onSuggestionsChange={changeSuggestOverlay}
             />
             <GraphForcesPanel
               settings={forces}
@@ -531,7 +606,8 @@ export function GraphView(props: {
             nodePointerAreaPaint={paintPointer}
             linkColor={linkColor}
             linkLineDash={linkLineDash}
-            linkWidth={1}
+            linkWidth={linkWidth}
+            linkLabel={linkLabel}
             autoPauseRedraw={false}
             enableNodeDrag
             onNodeClick={(n: RFNode) => props.onOpenNote(n.id)}

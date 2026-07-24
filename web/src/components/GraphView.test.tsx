@@ -27,6 +27,8 @@ function setup(over = {}) {
     tagsByNote: {} as Record<string, string[]>,
     activePath: null as string | null,
     onOpenNote: vi.fn(),
+    suggestions: null,
+    onLoadSuggestions: vi.fn(),
     ...over,
   };
   render(<GraphView {...props} />);
