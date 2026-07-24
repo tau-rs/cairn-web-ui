@@ -75,8 +75,8 @@ describe("MockClient", () => {
     ).toEqual({
       type: "graph",
       nodes: [
-        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
-        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0 },
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0 },
       ],
       edges: [{ from: "a.md", to: "b.md" }],
     });
@@ -101,21 +101,21 @@ describe("MockClient", () => {
           title: "hub",
           degree: 2,
           tags: ["x", "y"],
-          mtime_secs: 0n,
+          mtime_secs: 0,
         },
         {
           path: "leaf1.md",
           title: "leaf1",
           degree: 1,
           tags: [],
-          mtime_secs: 0n,
+          mtime_secs: 0,
         },
         {
           path: "leaf2.md",
           title: "leaf2",
           degree: 1,
           tags: [],
-          mtime_secs: 0n,
+          mtime_secs: 0,
         },
       ],
       edges: [
@@ -141,9 +141,9 @@ describe("MockClient", () => {
     ).toEqual({
       type: "graph",
       nodes: [
-        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
-        { path: "b.md", title: "b", degree: 2, tags: [], mtime_secs: 0n },
-        { path: "c.md", title: "c", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0 },
+        { path: "b.md", title: "b", degree: 2, tags: [], mtime_secs: 0 },
+        { path: "c.md", title: "c", degree: 1, tags: [], mtime_secs: 0 },
       ],
       edges: [
         { from: "a.md", to: "b.md" },
@@ -170,8 +170,8 @@ describe("MockClient", () => {
     ).toEqual({
       type: "graph",
       nodes: [
-        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
-        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0 },
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0 },
       ],
       edges: [{ from: "a.md", to: "b.md" }],
     });
@@ -188,7 +188,7 @@ describe("MockClient", () => {
     ).rejects.toEqual({ type: "not_found", what: "nope" });
   });
 
-  it("graph_diff reports added and removed nodes and edges", async () => {
+  it("graph_diff reports added, removed and changed nodes and edges", async () => {
     const c = new MockClient(
       freshNotes(),
       {},
@@ -207,9 +207,13 @@ describe("MockClient", () => {
     ).toEqual({
       type: "graph_diff",
       nodes_added: [
-        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0 },
       ],
       nodes_removed: [],
+      // a.md gains the link to b, so its degree changes 0 → 1.
+      nodes_changed: [
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0 },
+      ],
       edges_added: [{ from: "a.md", to: "b.md" }],
       edges_removed: [],
     });
@@ -434,6 +438,39 @@ describe("mock history ops", () => {
     await expect(
       c.runQuery({ type: "note_at", path: "n.md", revision: "nope" }),
     ).rejects.toMatchObject({ type: "not_found" });
+  });
+
+  it("vault_history returns seeded vault-wide revisions, capped by limit", async () => {
+    const revs = [
+      { id: "c3", message: "third", timestamp_secs: 3n, author: "tau" },
+      { id: "c2", message: "second", timestamp_secs: 2n, author: "tau" },
+      { id: "c1", message: "first", timestamp_secs: 1n, author: "tau" },
+    ];
+    const c = new MockClient(freshNotes(), {}, {}, revs);
+    expect(await c.runQuery({ type: "vault_history", limit: null })).toEqual({
+      type: "history",
+      revisions: revs,
+    });
+    expect(await c.runQuery({ type: "vault_history", limit: 2 })).toEqual({
+      type: "history",
+      revisions: revs.slice(0, 2),
+    });
+  });
+
+  it("vault_history returns [] when no history is seeded", async () => {
+    const c = new MockClient(freshNotes());
+    expect(await c.runQuery({ type: "vault_history", limit: null })).toEqual({
+      type: "history",
+      revisions: [],
+    });
+  });
+
+  it("render_note returns the note's contents (mock does not render)", async () => {
+    const c = new MockClient({ "a.md": "# hi" });
+    expect(await c.runQuery({ type: "render_note", path: "a.md" })).toEqual({
+      type: "note",
+      contents: "# hi",
+    });
   });
 
   it("restore_note overwrites the working copy and emits note_changed", async () => {

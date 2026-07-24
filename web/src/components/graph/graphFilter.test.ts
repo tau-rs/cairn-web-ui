@@ -13,7 +13,7 @@ const n = (path: string, degree: number, tags: string[] = []): GraphNode => ({
   title: path,
   degree,
   tags,
-  mtime_secs: 0n,
+  mtime_secs: 0,
 });
 const groups: ColorGroup[] = [
   { kind: "tag", query: "topic", color: "#6366f1" },

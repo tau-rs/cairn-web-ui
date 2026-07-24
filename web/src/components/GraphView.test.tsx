@@ -10,7 +10,7 @@ const gnode = (p: string): GraphNode => ({
   title: p,
   degree: 0,
   tags: [],
-  mtime_secs: 0n,
+  mtime_secs: 0,
 });
 const TL: Revision[] = [
   { id: "r2", message: "add b", timestamp_secs: 20n, author: "x" },

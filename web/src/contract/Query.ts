@@ -9,6 +9,10 @@ export type Query = { "type": "get_note",
 /**
  * Relative note path.
  */
+path: string, } | { "type": "render_note", 
+/**
+ * Relative note path.
+ */
 path: string, } | { "type": "search", 
 /**
  * Query string.
@@ -53,7 +57,11 @@ scope: SuggestionScope, } | { "type": "list_plugins" } | { "type": "note_history
 /**
  * Relative note path.
  */
-path: string, } | { "type": "note_at", 
+path: string, } | { "type": "vault_history", 
+/**
+ * Max commits to return; `None` returns all.
+ */
+limit: number | null, } | { "type": "note_at", 
 /**
  * Relative note path.
  */
