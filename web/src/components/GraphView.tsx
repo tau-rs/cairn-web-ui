@@ -452,6 +452,11 @@ export function GraphView(props: {
   );
 
   // Native hover tooltip: suggested links show their "why" text.
+  // NOTE: react-force-graph injects this string via innerHTML (its only DOM
+  // sink here — every other label is canvas-painted). `why` is engine-derived
+  // provenance from the user's own vault (full-trust local engine), so it is
+  // treated as safe. If `why` ever carries untrusted or raw note text, escape
+  // it here before returning.
   const linkLabel = useCallback(
     (link: { kind?: string; why?: string | null }) =>
       link.kind === "suggested" ? (link.why ?? "") : "",
