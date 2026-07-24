@@ -1,7 +1,14 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { alwaysOpenHost, type CairnHost } from "../client/host";
 import type { CairnClient, Unsubscribe } from "../client/types";
-import type { TagCount, Event, GraphNode, Revision } from "../contract";
+import type {
+  TagCount,
+  Event,
+  GraphNode,
+  Revision,
+  SuggestedEdge,
+  SuggestionScope,
+} from "../contract";
 import type { PluginSummary } from "../contract";
 import type { JsonValue } from "../contract/serde_json/JsonValue";
 import {
@@ -153,6 +160,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   searchSnippets: Record<string, SearchSnippet> | null;
   backlinks: string[];
   graph: { nodes: GraphNode[]; edges: { from: string; to: string }[] } | null;
+  suggestions: SuggestedEdge[] | null;
   temporal: {
     timeline: Revision[] | null;
     snapshot: {
@@ -185,6 +193,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
     graph: boolean;
     backlinks: boolean;
     note: boolean;
+    suggestions: boolean;
   };
   // "reconnecting" while the push channel is in silent backoff (calm pill);
   // "down" once it has clearly failed (hard banner). Both mean data may be
@@ -226,6 +235,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   closeSearch(): void;
   refreshBacklinks(): Promise<void>;
   loadGraph(): Promise<void>;
+  loadSuggestions(scope: SuggestionScope): Promise<void>;
   loadTimeline(path: string): Promise<void>;
   loadSnapshot(revision: string): Promise<void>;
   loadDiff(from: string, to: string): Promise<void>;
@@ -267,6 +277,7 @@ export function createCairnStore(
     graph: 0,
     timeline: 0,
     temporalData: 0,
+    suggestions: 0,
   };
 
   // Monotonic id for queued error toasts (auto-dismiss keys off it).
@@ -484,6 +495,7 @@ export function createCairnStore(
         saving: false,
         backlinks: [],
         graph: null,
+        suggestions: null,
         temporal: { ...EMPTY_TEMPORAL },
         noteTags: {},
         searchResults: null,
@@ -494,7 +506,13 @@ export function createCairnStore(
         pluginContributions: {},
         pluginDropped: 0,
         notice: null,
-        loading: { search: false, graph: false, backlinks: false, note: false },
+        loading: {
+          search: false,
+          graph: false,
+          backlinks: false,
+          note: false,
+          suggestions: false,
+        },
       });
       await get().refreshNotePaths();
       await get().loadTags();
@@ -546,6 +564,7 @@ export function createCairnStore(
       searchSnippets: null,
       backlinks: [],
       graph: null,
+      suggestions: null,
       temporal: { ...EMPTY_TEMPORAL },
       noteTags: {},
       tags: [],
@@ -560,7 +579,13 @@ export function createCairnStore(
       ui: DEFAULT_UI,
       treeStyles: loadStyles(),
       errors: [],
-      loading: { search: false, graph: false, backlinks: false, note: false },
+      loading: {
+        search: false,
+        graph: false,
+        backlinks: false,
+        note: false,
+        suggestions: false,
+      },
       liveUpdates: "ok",
       ...createAskSlice(set, get, client),
 
@@ -1063,6 +1088,22 @@ export function createCairnStore(
           }
         } finally {
           if (token === seq.graph) setLoading("graph", false);
+        }
+      },
+
+      async loadSuggestions(scope) {
+        const token = ++seq.suggestions;
+        setLoading("suggestions", true);
+        try {
+          const res = await client.runQuery({ type: "get_suggestions", scope });
+          if (token !== seq.suggestions) return; // superseded by a newer request
+          if (res.type === "suggestions") set({ suggestions: res.suggestions });
+          else unexpected("Load suggestions", res, { scope: scope.type });
+        } catch (err) {
+          if (token !== seq.suggestions) return;
+          pushError("Load suggestions", err, { scope: scope.type });
+        } finally {
+          if (token === seq.suggestions) setLoading("suggestions", false);
         }
       },
 

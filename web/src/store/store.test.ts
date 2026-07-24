@@ -9,7 +9,7 @@ import {
   loadOverrides,
   saveOverrides,
 } from "../components/shortcuts/keybindingPersistence";
-import type { QueryResponse } from "../contract";
+import type { Query, QueryResponse, SuggestedEdge } from "../contract";
 import { saveTabs } from "../components/tabs/tabsPersistence";
 import type { Event } from "../contract";
 import * as timer from "../util/timer";
@@ -335,6 +335,48 @@ describe("cairn store", () => {
 
   it("defaults the editor to live preview", () => {
     expect(DEFAULT_SETTINGS.editorMode).toBe("livepreview");
+  });
+
+  describe("loadSuggestions", () => {
+    const EDGE: SuggestedEdge = {
+      from: "a.md",
+      to: "b.md",
+      weight: 0.7,
+      why: "shared: x",
+    };
+
+    it("populates suggestions on a suggestions response", async () => {
+      const { client, store } = setup();
+      vi.spyOn(client, "runQuery").mockResolvedValueOnce({
+        type: "suggestions",
+        suggestions: [EDGE],
+      });
+      await store.getState().loadSuggestions({ type: "vault" });
+      expect(store.getState().suggestions).toEqual([EDGE]);
+    });
+
+    it("passes the given scope through to runQuery", async () => {
+      const { client, store } = setup();
+      const spy = vi
+        .spyOn(client, "runQuery")
+        .mockResolvedValue({ type: "suggestions", suggestions: [] });
+      await store.getState().loadSuggestions({ type: "note", path: "a.md" });
+      expect(spy).toHaveBeenCalledWith({
+        type: "get_suggestions",
+        scope: { type: "note", path: "a.md" },
+      } satisfies Query);
+    });
+
+    it("leaves state untouched and reports an error on an unexpected variant", async () => {
+      const { client, store } = setup();
+      vi.spyOn(client, "runQuery").mockResolvedValueOnce({
+        type: "paths",
+        paths: [],
+      });
+      await store.getState().loadSuggestions({ type: "vault" });
+      expect(store.getState().suggestions).toBeNull();
+      expect(store.getState().errors.length).toBeGreaterThan(0);
+    });
   });
 
   it("defaults loadRemoteImages to off (no auto-fetch of remote images)", () => {
@@ -754,6 +796,7 @@ describe("cairn store", () => {
       graph: false,
       backlinks: false,
       note: false,
+      suggestions: false,
     });
   });
 
