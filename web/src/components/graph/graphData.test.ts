@@ -144,7 +144,12 @@ describe("buildGraphDataFromNodes", () => {
 });
 
 describe("buildSuggestedLinks", () => {
-  const sug = (from: string, to: string, weight = 0.5, why: string | null = null): SuggestedEdge => ({
+  const sug = (
+    from: string,
+    to: string,
+    weight = 0.5,
+    why: string | null = null,
+  ): SuggestedEdge => ({
     from,
     to,
     weight,
@@ -153,9 +158,19 @@ describe("buildSuggestedLinks", () => {
   const visible = new Set(["a.md", "b.md", "c.md"]);
 
   it("maps a suggestion to a suggested GLink carrying weight and why", () => {
-    const out = buildSuggestedLinks([sug("a.md", "b.md", 0.8, "shared: x")], visible, []);
+    const out = buildSuggestedLinks(
+      [sug("a.md", "b.md", 0.8, "shared: x")],
+      visible,
+      [],
+    );
     expect(out).toEqual([
-      { source: "a.md", target: "b.md", kind: "suggested", weight: 0.8, why: "shared: x" },
+      {
+        source: "a.md",
+        target: "b.md",
+        kind: "suggested",
+        weight: 0.8,
+        why: "shared: x",
+      },
     ]);
   });
 
@@ -176,7 +191,11 @@ describe("buildSuggestedLinks", () => {
   });
 
   it("dedupes duplicate suggestions among themselves (undirected)", () => {
-    const out = buildSuggestedLinks([sug("a.md", "b.md"), sug("b.md", "a.md")], visible, []);
+    const out = buildSuggestedLinks(
+      [sug("a.md", "b.md"), sug("b.md", "a.md")],
+      visible,
+      [],
+    );
     expect(out).toHaveLength(1);
   });
 
@@ -187,6 +206,8 @@ describe("buildSuggestedLinks", () => {
 
   it("returns [] for empty suggestions or empty visible set", () => {
     expect(buildSuggestedLinks([], visible, [])).toEqual([]);
-    expect(buildSuggestedLinks([sug("a.md", "b.md")], new Set(), [])).toEqual([]);
+    expect(buildSuggestedLinks([sug("a.md", "b.md")], new Set(), [])).toEqual(
+      [],
+    );
   });
 });

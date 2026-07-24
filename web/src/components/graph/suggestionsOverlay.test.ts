@@ -12,7 +12,10 @@ describe("suggestionScopeFor", () => {
   });
 
   it("returns a note scope in local mode with an active note", () => {
-    expect(suggestionScopeFor(true, true, "a.md")).toEqual({ type: "note", path: "a.md" });
+    expect(suggestionScopeFor(true, true, "a.md")).toEqual({
+      type: "note",
+      path: "a.md",
+    });
   });
 
   it("returns vault scope in global mode", () => {
