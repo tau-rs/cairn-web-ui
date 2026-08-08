@@ -30,7 +30,7 @@
     "@radix-ui/react-popover": "^1.1.16",
     "@tauri-apps/api": "^2.11.0",
     "@uiw/react-codemirror": "^4",
-    "lucide-react": "^1.18.0",
+    "lucide-react": "^1.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-force-graph-2d": "^1.29.1",
