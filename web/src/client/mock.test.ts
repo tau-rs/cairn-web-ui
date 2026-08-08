@@ -500,3 +500,72 @@ describe("MockClient.ask", () => {
     expect(seen.length).toBe(0);
   });
 });
+
+describe("MockClient get_suggestions", () => {
+  const notes = {
+    "index.md": "# Index [[ideas]] [[todo]]",
+    "ideas.md": "# Ideas [[index]]",
+    "todo.md": "---\ntags: [rust]\n---\n# Todo",
+    "projects/demo.md": "---\ntags: [rust, ideas]\n---\n# Demo",
+    "kitchensink.md": "# Kitchen sink [[ideas]]",
+  };
+
+  it("returns curated vault-scope suggestions between existing notes", async () => {
+    const c = new MockClient(notes);
+    const res = await c.runQuery({
+      type: "get_suggestions",
+      scope: { type: "vault" },
+    });
+    expect(res).toEqual({
+      type: "suggestions",
+      suggestions: [
+        {
+          from: "projects/demo.md",
+          to: "todo.md",
+          weight: 0.82,
+          why: "shared tag: rust",
+        },
+        {
+          from: "projects/demo.md",
+          to: "ideas.md",
+          weight: 0.61,
+          why: "shared tag: ideas",
+        },
+        {
+          from: "kitchensink.md",
+          to: "index.md",
+          weight: 0.34,
+          why: "co-mention: ideas",
+        },
+      ],
+    });
+  });
+
+  it("filters to suggestions touching the note for note scope", async () => {
+    const c = new MockClient(notes);
+    const res = await c.runQuery({
+      type: "get_suggestions",
+      scope: { type: "note", path: "todo.md" },
+    });
+    expect(res).toEqual({
+      type: "suggestions",
+      suggestions: [
+        {
+          from: "projects/demo.md",
+          to: "todo.md",
+          weight: 0.82,
+          why: "shared tag: rust",
+        },
+      ],
+    });
+  });
+
+  it("drops curated edges whose endpoints are absent", async () => {
+    const c = new MockClient({ "todo.md": "x" });
+    const res = await c.runQuery({
+      type: "get_suggestions",
+      scope: { type: "vault" },
+    });
+    expect(res).toEqual({ type: "suggestions", suggestions: [] });
+  });
+});

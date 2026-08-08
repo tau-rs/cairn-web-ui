@@ -1,5 +1,5 @@
 import { stem } from "../../client/wikilink";
-import type { GraphNode, GraphEdge } from "../../contract";
+import type { GraphNode, GraphEdge, SuggestedEdge } from "../../contract";
 
 export type GraphState = "appeared" | "disappeared" | "unchanged" | "changed";
 
@@ -17,6 +17,11 @@ export interface GLink {
   source: string;
   target: string;
   state?: GraphState;
+  // Overlay seam: undefined ≡ a real (explicit) edge — the three real-edge
+  // builders leave it unset. "suggested" links carry engine similarity data.
+  kind?: "real" | "suggested";
+  weight?: number; // suggested-only: 0..1 similarity ranking → opacity/width
+  why?: string | null; // suggested-only: provenance, shown via linkLabel tooltip
 }
 
 /** Build force-graph data: degree = count of links touching the node
@@ -84,6 +89,38 @@ export function buildAdjacency(links: GLink[]): Map<string, Set<string>> {
     add(l.target, l.source);
   }
   return adj;
+}
+
+/** Undirected pair key so a↔b compares equal regardless of direction. */
+const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/** Map engine SuggestedEdge[] → suggested GLink[] for overlay rendering.
+ *  Drops any edge whose endpoint is not a visible node (suggestions never
+ *  introduce nodes), and dedupes (undirected) against real links and against
+ *  earlier suggestions — so a suggestion duplicating an explicit link, or a
+ *  reciprocal duplicate, is suppressed. */
+export function buildSuggestedLinks(
+  suggestions: SuggestedEdge[],
+  visibleNodeIds: Set<string>,
+  realLinks: GLink[],
+): GLink[] {
+  const seen = new Set<string>();
+  for (const l of realLinks) seen.add(pairKey(l.source, l.target));
+  const out: GLink[] = [];
+  for (const s of suggestions) {
+    if (!visibleNodeIds.has(s.from) || !visibleNodeIds.has(s.to)) continue;
+    const k = pairKey(s.from, s.to);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({
+      source: s.from,
+      target: s.to,
+      kind: "suggested",
+      weight: s.weight,
+      why: s.why,
+    });
+  }
+  return out;
 }
 
 /** Node radius from degree — sublinear so hubs are bigger but not huge. */

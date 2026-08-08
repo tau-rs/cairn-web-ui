@@ -5,7 +5,10 @@ import {
   buildAdjacency,
   nodeRadius,
   labelAlpha,
+  buildSuggestedLinks,
 } from "./graphData";
+import type { GLink } from "./graphData";
+import type { SuggestedEdge } from "../../contract";
 
 describe("buildGraphData", () => {
   const nodes = ["a.md", "b.md", "c.md"];
@@ -137,5 +140,74 @@ describe("buildGraphDataFromNodes", () => {
     const nodes = [gnode("a.md", 1, [], 0n)];
     const edges = [{ from: "a.md", to: "gone.md" }];
     expect(buildGraphDataFromNodes(nodes, edges).links).toEqual([]);
+  });
+});
+
+describe("buildSuggestedLinks", () => {
+  const sug = (
+    from: string,
+    to: string,
+    weight = 0.5,
+    why: string | null = null,
+  ): SuggestedEdge => ({
+    from,
+    to,
+    weight,
+    why,
+  });
+  const visible = new Set(["a.md", "b.md", "c.md"]);
+
+  it("maps a suggestion to a suggested GLink carrying weight and why", () => {
+    const out = buildSuggestedLinks(
+      [sug("a.md", "b.md", 0.8, "shared: x")],
+      visible,
+      [],
+    );
+    expect(out).toEqual([
+      {
+        source: "a.md",
+        target: "b.md",
+        kind: "suggested",
+        weight: 0.8,
+        why: "shared: x",
+      },
+    ]);
+  });
+
+  it("drops an edge whose endpoint is not a visible node (one missing)", () => {
+    const out = buildSuggestedLinks([sug("a.md", "z.md")], visible, []);
+    expect(out).toEqual([]);
+  });
+
+  it("drops an edge when both endpoints are missing", () => {
+    const out = buildSuggestedLinks([sug("y.md", "z.md")], visible, []);
+    expect(out).toEqual([]);
+  });
+
+  it("suppresses a suggestion that duplicates a real link (undirected)", () => {
+    const real: GLink[] = [{ source: "b.md", target: "a.md" }];
+    const out = buildSuggestedLinks([sug("a.md", "b.md")], visible, real);
+    expect(out).toEqual([]);
+  });
+
+  it("dedupes duplicate suggestions among themselves (undirected)", () => {
+    const out = buildSuggestedLinks(
+      [sug("a.md", "b.md"), sug("b.md", "a.md")],
+      visible,
+      [],
+    );
+    expect(out).toHaveLength(1);
+  });
+
+  it("passes null why through untouched", () => {
+    const out = buildSuggestedLinks([sug("a.md", "c.md")], visible, []);
+    expect(out[0].why).toBeNull();
+  });
+
+  it("returns [] for empty suggestions or empty visible set", () => {
+    expect(buildSuggestedLinks([], visible, [])).toEqual([]);
+    expect(buildSuggestedLinks([sug("a.md", "b.md")], new Set(), [])).toEqual(
+      [],
+    );
   });
 });
