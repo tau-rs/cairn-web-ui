@@ -1,5 +1,5 @@
 import { stem } from "../../client/wikilink";
-import type { GraphNode, GraphEdge } from "../../contract";
+import type { GraphNode, GraphEdge, SuggestedEdge } from "../../contract";
 
 export type GraphState = "appeared" | "disappeared" | "unchanged" | "changed";
 
@@ -12,11 +12,21 @@ export interface GNode {
   // buildGraphData and the temporal buildCompareGraphData leave these unset.
   tags?: string[];
   mtimeSecs?: number;
+  // Local-inject seam: set only on "suggested-only" ghost nodes injected by
+  // buildSuggestedNodes (a suggestion's far endpoint that isn't a real node in
+  // the current local view). Real builders leave it unset. Drives the dashed
+  // ghost paint and keeps these nodes out of adjacency/degree.
+  suggested?: true;
 }
 export interface GLink {
   source: string;
   target: string;
   state?: GraphState;
+  // Overlay seam: undefined ≡ a real (explicit) edge — the three real-edge
+  // builders leave it unset. "suggested" links carry engine similarity data.
+  kind?: "real" | "suggested";
+  weight?: number; // suggested-only: 0..1 similarity ranking → opacity/width
+  why?: string | null; // suggested-only: provenance, shown via linkLabel tooltip
 }
 
 /** Build force-graph data: degree = count of links touching the node
@@ -84,6 +94,74 @@ export function buildAdjacency(links: GLink[]): Map<string, Set<string>> {
     add(l.target, l.source);
   }
   return adj;
+}
+
+/** Undirected pair key so a↔b compares equal regardless of direction. */
+const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/** Map engine SuggestedEdge[] → suggested GLink[] for overlay rendering.
+ *  Drops any edge whose endpoint is not a visible node (suggestions never
+ *  introduce nodes), and dedupes (undirected) against real links and against
+ *  earlier suggestions — so a suggestion duplicating an explicit link, or a
+ *  reciprocal duplicate, is suppressed. */
+export function buildSuggestedLinks(
+  suggestions: SuggestedEdge[],
+  visibleNodeIds: Set<string>,
+  realLinks: GLink[],
+  injectedIds?: Set<string>,
+): GLink[] {
+  // An endpoint "renders" if it's a visible real node or (local-inject mode
+  // only) a ghost node being injected. Omitting injectedIds keeps the global /
+  // vault drop path byte-for-byte identical.
+  const present = (id: string) =>
+    visibleNodeIds.has(id) || (injectedIds?.has(id) ?? false);
+  const seen = new Set<string>();
+  for (const l of realLinks) seen.add(pairKey(l.source, l.target));
+  const out: GLink[] = [];
+  for (const s of suggestions) {
+    if (!present(s.from) || !present(s.to)) continue;
+    const k = pairKey(s.from, s.to);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({
+      source: s.from,
+      target: s.to,
+      kind: "suggested",
+      weight: s.weight,
+      why: s.why,
+    });
+  }
+  return out;
+}
+
+/** LOCAL-mode inject seam (companion to buildSuggestedLinks). Returns the far
+ *  suggested endpoints that are NOT already visible, as "suggested-only" ghost
+ *  GNode[] flagged `suggested`. A node is injected only when it is the missing
+ *  endpoint of a suggestion whose OTHER endpoint IS visible (an anchor) — a
+ *  suggestion between two invisible nodes injects nothing. Deduped, so two
+ *  suggestions to the same missing node yield one node. Global / vault never
+ *  calls this (it keeps dropping); the ghosts carry degree 0 and are kept out
+ *  of adjacency so they never pollute hover-highlight, degree, or the cap. */
+export function buildSuggestedNodes(
+  suggestions: SuggestedEdge[],
+  visibleNodeIds: Set<string>,
+): GNode[] {
+  const seen = new Set<string>();
+  const out: GNode[] = [];
+  const inject = (id: string) => {
+    if (visibleNodeIds.has(id) || seen.has(id)) return;
+    seen.add(id);
+    out.push({ id, label: stem(id), degree: 0, suggested: true });
+  };
+  for (const s of suggestions) {
+    const fromVis = visibleNodeIds.has(s.from);
+    const toVis = visibleNodeIds.has(s.to);
+    // Skip when both visible (nothing to inject) or both missing (no anchor).
+    if (fromVis === toVis) continue;
+    if (!fromVis) inject(s.from);
+    if (!toVis) inject(s.to);
+  }
+  return out;
 }
 
 /** Node radius from degree — sublinear so hubs are bigger but not huge. */

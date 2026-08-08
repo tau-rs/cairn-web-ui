@@ -9,6 +9,7 @@ import type {
   GraphEdge,
   GraphNode,
   GraphScope,
+  SuggestedEdge,
   SearchResult,
   PluginSummary,
   Revision,
@@ -553,6 +554,40 @@ export class MockClient implements CairnClient {
           edges_added: b.edges.filter((e) => !aEdges.has(eKey(e))),
           edges_removed: a.edges.filter((e) => !bEdges.has(eKey(e))),
         };
+      }
+      case "get_suggestions": {
+        // Dev/demo suggestions so the overlay renders real dashed edges against
+        // the mock backend (no engine). Curated between fixture notes that are
+        // NOT explicitly linked; filtered to notes that actually exist. Weight
+        // drives link width, `why` drives the hover tooltip.
+        const curated: SuggestedEdge[] = [
+          {
+            from: "projects/demo.md",
+            to: "todo.md",
+            weight: 0.82,
+            why: "shared tag: rust",
+          },
+          {
+            from: "projects/demo.md",
+            to: "ideas.md",
+            weight: 0.61,
+            why: "shared tag: ideas",
+          },
+          {
+            from: "kitchensink.md",
+            to: "index.md",
+            weight: 0.34,
+            why: "co-mention: ideas",
+          },
+        ].filter((e) => this.notes.has(e.from) && this.notes.has(e.to));
+        const scope = q.scope;
+        const suggestions =
+          scope.type === "note"
+            ? curated.filter(
+                (e) => e.from === scope.path || e.to === scope.path,
+              )
+            : curated;
+        return { type: "suggestions", suggestions };
       }
       default: {
         throw new Error(`mock: unsupported query ${(q as Query).type}`);

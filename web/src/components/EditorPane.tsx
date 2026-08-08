@@ -94,6 +94,7 @@ export function EditorPane() {
   const activeTag = useCairn((s) => s.activeTag);
   const graph = useCairn((s) => s.graph);
   const noteTags = useCairn((s) => s.noteTags);
+  const suggestions = useCairn((s) => s.suggestions);
   const panes = useCairn((s) => s.panes);
   const activePane = useCairn((s) => s.activePane);
   const splitRatio = useCairn((s) => s.splitRatio);
@@ -162,6 +163,8 @@ export function EditorPane() {
                 activePath={activePath}
                 loading={loading.graph}
                 onOpenNote={(p) => navigate(noteUrl(p))}
+                suggestions={suggestions}
+                onLoadSuggestions={actions.loadSuggestions}
               />
             ) : (
               <div className="flex h-full">

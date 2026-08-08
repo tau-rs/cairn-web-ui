@@ -5,7 +5,11 @@ import {
   buildAdjacency,
   nodeRadius,
   labelAlpha,
+  buildSuggestedLinks,
+  buildSuggestedNodes,
 } from "./graphData";
+import type { GLink } from "./graphData";
+import type { SuggestedEdge } from "../../contract";
 
 describe("buildGraphData", () => {
   const nodes = ["a.md", "b.md", "c.md"];
@@ -137,5 +141,149 @@ describe("buildGraphDataFromNodes", () => {
     const nodes = [gnode("a.md", 1, [], 0)];
     const edges = [{ from: "a.md", to: "gone.md" }];
     expect(buildGraphDataFromNodes(nodes, edges).links).toEqual([]);
+  });
+});
+
+describe("buildSuggestedLinks", () => {
+  const sug = (
+    from: string,
+    to: string,
+    weight = 0.5,
+    why: string | null = null,
+  ): SuggestedEdge => ({
+    from,
+    to,
+    weight,
+    why,
+  });
+  const visible = new Set(["a.md", "b.md", "c.md"]);
+
+  it("maps a suggestion to a suggested GLink carrying weight and why", () => {
+    const out = buildSuggestedLinks(
+      [sug("a.md", "b.md", 0.8, "shared: x")],
+      visible,
+      [],
+    );
+    expect(out).toEqual([
+      {
+        source: "a.md",
+        target: "b.md",
+        kind: "suggested",
+        weight: 0.8,
+        why: "shared: x",
+      },
+    ]);
+  });
+
+  it("drops an edge whose endpoint is not a visible node (one missing)", () => {
+    const out = buildSuggestedLinks([sug("a.md", "z.md")], visible, []);
+    expect(out).toEqual([]);
+  });
+
+  it("drops an edge when both endpoints are missing", () => {
+    const out = buildSuggestedLinks([sug("y.md", "z.md")], visible, []);
+    expect(out).toEqual([]);
+  });
+
+  it("suppresses a suggestion that duplicates a real link (undirected)", () => {
+    const real: GLink[] = [{ source: "b.md", target: "a.md" }];
+    const out = buildSuggestedLinks([sug("a.md", "b.md")], visible, real);
+    expect(out).toEqual([]);
+  });
+
+  it("dedupes duplicate suggestions among themselves (undirected)", () => {
+    const out = buildSuggestedLinks(
+      [sug("a.md", "b.md"), sug("b.md", "a.md")],
+      visible,
+      [],
+    );
+    expect(out).toHaveLength(1);
+  });
+
+  it("passes null why through untouched", () => {
+    const out = buildSuggestedLinks([sug("a.md", "c.md")], visible, []);
+    expect(out[0].why).toBeNull();
+  });
+
+  it("returns [] for empty suggestions or empty visible set", () => {
+    expect(buildSuggestedLinks([], visible, [])).toEqual([]);
+    expect(buildSuggestedLinks([sug("a.md", "b.md")], new Set(), [])).toEqual(
+      [],
+    );
+  });
+
+  it("keeps an edge whose far endpoint is being injected (inject mode)", () => {
+    const injected = new Set(["z.md"]);
+    const out = buildSuggestedLinks(
+      [sug("a.md", "z.md", 0.7, "shared: y")],
+      visible,
+      [],
+      injected,
+    );
+    expect(out).toEqual([
+      {
+        source: "a.md",
+        target: "z.md",
+        kind: "suggested",
+        weight: 0.7,
+        why: "shared: y",
+      },
+    ]);
+  });
+
+  it("still drops an edge whose far endpoint is missing AND not injected", () => {
+    const injected = new Set(["q.md"]);
+    const out = buildSuggestedLinks(
+      [sug("a.md", "z.md")],
+      visible,
+      [],
+      injected,
+    );
+    expect(out).toEqual([]);
+  });
+});
+
+describe("buildSuggestedNodes", () => {
+  const sug = (
+    from: string,
+    to: string,
+    weight = 0.5,
+    why: string | null = null,
+  ): SuggestedEdge => ({ from, to, weight, why });
+  const visible = new Set(["a.md", "b.md", "c.md"]);
+
+  it("returns [] when both endpoints are already visible", () => {
+    expect(buildSuggestedNodes([sug("a.md", "b.md")], visible)).toEqual([]);
+  });
+
+  it("injects the missing far endpoint as a suggested-only GNode", () => {
+    const out = buildSuggestedNodes([sug("a.md", "z.md")], visible);
+    expect(out).toEqual([
+      { id: "z.md", label: "z", degree: 0, suggested: true },
+    ]);
+  });
+
+  it("injects the missing endpoint regardless of suggestion direction", () => {
+    const out = buildSuggestedNodes([sug("z.md", "a.md")], visible);
+    expect(out).toEqual([
+      { id: "z.md", label: "z", degree: 0, suggested: true },
+    ]);
+  });
+
+  it("does not inject when neither endpoint is visible (no anchor)", () => {
+    expect(buildSuggestedNodes([sug("y.md", "z.md")], visible)).toEqual([]);
+  });
+
+  it("dedupes two suggestions pointing at the same missing node", () => {
+    const out = buildSuggestedNodes(
+      [sug("a.md", "z.md"), sug("b.md", "z.md")],
+      visible,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("z.md");
+  });
+
+  it("returns [] for empty suggestions", () => {
+    expect(buildSuggestedNodes([], visible)).toEqual([]);
   });
 });
