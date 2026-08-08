@@ -210,6 +210,11 @@ describe("MockClient", () => {
         { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
       ],
       nodes_removed: [],
+      // a.md is in both revisions but gained a link (degree 0 → 1), so it is a
+      // changed node carrying its to-revision metadata.
+      nodes_changed: [
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
+      ],
       edges_added: [{ from: "a.md", to: "b.md" }],
       edges_removed: [],
     });
