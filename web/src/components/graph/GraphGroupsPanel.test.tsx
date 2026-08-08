@@ -4,6 +4,10 @@ import { GraphGroupsPanel } from "./GraphGroupsPanel";
 import type { ColorGroup } from "./colorGroups";
 import { DEFAULT_FILTER, type FilterSettings } from "./graphFilter";
 import { DEFAULT_RECENCY, type RecencySettings } from "./recency";
+import {
+  DEFAULT_SUGGESTIONS_SETTINGS,
+  type SuggestionsSettings,
+} from "./suggestionsOverlay";
 
 const groups: ColorGroup[] = [
   { kind: "path", query: "projects", color: "#6366f1" },
@@ -16,6 +20,8 @@ function renderPanel(over: {
   onFilterChange?: (f: FilterSettings) => void;
   recency?: RecencySettings;
   onRecencyChange?: (r: RecencySettings) => void;
+  suggestions?: SuggestionsSettings;
+  onSuggestionsChange?: (s: SuggestionsSettings) => void;
 }) {
   const props = {
     groups,
@@ -24,6 +30,8 @@ function renderPanel(over: {
     onFilterChange: vi.fn(),
     recency: DEFAULT_RECENCY,
     onRecencyChange: vi.fn(),
+    suggestions: DEFAULT_SUGGESTIONS_SETTINGS,
+    onSuggestionsChange: vi.fn(),
     ...over,
   };
   render(<GraphGroupsPanel {...props} />);
@@ -128,6 +136,8 @@ describe("GraphGroupsPanel", () => {
         onFilterChange={vi.fn()}
         recency={DEFAULT_RECENCY}
         onRecencyChange={onRecencyChange}
+        suggestions={DEFAULT_SUGGESTIONS_SETTINGS}
+        onSuggestionsChange={vi.fn()}
       />,
     );
     // window slider hidden while disabled
@@ -145,8 +155,36 @@ describe("GraphGroupsPanel", () => {
         onFilterChange={vi.fn()}
         recency={{ ...DEFAULT_RECENCY, enabled: true }}
         onRecencyChange={onRecencyChange}
+        suggestions={DEFAULT_SUGGESTIONS_SETTINGS}
+        onSuggestionsChange={vi.fn()}
       />,
     );
     expect(screen.getByLabelText(/recency window/i)).toBeInTheDocument();
+  });
+});
+
+const baseProps = {
+  groups: [],
+  onChange: () => {},
+  filter: { minDegree: 0, hiddenGroupQueries: [], hideUngrouped: false },
+  onFilterChange: () => {},
+  recency: { enabled: false, windowDays: 30 },
+  onRecencyChange: () => {},
+};
+
+describe("GraphGroupsPanel suggested-links toggle", () => {
+  it("reflects the enabled state and fires onSuggestionsChange when toggled", () => {
+    const onSuggestionsChange = vi.fn();
+    render(
+      <GraphGroupsPanel
+        {...baseProps}
+        suggestions={{ enabled: false }}
+        onSuggestionsChange={onSuggestionsChange}
+      />,
+    );
+    const box = screen.getByLabelText("Suggested links") as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(onSuggestionsChange).toHaveBeenCalledWith({ enabled: true });
   });
 });
