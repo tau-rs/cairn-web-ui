@@ -513,6 +513,16 @@ export class MockClient implements CairnClient {
         const b = this.buildGraph(load(q.to), q.scope);
         const aNodes = new Set(a.nodes.map((n) => n.path));
         const bNodes = new Set(b.nodes.map((n) => n.path));
+        const aByPath = new Map(a.nodes.map((n) => [n.path, n]));
+        // A node present in both revisions whose metadata (title, degree, tags,
+        // or mtime) differs — mirrors the engine's GraphDiff.nodes_changed.
+        // Field-wise compare (not JSON.stringify: mtime_secs is a bigint).
+        const changed = (p: GraphNode, n: GraphNode) =>
+          p.title !== n.title ||
+          p.degree !== n.degree ||
+          p.mtime_secs !== n.mtime_secs ||
+          p.tags.length !== n.tags.length ||
+          p.tags.some((t, i) => t !== n.tags[i]);
         const eKey = (e: GraphEdge) => `${e.from}->${e.to}`;
         const aEdges = new Set(a.edges.map(eKey));
         const bEdges = new Set(b.edges.map(eKey));
@@ -520,6 +530,10 @@ export class MockClient implements CairnClient {
           type: "graph_diff",
           nodes_added: b.nodes.filter((n) => !aNodes.has(n.path)),
           nodes_removed: a.nodes.filter((n) => !bNodes.has(n.path)),
+          nodes_changed: b.nodes.filter((n) => {
+            const prev = aByPath.get(n.path);
+            return prev !== undefined && changed(prev, n);
+          }),
           edges_added: b.edges.filter((e) => !aEdges.has(eKey(e))),
           edges_removed: a.edges.filter((e) => !bEdges.has(eKey(e))),
         };
