@@ -50,7 +50,7 @@ describe("useTemporalGraph", () => {
         timeline: TL,
         snapshot: {
           nodes: [
-            { path: "a.md", title: "a", degree: 0, tags: [], mtime_secs: 0n },
+            { path: "a.md", title: "a", degree: 0, tags: [], mtime_secs: 0 },
           ],
           edges: [],
         },
@@ -65,14 +65,14 @@ describe("useTemporalGraph", () => {
   it("dispatches loadDiff with the mapped revisions and surfaces the seeded diff on a compare selection", () => {
     const seededSnapshot = {
       nodes: [
-        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
-        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0 },
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0 },
       ],
       edges: [{ from: "a.md", to: "b.md" }],
     };
     const seededDiff = {
       nodes_added: [
-        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
+        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0 },
       ],
       nodes_removed: [],
       edges_added: [{ from: "a.md", to: "b.md" }],

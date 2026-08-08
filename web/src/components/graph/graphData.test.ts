@@ -73,7 +73,7 @@ const gn = (path: string): GraphNode => ({
   title: path,
   degree: 0,
   tags: [],
-  mtime_secs: 0n,
+  mtime_secs: 0,
 });
 const ge = (from: string, to: string): GraphEdge => ({ from, to });
 
@@ -117,13 +117,13 @@ describe("buildGraphDataFromNodes", () => {
     path: string,
     degree: number,
     tags: string[],
-    mtime: bigint,
+    mtime: number,
   ): GraphNode => ({ path, title: path, degree, tags, mtime_secs: mtime });
 
   it("carries server degree, tags and coerced mtimeSecs onto GNode", () => {
     const nodes = [
-      gnode("a.md", 5, ["topic"], 1700000000n),
-      gnode("b.md", 2, [], 1600000000n),
+      gnode("a.md", 5, ["topic"], 1700000000),
+      gnode("b.md", 2, [], 1600000000),
     ];
     const edges = [{ from: "a.md", to: "b.md" }];
     const { nodes: gn, links } = buildGraphDataFromNodes(nodes, edges);
@@ -138,7 +138,7 @@ describe("buildGraphDataFromNodes", () => {
   });
 
   it("drops links whose endpoint is not a present node", () => {
-    const nodes = [gnode("a.md", 1, [], 0n)];
+    const nodes = [gnode("a.md", 1, [], 0)];
     const edges = [{ from: "a.md", to: "gone.md" }];
     expect(buildGraphDataFromNodes(nodes, edges).links).toEqual([]);
   });
