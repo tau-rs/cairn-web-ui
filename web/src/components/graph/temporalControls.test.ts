@@ -68,7 +68,9 @@ describe("structural-only persistence", () => {
   it("round-trips true", () => {
     saveStructuralOnly(true);
     expect(loadStructuralOnly()).toBe(true);
-    expect(localStorage.getItem("cairn.graph.temporal.structuralOnly")).toBe("1");
+    expect(localStorage.getItem("cairn.graph.temporal.structuralOnly")).toBe(
+      "1",
+    );
   });
   it("round-trips false", () => {
     saveStructuralOnly(false);
