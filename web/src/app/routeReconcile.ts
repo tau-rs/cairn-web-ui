@@ -49,8 +49,7 @@ export interface StoreToUrlInputs {
 }
 
 export type StoreToUrlEffect =
-  | { kind: "navigate"; to: string }
-  | { kind: "none" };
+  { kind: "navigate"; to: string } | { kind: "none" };
 
 /** Lane B: how the URL should follow a store-origin activePath change. */
 export function storeToUrl(i: StoreToUrlInputs): StoreToUrlEffect {
