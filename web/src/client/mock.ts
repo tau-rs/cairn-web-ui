@@ -94,6 +94,7 @@ export class MockClient implements CairnClient {
   private notes: Map<string, string>;
   private history: Map<string, HistoryFixture>;
   private vaultSnapshots: Map<string, VaultSnapshot>;
+  private vaultRevisions: Revision[];
   private subscribers = new Set<(e: Event) => void>();
   private commitSeq = 0;
   private plugins: PluginSummary[] = [
@@ -187,10 +188,12 @@ export class MockClient implements CairnClient {
     seed: Record<string, string> = {},
     history: Record<string, HistoryFixture> = {},
     vaultSnapshots: Record<string, VaultSnapshot> = {},
+    vaultRevisions: Revision[] = [],
   ) {
     this.notes = new Map(Object.entries(seed));
     this.history = new Map(Object.entries(history));
     this.vaultSnapshots = new Map(Object.entries(vaultSnapshots));
+    this.vaultRevisions = vaultRevisions;
   }
 
   // The mock channel never fails to attach, so it ignores the contract's
@@ -483,6 +486,8 @@ export class MockClient implements CairnClient {
         const fix = this.history.get(q.path);
         return { type: "history", revisions: fix ? fix.revisions : [] };
       }
+      case "vault_history":
+        return { type: "history", revisions: this.vaultRevisions };
       case "note_at": {
         const fix = this.history.get(q.path);
         const contents = fix?.contents[q.revision];

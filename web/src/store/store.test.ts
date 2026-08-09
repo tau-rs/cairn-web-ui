@@ -9,7 +9,12 @@ import {
   loadOverrides,
   saveOverrides,
 } from "../components/shortcuts/keybindingPersistence";
-import type { Query, QueryResponse, SuggestedEdge } from "../contract";
+import type {
+  Query,
+  QueryResponse,
+  SuggestedEdge,
+  Revision,
+} from "../contract";
 import { saveTabs } from "../components/tabs/tabsPersistence";
 import type { Event } from "../contract";
 import * as timer from "../util/timer";
@@ -32,12 +37,14 @@ function setup(
   opts: {
     history?: Record<string, HistoryFixture>;
     vaultSnapshots?: Record<string, VaultSnapshot>;
+    vaultRevisions?: Revision[];
   } = {},
 ) {
   const client = new MockClient(
     { "a.md": "links to [[b]]", "b.md": "target note" },
     opts.history ?? {},
     opts.vaultSnapshots ?? {},
+    opts.vaultRevisions ?? [],
   );
   const store = createCairnStore(client);
   return { client, store };
@@ -1228,6 +1235,39 @@ describe("temporal graph", () => {
     await store.getState().loadTimeline("a.md");
     expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
       "r2",
+      "r1",
+    ]);
+  });
+
+  it("loadVaultTimeline populates the timeline from vault_history", async () => {
+    const vaultRevisions = [
+      { id: "r3", message: "c", timestamp_secs: 30n, author: "x" },
+      { id: "r2", message: "b", timestamp_secs: 20n, author: "x" },
+      { id: "r1", message: "a", timestamp_secs: 10n, author: "x" },
+    ];
+    const { client, store } = setup({ vaultRevisions });
+    const spy = vi.spyOn(client, "runQuery");
+    await store.getState().init();
+    await store.getState().loadVaultTimeline();
+    expect(spy).toHaveBeenCalledWith({ type: "vault_history", limit: null });
+    expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
+      "r3",
+      "r2",
+      "r1",
+    ]);
+  });
+
+  it("loadVaultTimeline ignores a stale response (token guard)", async () => {
+    const { store } = setup({
+      vaultRevisions: [
+        { id: "r1", message: "a", timestamp_secs: 10n, author: "x" },
+      ],
+    });
+    await store.getState().init();
+    const p1 = store.getState().loadVaultTimeline();
+    const p2 = store.getState().loadVaultTimeline();
+    await Promise.all([p1, p2]);
+    expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
       "r1",
     ]);
   });
