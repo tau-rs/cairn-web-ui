@@ -45,6 +45,15 @@ export function useTemporalGraph() {
 
   // Full timeline while the structural list is still loading, so the scrubber
   // never disappears; selection is reset to Live on toggle, so no misindex.
+  //
+  // Known edge: during that one-query window (structuralTimeline === null),
+  // displayTimeline is the full list. If the user scrubs to a snapshot in
+  // that window, the held selection index will repoint once the shorter
+  // structural list arrives — it resets to Live if the index is now out of
+  // range, else it jumps to whatever revision now sits at that index.
+  // Accepted: only reachable on first activation per session (the structural
+  // list is cached non-null afterward), and low-likelihood given the query
+  // is typically fast.
   const displayTimeline = structuralOnly
     ? (temporal.structuralTimeline ?? temporal.timeline)
     : temporal.timeline;

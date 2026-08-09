@@ -110,4 +110,12 @@ describe("useTemporalGraph", () => {
     act(() => result.current.setStructuralOnly(true));
     expect(result.current.mode).toBe("live");
   });
+
+  it("resets the selection to Live when the toggle flips back off", () => {
+    const { result } = renderHook(() => useTemporalGraph());
+    act(() => result.current.setStructuralOnly(true));
+    act(() => result.current.setSelection({ kind: "snapshot", at: 0 }));
+    act(() => result.current.setStructuralOnly(false));
+    expect(result.current.mode).toBe("live");
+  });
 });
