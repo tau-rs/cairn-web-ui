@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { timelineBuckets, describeSelection } from "./timelineDensity";
 import type { Revision } from "../../contract";
 
-const rev = (id: string, t: bigint, msg = id): Revision => ({
+const rev = (id: string, t: number, msg = id): Revision => ({
   id,
   message: msg,
   timestamp_secs: t,
@@ -15,7 +15,7 @@ describe("timelineBuckets", () => {
   });
 
   it("distributes revisions across buckets by timestamp; counts sum to N", () => {
-    const revs = [rev("a", 0n), rev("b", 50n), rev("c", 100n)];
+    const revs = [rev("a", 0), rev("b", 50), rev("c", 100)];
     const buckets = timelineBuckets(revs, 10);
     expect(buckets).toHaveLength(10);
     expect(buckets.reduce((s, b) => s + b.count, 0)).toBe(3);
@@ -24,7 +24,7 @@ describe("timelineBuckets", () => {
   });
 
   it("puts everything in bucket 0 when all timestamps are equal (no div-by-zero)", () => {
-    const revs = [rev("a", 5n), rev("b", 5n)];
+    const revs = [rev("a", 5), rev("b", 5)];
     const buckets = timelineBuckets(revs, 4);
     expect(buckets).toHaveLength(4);
     expect(buckets[0].count).toBe(2);
@@ -33,7 +33,7 @@ describe("timelineBuckets", () => {
   it("does not throw and stays a fixed 12-length histogram at scale (200k revisions)", () => {
     const N = 200_000;
     const big: Revision[] = Array.from({ length: N }, (_, i) =>
-      rev(String(i), BigInt(i)),
+      rev(String(i), i),
     );
     let buckets: { count: number }[] = [];
     expect(() => {
@@ -45,7 +45,7 @@ describe("timelineBuckets", () => {
 });
 
 describe("describeSelection", () => {
-  const tl = [rev("r2", 20n, "add b"), rev("r1", 10n, "init")]; // newest-first
+  const tl = [rev("r2", 20, "add b"), rev("r1", 10, "init")]; // newest-first
 
   it("describes live", () => {
     expect(describeSelection({ kind: "live" }, tl)).toEqual({

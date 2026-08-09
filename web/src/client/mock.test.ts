@@ -394,8 +394,8 @@ describe("MockClient", () => {
 describe("mock history ops", () => {
   function withHistory() {
     const revs: import("../contract").Revision[] = [
-      { id: "r2", message: "second", timestamp_secs: 2n, author: "tau" },
-      { id: "r1", message: "first", timestamp_secs: 1n, author: "tau" },
+      { id: "r2", message: "second", timestamp_secs: 2, author: "tau" },
+      { id: "r1", message: "first", timestamp_secs: 1, author: "tau" },
     ];
     return new MockClient(
       { "n.md": "current body" },
@@ -411,8 +411,8 @@ describe("mock history ops", () => {
     expect(res).toEqual({
       type: "history",
       revisions: [
-        { id: "r2", message: "second", timestamp_secs: 2n, author: "tau" },
-        { id: "r1", message: "first", timestamp_secs: 1n, author: "tau" },
+        { id: "r2", message: "second", timestamp_secs: 2, author: "tau" },
+        { id: "r1", message: "first", timestamp_secs: 1, author: "tau" },
       ],
     });
   });
@@ -442,9 +442,9 @@ describe("mock history ops", () => {
 
   it("vault_history returns seeded vault-wide revisions, capped by limit", async () => {
     const revs = [
-      { id: "c3", message: "third", timestamp_secs: 3n, author: "tau" },
-      { id: "c2", message: "second", timestamp_secs: 2n, author: "tau" },
-      { id: "c1", message: "first", timestamp_secs: 1n, author: "tau" },
+      { id: "c3", message: "third", timestamp_secs: 3, author: "tau" },
+      { id: "c2", message: "second", timestamp_secs: 2, author: "tau" },
+      { id: "c1", message: "first", timestamp_secs: 1, author: "tau" },
     ];
     const c = new MockClient(freshNotes(), {}, {}, revs);
     expect(await c.runQuery({ type: "vault_history", limit: null })).toEqual({

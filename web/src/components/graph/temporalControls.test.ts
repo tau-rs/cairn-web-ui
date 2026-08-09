@@ -7,9 +7,9 @@ import {
 import type { Revision } from "../../contract";
 
 const tl: Revision[] = [
-  { id: "c3", message: "third", timestamp_secs: 30n, author: "a" }, // newest
-  { id: "c2", message: "second", timestamp_secs: 20n, author: "a" },
-  { id: "c1", message: "first", timestamp_secs: 10n, author: "a" }, // oldest
+  { id: "c3", message: "third", timestamp_secs: 30, author: "a" }, // newest
+  { id: "c2", message: "second", timestamp_secs: 20, author: "a" },
+  { id: "c1", message: "first", timestamp_secs: 10, author: "a" }, // oldest
 ];
 
 describe("selectionToRequest", () => {

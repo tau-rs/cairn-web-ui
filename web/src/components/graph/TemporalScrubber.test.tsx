@@ -5,9 +5,9 @@ import { TemporalScrubber } from "./TemporalScrubber";
 import type { Revision } from "../../contract";
 
 const tl: Revision[] = [
-  { id: "c3", message: "third", timestamp_secs: 30n, author: "a" },
-  { id: "c2", message: "second", timestamp_secs: 20n, author: "a" },
-  { id: "c1", message: "first", timestamp_secs: 10n, author: "a" },
+  { id: "c3", message: "third", timestamp_secs: 30, author: "a" },
+  { id: "c2", message: "second", timestamp_secs: 20, author: "a" },
+  { id: "c1", message: "first", timestamp_secs: 10, author: "a" },
 ];
 
 function renderScrubber(overrides = {}) {
@@ -111,7 +111,7 @@ describe("TemporalScrubber", () => {
     const long: Revision[] = Array.from({ length: 120 }, (_, i) => ({
       id: `r${i}`,
       message: `m${i}`,
-      timestamp_secs: BigInt(i),
+      timestamp_secs: i,
       author: "a",
     }));
     renderScrubber({ timeline: long });
