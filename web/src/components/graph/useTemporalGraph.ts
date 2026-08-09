@@ -4,6 +4,8 @@ import {
   selectionToRequest,
   loadTemporalOpen,
   saveTemporalOpen,
+  loadStructuralOnly,
+  saveStructuralOnly,
   type TemporalSelection,
 } from "./temporalControls";
 import { debounce } from "../../util/timer";
@@ -26,14 +28,38 @@ export function useTemporalGraph() {
     saveTemporalOpen(o);
   };
 
+  const [structuralOnly, setStructuralOnlyState] = useState(loadStructuralOnly);
+
   // Load the vault-wide timeline once.
   useEffect(() => {
     void actions.loadVaultTimeline();
   }, [actions]);
 
+  // The structural list is fetched lazily the first time the toggle turns on,
+  // then reused (parallel to the always-loaded full timeline).
+  useEffect(() => {
+    if (structuralOnly && temporal.structuralTimeline === null) {
+      void actions.loadStructuralTimeline();
+    }
+  }, [structuralOnly, temporal.structuralTimeline, actions]);
+
+  // Full timeline while the structural list is still loading, so the scrubber
+  // never disappears; selection is reset to Live on toggle, so no misindex.
+  const displayTimeline = structuralOnly
+    ? (temporal.structuralTimeline ?? temporal.timeline)
+    : temporal.timeline;
+
+  // Flipping the filter swaps to a different-length/-ordered list, so a stored
+  // snapshot/compare index would point at the wrong revision. Reset to Live.
+  const setStructuralOnly = (next: boolean) => {
+    setStructuralOnlyState(next);
+    saveStructuralOnly(next);
+    setSelection({ kind: "live" });
+  };
+
   const request = useMemo(
-    () => selectionToRequest(selection, temporal.timeline),
-    [selection, temporal.timeline],
+    () => selectionToRequest(selection, displayTimeline),
+    [selection, displayTimeline],
   );
 
   const requestRef = useRef(request);
@@ -63,7 +89,7 @@ export function useTemporalGraph() {
   const diff = mode === "compare" ? temporal.diff : null;
 
   return {
-    timeline: temporal.timeline,
+    timeline: displayTimeline,
     selection,
     setSelection,
     open,
@@ -71,5 +97,7 @@ export function useTemporalGraph() {
     mode,
     source,
     diff,
+    structuralOnly,
+    setStructuralOnly,
   };
 }

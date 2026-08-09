@@ -18,6 +18,10 @@ describe("useTemporalGraph", () => {
     vi.spyOn(cairnStore.getState(), "clearTemporal").mockImplementation(
       () => {},
     );
+    vi.spyOn(
+      cairnStore.getState(),
+      "loadStructuralTimeline",
+    ).mockResolvedValue();
     cairnStore.setState({
       temporal: {
         timeline: TL,
@@ -77,5 +81,33 @@ describe("useTemporalGraph", () => {
     act(() => vi.advanceTimersByTime(150));
     expect(cairnStore.getState().loadDiff).toHaveBeenCalledWith("r1", "r2");
     expect(result.current.mode).toBe("compare");
+  });
+
+  it("loads and shows the structural list when the toggle turns on", () => {
+    const STRUCT: Revision[] = [
+      { id: "s1", message: "link", timestamp_secs: 25, author: "x" },
+    ];
+    vi.spyOn(
+      cairnStore.getState(),
+      "loadStructuralTimeline",
+    ).mockImplementation(async () => {
+      cairnStore.setState({
+        temporal: {
+          ...cairnStore.getState().temporal,
+          structuralTimeline: STRUCT,
+        },
+      });
+    });
+    const { result } = renderHook(() => useTemporalGraph());
+    act(() => result.current.setStructuralOnly(true));
+    expect(cairnStore.getState().loadStructuralTimeline).toHaveBeenCalled();
+    expect(result.current.timeline?.map((r) => r.id)).toEqual(["s1"]);
+  });
+
+  it("resets the selection to Live when the toggle flips", () => {
+    const { result } = renderHook(() => useTemporalGraph());
+    act(() => result.current.setSelection({ kind: "snapshot", at: 0 }));
+    act(() => result.current.setStructuralOnly(true));
+    expect(result.current.mode).toBe("live");
   });
 });
