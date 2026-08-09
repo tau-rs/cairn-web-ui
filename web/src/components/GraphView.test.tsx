@@ -131,4 +131,30 @@ describe("GraphView", () => {
     );
     expect(screen.getByRole("button", { name: /live/i })).toBeInTheDocument();
   });
+
+  it("shows the Structural toggle when the scrubber is open", async () => {
+    vi.spyOn(cairnStore.getState(), "loadVaultTimeline").mockResolvedValue();
+    vi.spyOn(
+      cairnStore.getState(),
+      "loadStructuralTimeline",
+    ).mockResolvedValue();
+    vi.spyOn(cairnStore.getState(), "clearTemporal").mockImplementation(
+      () => {},
+    );
+    cairnStore.setState({
+      temporal: {
+        timeline: TL,
+        structuralTimeline: null,
+        snapshot: null,
+        diff: null,
+      },
+    });
+    setup({ nodes: [gnode("a.md")], activePath: null });
+    await userEvent.click(
+      screen.getByRole("button", { name: /graph history/i }),
+    );
+    expect(
+      screen.getByRole("button", { name: /structural/i }),
+    ).toBeInTheDocument();
+  });
 });
