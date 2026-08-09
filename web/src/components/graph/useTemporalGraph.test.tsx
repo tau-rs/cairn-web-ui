@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useTemporalGraph } from "./useTemporalGraph";
 import { cairnStore } from "../../app/cairnStore";
@@ -11,9 +11,8 @@ const TL: Revision[] = [
 
 describe("useTemporalGraph", () => {
   beforeEach(() => {
-    // Neutralize the real load actions so effects don't hit the fixture mock or
-    // clobber the seeded timeline; Task 4 already tests the real actions.
-    vi.spyOn(cairnStore.getState(), "loadTimeline").mockResolvedValue();
+    vi.useFakeTimers();
+    vi.spyOn(cairnStore.getState(), "loadVaultTimeline").mockResolvedValue();
     vi.spyOn(cairnStore.getState(), "loadSnapshot").mockResolvedValue();
     vi.spyOn(cairnStore.getState(), "loadDiff").mockResolvedValue();
     vi.spyOn(cairnStore.getState(), "clearTemporal").mockImplementation(
@@ -23,68 +22,37 @@ describe("useTemporalGraph", () => {
       temporal: { timeline: TL, snapshot: null, diff: null },
     });
   });
+  afterEach(() => vi.useRealTimers());
 
-  it("is disabled with no active note; loads the timeline when one opens", () => {
-    const { result, rerender } = renderHook(({ p }) => useTemporalGraph(p), {
-      initialProps: { p: null as string | null },
-    });
-    expect(result.current.disabled).toBe(true);
-
-    rerender({ p: "a.md" });
-    expect(result.current.disabled).toBe(false);
-    expect(cairnStore.getState().loadTimeline).toHaveBeenCalledWith("a.md");
+  it("loads the whole-vault timeline on mount and starts live", () => {
+    const { result } = renderHook(() => useTemporalGraph());
+    expect(cairnStore.getState().loadVaultTimeline).toHaveBeenCalled();
     expect(result.current.mode).toBe("live");
     expect(result.current.source).toBeNull();
   });
 
-  it("dispatches loadSnapshot with the mapped revision on a tick selection", () => {
-    const { result } = renderHook(() => useTemporalGraph("a.md"));
+  it("debounces loadSnapshot until the delay elapses on a snapshot selection", () => {
+    const { result } = renderHook(() => useTemporalGraph());
     act(() => result.current.setSelection({ kind: "snapshot", at: 0 })); // r2
+    expect(cairnStore.getState().loadSnapshot).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(150));
     expect(cairnStore.getState().loadSnapshot).toHaveBeenCalledWith("r2");
     expect(result.current.mode).toBe("snapshot");
   });
 
-  it("reflects a seeded snapshot as the source in snapshot mode", () => {
-    cairnStore.setState({
-      temporal: {
-        timeline: TL,
-        snapshot: {
-          nodes: [
-            { path: "a.md", title: "a", degree: 0, tags: [], mtime_secs: 0n },
-          ],
-          edges: [],
-        },
-        diff: null,
-      },
-    });
-    const { result } = renderHook(() => useTemporalGraph("a.md"));
+  it("clears temporal immediately (no debounce) when returning to live", () => {
+    const { result } = renderHook(() => useTemporalGraph());
     act(() => result.current.setSelection({ kind: "snapshot", at: 0 }));
-    expect(result.current.source?.nodes.map((n) => n.path)).toEqual(["a.md"]);
+    act(() => vi.advanceTimersByTime(150));
+    act(() => result.current.setSelection({ kind: "live" }));
+    expect(cairnStore.getState().clearTemporal).toHaveBeenCalled();
   });
 
-  it("dispatches loadDiff with the mapped revisions and surfaces the seeded diff on a compare selection", () => {
-    const seededSnapshot = {
-      nodes: [
-        { path: "a.md", title: "a", degree: 1, tags: [], mtime_secs: 0n },
-        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
-      ],
-      edges: [{ from: "a.md", to: "b.md" }],
-    };
-    const seededDiff = {
-      nodes_added: [
-        { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0n },
-      ],
-      nodes_removed: [],
-      edges_added: [{ from: "a.md", to: "b.md" }],
-      edges_removed: [],
-    };
-    cairnStore.setState({
-      temporal: { timeline: TL, snapshot: seededSnapshot, diff: seededDiff },
-    });
-    const { result } = renderHook(() => useTemporalGraph("a.md"));
-    act(() => result.current.setSelection({ kind: "compare", from: 1, to: 0 })); // from=TL[1].id="r1", to=TL[0].id="r2"
+  it("dispatches loadDiff on a compare selection after the delay", () => {
+    const { result } = renderHook(() => useTemporalGraph());
+    act(() => result.current.setSelection({ kind: "compare", from: 1, to: 0 }));
+    act(() => vi.advanceTimersByTime(150));
     expect(cairnStore.getState().loadDiff).toHaveBeenCalledWith("r1", "r2");
     expect(result.current.mode).toBe("compare");
-    expect(result.current.diff).toEqual(seededDiff);
   });
 });

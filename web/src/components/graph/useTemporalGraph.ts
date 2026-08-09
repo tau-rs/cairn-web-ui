@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCairn, useActions } from "../../app/cairnStore";
 import {
   selectionToRequest,
@@ -6,12 +6,15 @@ import {
   saveTemporalOpen,
   type TemporalSelection,
 } from "./temporalControls";
+import { debounce } from "../../util/timer";
 
-/** Wires the temporal controls (view state) to the store's temporal data. Owns
- *  the scrubber selection; runs the timeline load on note change and the
- *  snapshot/diff load on selection change; returns the effective data source
- *  (null in live mode → caller uses the live graph). */
-export function useTemporalGraph(activePath: string | null) {
+const SNAPSHOT_DEBOUNCE_MS = 150;
+
+/** Wires the vault-history scrubber to the store's temporal data. Loads the
+ *  whole-vault timeline once on mount; snapshot/diff loads are debounced so
+ *  dragging the scrubber doesn't fire a full-vault graph_at per tick. Returns
+ *  the effective source (null in live mode → caller uses the live graph). */
+export function useTemporalGraph() {
   const temporal = useCairn((s) => s.temporal);
   const actions = useActions();
   const [selection, setSelection] = useState<TemporalSelection>({
@@ -23,24 +26,37 @@ export function useTemporalGraph(activePath: string | null) {
     saveTemporalOpen(o);
   };
 
-  // Effect A: note change → (re)load its timeline and reset to live.
+  // Load the vault-wide timeline once.
   useEffect(() => {
-    setSelection({ kind: "live" });
-    if (activePath) void actions.loadTimeline(activePath);
-  }, [activePath, actions]);
+    void actions.loadVaultTimeline();
+  }, [actions]);
 
   const request = useMemo(
     () => selectionToRequest(selection, temporal.timeline),
     [selection, temporal.timeline],
   );
 
-  // Effect B: request change → fetch the matching temporal data.
+  const requestRef = useRef(request);
+  requestRef.current = request;
+  const dispatch = useMemo(
+    () =>
+      debounce(() => {
+        const r = requestRef.current;
+        if (r.mode === "snapshot") void actions.loadSnapshot(r.revision);
+        else if (r.mode === "compare") void actions.loadDiff(r.from, r.to);
+      }, SNAPSHOT_DEBOUNCE_MS),
+    [actions],
+  );
+
   useEffect(() => {
-    if (request.mode === "live") actions.clearTemporal();
-    else if (request.mode === "snapshot")
-      void actions.loadSnapshot(request.revision);
-    else void actions.loadDiff(request.from, request.to);
-  }, [request, actions]);
+    if (request.mode === "live") {
+      dispatch.cancel();
+      actions.clearTemporal();
+    } else {
+      dispatch();
+    }
+    return () => dispatch.cancel();
+  }, [request, dispatch, actions]);
 
   const mode = request.mode;
   const source = mode === "live" ? null : temporal.snapshot;
@@ -52,7 +68,6 @@ export function useTemporalGraph(activePath: string | null) {
     setSelection,
     open,
     setOpen,
-    disabled: !activePath,
     mode,
     source,
     diff,
