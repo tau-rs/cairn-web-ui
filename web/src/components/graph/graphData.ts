@@ -183,27 +183,40 @@ const edgeKey = (e: { from: string; to: string }) => `${e.from}|${e.to}`;
 
 /** Force-graph data for COMPARE mode: the `to` graph (base) styled by the
  *  from→to diff. Added nodes/edges = "appeared"; removed = "disappeared" and
- *  re-injected (they are absent from the base `to` graph); everything else =
- *  "unchanged". Degree is undirected over base ∪ removed edges. Never emits
- *  "changed" — the engine reports no such delta. */
+ *  re-injected (they are absent from the base `to` graph); nodes present in both
+ *  revisions whose metadata shifted (degree/tags) = "changed"; everything else =
+ *  "unchanged". Degree is undirected over base ∪ removed edges. The contract
+ *  carries `nodes_changed` (nodes) but no `edges_changed`, so links only ever
+ *  take appeared/disappeared/unchanged. */
 export function buildCompareGraphData(
   base: { nodes: GraphNode[]; edges: GraphEdge[] },
   diff: {
     nodes_added: GraphNode[];
     nodes_removed: GraphNode[];
+    nodes_changed: GraphNode[];
     edges_added: GraphEdge[];
     edges_removed: GraphEdge[];
   },
 ): { nodes: GNode[]; links: GLink[] } {
   const appearedNodes = new Set(diff.nodes_added.map((n) => n.path));
+  const changedNodes = new Set(diff.nodes_changed.map((n) => n.path));
   const appearedEdges = new Set(diff.edges_added.map(edgeKey));
 
   // Node id list: base nodes + injected removed ghosts (dedup by path).
+  // A node can't be both appeared (only in `to`) and changed (in both), but
+  // appeared wins if the engine ever double-reports.
   const ids: string[] = [];
   const stateOf = new Map<string, GraphState>();
   for (const n of base.nodes) {
     ids.push(n.path);
-    stateOf.set(n.path, appearedNodes.has(n.path) ? "appeared" : "unchanged");
+    stateOf.set(
+      n.path,
+      appearedNodes.has(n.path)
+        ? "appeared"
+        : changedNodes.has(n.path)
+          ? "changed"
+          : "unchanged",
+    );
   }
   for (const n of diff.nodes_removed) {
     if (!stateOf.has(n.path)) {
