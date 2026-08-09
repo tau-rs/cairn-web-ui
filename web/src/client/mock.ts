@@ -188,16 +188,23 @@ export class MockClient implements CairnClient {
   // testable offline.
   private vaultHistory: Revision[];
 
+  // Structural-only vault revisions (graph node/edge add/remove), returned by
+  // the `structural_revisions` query. The engine pre-filters these; the mock
+  // just returns the seeded fixture as-is.
+  private structuralRevisions: Revision[];
+
   constructor(
     seed: Record<string, string> = {},
     history: Record<string, HistoryFixture> = {},
     vaultSnapshots: Record<string, VaultSnapshot> = {},
     vaultHistory: Revision[] = [],
+    structuralRevisions: Revision[] = [],
   ) {
     this.notes = new Map(Object.entries(seed));
     this.history = new Map(Object.entries(history));
     this.vaultSnapshots = new Map(Object.entries(vaultSnapshots));
     this.vaultHistory = vaultHistory;
+    this.structuralRevisions = structuralRevisions;
   }
 
   // The mock channel never fails to attach, so it ignores the contract's
@@ -499,6 +506,13 @@ export class MockClient implements CairnClient {
           q.limit === null
             ? this.vaultHistory
             : this.vaultHistory.slice(0, q.limit);
+        return { type: "history", revisions: revs };
+      }
+      case "structural_revisions": {
+        const revs =
+          q.limit === null
+            ? this.structuralRevisions
+            : this.structuralRevisions.slice(0, q.limit);
         return { type: "history", revisions: revs };
       }
       case "note_at": {

@@ -38,6 +38,7 @@ function setup(
     history?: Record<string, HistoryFixture>;
     vaultSnapshots?: Record<string, VaultSnapshot>;
     vaultRevisions?: Revision[];
+    structuralRevisions?: Revision[];
   } = {},
 ) {
   const client = new MockClient(
@@ -45,6 +46,7 @@ function setup(
     opts.history ?? {},
     opts.vaultSnapshots ?? {},
     opts.vaultRevisions ?? [],
+    opts.structuralRevisions ?? [],
   );
   const store = createCairnStore(client);
   return { client, store };
@@ -1290,6 +1292,15 @@ describe("temporal graph", () => {
     expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
       "fresh",
     ]);
+  });
+
+  it("loadStructuralTimeline loads only the structural revisions", async () => {
+    const structural: Revision[] = [
+      { id: "s1", message: "add link", timestamp_secs: 20, author: "x" },
+    ];
+    const { store } = setup({ structuralRevisions: structural });
+    await store.getState().loadStructuralTimeline();
+    expect(store.getState().temporal.structuralTimeline).toEqual(structural);
   });
 
   it("loadSnapshot fills snapshot from graph_at and clears diff", async () => {

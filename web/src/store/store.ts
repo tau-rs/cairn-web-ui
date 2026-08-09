@@ -135,6 +135,7 @@ export type GraphDiff = {
 
 const EMPTY_TEMPORAL = {
   timeline: null,
+  structuralTimeline: null,
   snapshot: null,
   diff: null,
 } as const;
@@ -164,6 +165,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   suggestions: SuggestedEdge[] | null;
   temporal: {
     timeline: Revision[] | null;
+    structuralTimeline: Revision[] | null;
     snapshot: {
       nodes: GraphNode[];
       edges: { from: string; to: string }[];
@@ -239,6 +241,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   loadSuggestions(scope: SuggestionScope): Promise<void>;
   loadTimeline(path: string): Promise<void>;
   loadVaultTimeline(): Promise<void>;
+  loadStructuralTimeline(): Promise<void>;
   loadSnapshot(revision: string): Promise<void>;
   loadDiff(from: string, to: string): Promise<void>;
   clearTemporal(): void;
@@ -278,6 +281,7 @@ export function createCairnStore(
     results: 0,
     graph: 0,
     timeline: 0,
+    structuralTimeline: 0,
     temporalData: 0,
     suggestions: 0,
   };
@@ -1143,6 +1147,25 @@ export function createCairnStore(
           else unexpected("Load vault timeline", res);
         } catch (err) {
           if (token === seq.timeline) pushError("Load vault timeline", err);
+        }
+      },
+
+      async loadStructuralTimeline() {
+        const token = ++seq.structuralTimeline;
+        try {
+          const res = await client.runQuery({
+            type: "structural_revisions",
+            limit: null,
+          });
+          if (token !== seq.structuralTimeline) return;
+          if (res.type === "history")
+            set((s) => ({
+              temporal: { ...s.temporal, structuralTimeline: res.revisions },
+            }));
+          else unexpected("Load structural timeline", res);
+        } catch (err) {
+          if (token === seq.structuralTimeline)
+            pushError("Load structural timeline", err);
         }
       },
 

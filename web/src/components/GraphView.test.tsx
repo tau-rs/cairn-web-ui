@@ -99,7 +99,9 @@ describe("GraphView", () => {
       ],
       edges_removed: [],
     };
-    cairnStore.setState({ temporal: { timeline: TL, snapshot, diff } });
+    cairnStore.setState({
+      temporal: { timeline: TL, structuralTimeline: null, snapshot, diff },
+    });
     setup({ nodes: [gnode("a.md")], activePath: null });
     await userEvent.click(
       screen.getByRole("button", { name: /graph history/i }),
@@ -116,7 +118,12 @@ describe("GraphView", () => {
       () => {},
     );
     cairnStore.setState({
-      temporal: { timeline: TL, snapshot: null, diff: null },
+      temporal: {
+        timeline: TL,
+        structuralTimeline: null,
+        snapshot: null,
+        diff: null,
+      },
     });
     setup({ nodes: [gnode("a.md")], activePath: null });
     await userEvent.click(

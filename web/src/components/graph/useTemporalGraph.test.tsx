@@ -19,7 +19,12 @@ describe("useTemporalGraph", () => {
       () => {},
     );
     cairnStore.setState({
-      temporal: { timeline: TL, snapshot: null, diff: null },
+      temporal: {
+        timeline: TL,
+        structuralTimeline: null,
+        snapshot: null,
+        diff: null,
+      },
     });
   });
   afterEach(() => vi.useRealTimers());
