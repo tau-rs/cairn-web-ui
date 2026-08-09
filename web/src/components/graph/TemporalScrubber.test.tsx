@@ -17,6 +17,8 @@ function renderScrubber(overrides = {}) {
     onSelect: vi.fn(),
     counts: { notes: 3, links: 2 },
     delta: null,
+    structuralOnly: false,
+    onToggleStructural: vi.fn(),
     ...overrides,
   };
   render(<TemporalScrubber {...props} />);
@@ -117,5 +119,20 @@ describe("TemporalScrubber", () => {
     renderScrubber({ timeline: long });
     // histogram is fixed-bucket; no 120 buttons
     expect(screen.getAllByRole("button").length).toBeLessThan(20);
+  });
+});
+
+describe("structural-only toggle", () => {
+  it("reflects structuralOnly via aria-pressed", () => {
+    renderScrubber({ structuralOnly: true });
+    expect(screen.getByRole("button", { name: /structural/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+  it("clicking requests the opposite state", async () => {
+    const { onToggleStructural } = renderScrubber({ structuralOnly: false });
+    await userEvent.click(screen.getByRole("button", { name: /structural/i }));
+    expect(onToggleStructural).toHaveBeenCalledWith(true);
   });
 });

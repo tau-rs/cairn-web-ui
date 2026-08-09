@@ -12,8 +12,18 @@ export function TemporalScrubber(props: {
   onSelect: (s: TemporalSelection) => void;
   counts: { notes: number; links: number } | null;
   delta: { added: number; removed: number } | null;
+  structuralOnly: boolean;
+  onToggleStructural: (next: boolean) => void;
 }) {
-  const { timeline, selection, onSelect, counts, delta } = props;
+  const {
+    timeline,
+    selection,
+    onSelect,
+    counts,
+    delta,
+    structuralOnly,
+    onToggleStructural,
+  } = props;
   const n = timeline.length;
   const [mode, setMode] = useState<"browse" | "compare">(
     selection.kind === "compare" ? "compare" : "browse",
@@ -130,6 +140,15 @@ export function TemporalScrubber(props: {
           onClick={setLive}
         >
           Live
+        </button>
+        <button
+          type="button"
+          aria-pressed={structuralOnly}
+          className={segBtn(structuralOnly)}
+          onClick={() => onToggleStructural(!structuralOnly)}
+          title="Show only commits that changed the graph"
+        >
+          Structural
         </button>
 
         {/* histogram backdrop + range control(s) */}
