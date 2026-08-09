@@ -29,6 +29,19 @@ describe("timelineBuckets", () => {
     expect(buckets).toHaveLength(4);
     expect(buckets[0].count).toBe(2);
   });
+
+  it("does not throw and stays a fixed 12-length histogram at scale (200k revisions)", () => {
+    const N = 200_000;
+    const big: Revision[] = Array.from({ length: N }, (_, i) =>
+      rev(String(i), BigInt(i)),
+    );
+    let buckets: { count: number }[] = [];
+    expect(() => {
+      buckets = timelineBuckets(big);
+    }).not.toThrow();
+    expect(buckets).toHaveLength(12);
+    expect(buckets.reduce((s, b) => s + b.count, 0)).toBe(N);
+  });
 });
 
 describe("describeSelection", () => {

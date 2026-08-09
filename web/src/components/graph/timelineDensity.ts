@@ -10,8 +10,13 @@ export function timelineBuckets(
 ): { count: number }[] {
   if (revisions.length === 0) return [];
   const times = revisions.map((r) => Number(r.timestamp_secs));
-  const min = Math.min(...times);
-  const max = Math.max(...times);
+  // times[0] is safe: empty input already returned above.
+  let min = times[0];
+  let max = times[0];
+  for (const t of times) {
+    if (t < min) min = t;
+    if (t > max) max = t;
+  }
   const span = max - min;
   const buckets = Array.from({ length: bucketCount }, () => ({ count: 0 }));
   for (const t of times) {

@@ -1108,6 +1108,10 @@ export function createCairnStore(
         }
       },
 
+      // Note-scoped timeline loader. Currently unused in production: the graph
+      // scrubber switched to loadVaultTimeline (vault-wide) in the vault-history
+      // work. Retained for the deferred note-scoped-filter follow-up (see
+      // docs/superpowers/specs/2026-08-09-vault-history-timeline-design.md).
       async loadTimeline(path) {
         const token = ++seq.timeline;
         try {
