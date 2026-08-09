@@ -66,6 +66,17 @@ describe("TemporalScrubber", () => {
     expect(screen.getByText(/first/)).toBeInTheDocument();
   });
 
+  it("Compare mode syncs the range inputs from an incoming compare selection", () => {
+    // from=2 (tl idx, oldest c1) / to=0 (tl idx, newest c3) → display 0 / 2
+    renderScrubber({ selection: { kind: "compare", from: 2, to: 0 } });
+    expect(
+      (screen.getByLabelText(/compare from/i) as HTMLInputElement).value,
+    ).toBe("0");
+    expect(
+      (screen.getByLabelText(/compare to/i) as HTMLInputElement).value,
+    ).toBe("2");
+  });
+
   it("renders a long timeline without a per-revision DOM blowup", () => {
     const long: Revision[] = Array.from({ length: 120 }, (_, i) => ({
       id: `r${i}`,

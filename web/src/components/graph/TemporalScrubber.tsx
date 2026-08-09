@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Revision } from "../../contract";
 import type { TemporalSelection } from "./temporalControls";
 import { timelineBuckets, describeSelection } from "./timelineDensity";
@@ -18,11 +18,27 @@ export function TemporalScrubber(props: {
   const [mode, setMode] = useState<"browse" | "compare">(
     selection.kind === "compare" ? "compare" : "browse",
   );
-  // compare endpoints as DISPLAY indices (0 = oldest); default full span.
-  const [cmp, setCmp] = useState<{ from: number; to: number }>({
-    from: 0,
-    to: Math.max(0, n - 1),
-  });
+  // compare endpoints as DISPLAY indices (0 = oldest); default full span,
+  // or the incoming selection's range when it's already a compare.
+  const cmpFromSelection = (): { from: number; to: number } =>
+    selection.kind === "compare"
+      ? { from: n - 1 - selection.from, to: n - 1 - selection.to }
+      : { from: 0, to: Math.max(0, n - 1) };
+  const [cmp, setCmp] = useState<{ from: number; to: number }>(
+    cmpFromSelection(),
+  );
+
+  // Resync the local compare-range sliders whenever an external `compare`
+  // selection changes, so they don't desync from the banner (which reads
+  // `selection` directly). Browse/live selections don't drive `cmp`.
+  useEffect(() => {
+    if (selection.kind === "compare") {
+      setCmp({
+        from: n - 1 - selection.from,
+        to: n - 1 - selection.to,
+      });
+    }
+  }, [selection, n]);
 
   const buckets = useMemo(() => timelineBuckets(timeline), [timeline]);
   const maxBar = Math.max(1, ...buckets.map((b) => b.count));
@@ -80,6 +96,7 @@ export function TemporalScrubber(props: {
         <div className="flex overflow-hidden rounded border border-border">
           <button
             type="button"
+            aria-pressed={mode === "browse"}
             className={segBtn(mode === "browse")}
             onClick={() => setMode("browse")}
           >
@@ -87,6 +104,7 @@ export function TemporalScrubber(props: {
           </button>
           <button
             type="button"
+            aria-pressed={mode === "compare"}
             className={segBtn(mode === "compare")}
             onClick={enterCompare}
           >
