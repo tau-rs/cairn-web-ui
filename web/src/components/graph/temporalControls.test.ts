@@ -3,6 +3,8 @@ import {
   selectionToRequest,
   loadTemporalOpen,
   saveTemporalOpen,
+  loadStructuralOnly,
+  saveStructuralOnly,
 } from "./temporalControls";
 import type { Revision } from "../../contract";
 
@@ -55,5 +57,21 @@ describe("open persistence", () => {
     expect(loadTemporalOpen()).toBe(false);
     saveTemporalOpen(true);
     expect(loadTemporalOpen()).toBe(true);
+  });
+});
+
+describe("structural-only persistence", () => {
+  beforeEach(() => localStorage.clear());
+  it("defaults to false when unset", () => {
+    expect(loadStructuralOnly()).toBe(false);
+  });
+  it("round-trips true", () => {
+    saveStructuralOnly(true);
+    expect(loadStructuralOnly()).toBe(true);
+    expect(localStorage.getItem("cairn.graph.temporal.structuralOnly")).toBe("1");
+  });
+  it("round-trips false", () => {
+    saveStructuralOnly(false);
+    expect(loadStructuralOnly()).toBe(false);
   });
 });

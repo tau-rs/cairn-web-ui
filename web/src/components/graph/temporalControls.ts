@@ -50,3 +50,21 @@ export function saveTemporalOpen(open: boolean): void {
     // ignore (private mode / quota)
   }
 }
+
+const STRUCTURAL_KEY = "cairn.graph.temporal.structuralOnly";
+
+export function loadStructuralOnly(): boolean {
+  try {
+    return localStorage.getItem(STRUCTURAL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function saveStructuralOnly(on: boolean): void {
+  try {
+    localStorage.setItem(STRUCTURAL_KEY, on ? "1" : "0");
+  } catch {
+    // ignore (private mode / quota)
+  }
+}
