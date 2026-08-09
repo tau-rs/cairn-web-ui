@@ -7,7 +7,7 @@ const n = (path: string, degree: number): GraphNode => ({
   title: path,
   degree,
   tags: [],
-  mtime_secs: 0n,
+  mtime_secs: 0,
 });
 
 describe("capByDegree", () => {

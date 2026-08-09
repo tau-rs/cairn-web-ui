@@ -12,6 +12,11 @@ export interface GNode {
   // buildGraphData and the temporal buildCompareGraphData leave these unset.
   tags?: string[];
   mtimeSecs?: number;
+  // Local-inject seam: set only on "suggested-only" ghost nodes injected by
+  // buildSuggestedNodes (a suggestion's far endpoint that isn't a real node in
+  // the current local view). Real builders leave it unset. Drives the dashed
+  // ghost paint and keeps these nodes out of adjacency/degree.
+  suggested?: true;
 }
 export interface GLink {
   source: string;
@@ -103,12 +108,18 @@ export function buildSuggestedLinks(
   suggestions: SuggestedEdge[],
   visibleNodeIds: Set<string>,
   realLinks: GLink[],
+  injectedIds?: Set<string>,
 ): GLink[] {
+  // An endpoint "renders" if it's a visible real node or (local-inject mode
+  // only) a ghost node being injected. Omitting injectedIds keeps the global /
+  // vault drop path byte-for-byte identical.
+  const present = (id: string) =>
+    visibleNodeIds.has(id) || (injectedIds?.has(id) ?? false);
   const seen = new Set<string>();
   for (const l of realLinks) seen.add(pairKey(l.source, l.target));
   const out: GLink[] = [];
   for (const s of suggestions) {
-    if (!visibleNodeIds.has(s.from) || !visibleNodeIds.has(s.to)) continue;
+    if (!present(s.from) || !present(s.to)) continue;
     const k = pairKey(s.from, s.to);
     if (seen.has(k)) continue;
     seen.add(k);
@@ -119,6 +130,36 @@ export function buildSuggestedLinks(
       weight: s.weight,
       why: s.why,
     });
+  }
+  return out;
+}
+
+/** LOCAL-mode inject seam (companion to buildSuggestedLinks). Returns the far
+ *  suggested endpoints that are NOT already visible, as "suggested-only" ghost
+ *  GNode[] flagged `suggested`. A node is injected only when it is the missing
+ *  endpoint of a suggestion whose OTHER endpoint IS visible (an anchor) — a
+ *  suggestion between two invisible nodes injects nothing. Deduped, so two
+ *  suggestions to the same missing node yield one node. Global / vault never
+ *  calls this (it keeps dropping); the ghosts carry degree 0 and are kept out
+ *  of adjacency so they never pollute hover-highlight, degree, or the cap. */
+export function buildSuggestedNodes(
+  suggestions: SuggestedEdge[],
+  visibleNodeIds: Set<string>,
+): GNode[] {
+  const seen = new Set<string>();
+  const out: GNode[] = [];
+  const inject = (id: string) => {
+    if (visibleNodeIds.has(id) || seen.has(id)) return;
+    seen.add(id);
+    out.push({ id, label: stem(id), degree: 0, suggested: true });
+  };
+  for (const s of suggestions) {
+    const fromVis = visibleNodeIds.has(s.from);
+    const toVis = visibleNodeIds.has(s.to);
+    // Skip when both visible (nothing to inject) or both missing (no anchor).
+    if (fromVis === toVis) continue;
+    if (!fromVis) inject(s.from);
+    if (!toVis) inject(s.to);
   }
   return out;
 }
@@ -142,27 +183,40 @@ const edgeKey = (e: { from: string; to: string }) => `${e.from}|${e.to}`;
 
 /** Force-graph data for COMPARE mode: the `to` graph (base) styled by the
  *  from→to diff. Added nodes/edges = "appeared"; removed = "disappeared" and
- *  re-injected (they are absent from the base `to` graph); everything else =
- *  "unchanged". Degree is undirected over base ∪ removed edges. Never emits
- *  "changed" — the engine reports no such delta. */
+ *  re-injected (they are absent from the base `to` graph); nodes present in both
+ *  revisions whose metadata shifted (degree/tags) = "changed"; everything else =
+ *  "unchanged". Degree is undirected over base ∪ removed edges. The contract
+ *  carries `nodes_changed` (nodes) but no `edges_changed`, so links only ever
+ *  take appeared/disappeared/unchanged. */
 export function buildCompareGraphData(
   base: { nodes: GraphNode[]; edges: GraphEdge[] },
   diff: {
     nodes_added: GraphNode[];
     nodes_removed: GraphNode[];
+    nodes_changed: GraphNode[];
     edges_added: GraphEdge[];
     edges_removed: GraphEdge[];
   },
 ): { nodes: GNode[]; links: GLink[] } {
   const appearedNodes = new Set(diff.nodes_added.map((n) => n.path));
+  const changedNodes = new Set(diff.nodes_changed.map((n) => n.path));
   const appearedEdges = new Set(diff.edges_added.map(edgeKey));
 
   // Node id list: base nodes + injected removed ghosts (dedup by path).
+  // A node can't be both appeared (only in `to`) and changed (in both), but
+  // appeared wins if the engine ever double-reports.
   const ids: string[] = [];
   const stateOf = new Map<string, GraphState>();
   for (const n of base.nodes) {
     ids.push(n.path);
-    stateOf.set(n.path, appearedNodes.has(n.path) ? "appeared" : "unchanged");
+    stateOf.set(
+      n.path,
+      appearedNodes.has(n.path)
+        ? "appeared"
+        : changedNodes.has(n.path)
+          ? "changed"
+          : "unchanged",
+    );
   }
   for (const n of diff.nodes_removed) {
     if (!stateOf.has(n.path)) {

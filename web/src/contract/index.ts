@@ -27,4 +27,10 @@ export {
 export type { Revision } from "./Revision";
 export type { AskRequest } from "./AskRequest";
 export type { AnswerEvent } from "./AnswerEvent";
+export type { CollabClientMsg } from "./CollabClientMsg";
+export type { CollabServerMsg } from "./CollabServerMsg";
+export type { WireAuthor } from "./WireAuthor";
+export type { WireBlockId } from "./WireBlockId";
+export type { WireBlockKind } from "./WireBlockKind";
+export type { WireBlockOp } from "./WireBlockOp";
 export { CONTRACT_SOURCE_COMMIT } from "./source";

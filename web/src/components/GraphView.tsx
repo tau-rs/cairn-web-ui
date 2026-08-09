@@ -6,6 +6,7 @@ import {
   buildGraphDataFromNodes,
   buildAdjacency,
   buildSuggestedLinks,
+  buildSuggestedNodes,
   nodeRadius,
   labelAlpha,
 } from "./graph/graphData";
@@ -225,20 +226,40 @@ export function GraphView(props: {
     () => buildGraphDataFromNodes(liveFiltered.nodes, liveFiltered.edges),
     [liveFiltered],
   );
+  // LOCAL mode only (Q2-C): inject the missing far endpoints of note-scoped
+  // suggestions as "suggested-only" ghost nodes, so "what should I link this
+  // note to?" is answerable even when the partner isn't in the local
+  // neighborhood. Global / vault stays empty here → buildSuggestedLinks below
+  // gets no injectedIds → unchanged (still drops non-visible endpoints).
+  const injectedNodes = useMemo(() => {
+    if (!useLocal || !suggestOverlay.enabled || !props.suggestions) return [];
+    const visible = new Set(liveData.nodes.map((n) => n.id));
+    return buildSuggestedNodes(props.suggestions, visible);
+  }, [useLocal, suggestOverlay.enabled, props.suggestions, liveData]);
   const suggestedLinks = useMemo(() => {
     if (!suggestOverlay.enabled || !props.suggestions) return [];
     const visible = new Set(liveData.nodes.map((n) => n.id));
-    return buildSuggestedLinks(props.suggestions, visible, liveData.links);
-  }, [suggestOverlay.enabled, props.suggestions, liveData]);
+    const injectedIds = injectedNodes.length
+      ? new Set(injectedNodes.map((n) => n.id))
+      : undefined;
+    return buildSuggestedLinks(
+      props.suggestions,
+      visible,
+      liveData.links,
+      injectedIds,
+    );
+  }, [suggestOverlay.enabled, props.suggestions, liveData, injectedNodes]);
   const liveDataWithSuggestions = useMemo(
     () =>
       suggestedLinks.length
         ? {
-            nodes: liveData.nodes,
+            nodes: injectedNodes.length
+              ? [...liveData.nodes, ...injectedNodes]
+              : liveData.nodes,
             links: [...liveData.links, ...suggestedLinks],
           }
         : liveData,
-    [liveData, suggestedLinks],
+    [liveData, suggestedLinks, injectedNodes],
   );
   const liveAdj = useMemo(
     () =>
@@ -339,6 +360,10 @@ export function GraphView(props: {
       const active = node.id === props.activePath;
       const inHL = hl ? hl.has(node.id) : true;
       const r = nodeRadius(node.degree);
+      // Suggested-only ghost (Q2-C local inject): not a real graph node — render
+      // muted with a dashed ring and no recency halo, so it reads as "candidate
+      // to link", not part of the note's real neighborhood.
+      const suggested = (node as { suggested?: boolean }).suggested === true;
       const nodeState = (node as { state?: string }).state;
       const stateColor =
         nodeState === "appeared"
@@ -346,15 +371,16 @@ export function GraphView(props: {
           : nodeState === "disappeared"
             ? "#6b7280"
             : null;
-      const base =
-        stateColor ??
-        (active
-          ? "#6366f1"
-          : (matchGroupColor(
-              node.id,
-              props.tagsByNote[node.id] ?? [],
-              groups,
-            ) ?? "#cdd0e0"));
+      const base = suggested
+        ? "#8b8fa3"
+        : (stateColor ??
+          (active
+            ? "#6366f1"
+            : (matchGroupColor(
+                node.id,
+                props.tagsByNote[node.id] ?? [],
+                groups,
+              ) ?? "#cdd0e0")));
 
       ctx.beginPath();
       ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
@@ -363,10 +389,11 @@ export function GraphView(props: {
       // fixed low alpha regardless of hover, so the appeared/disappeared deltas
       // pop against a dimmed base. `state` is only set in compare mode, so live
       // mode is unaffected.
-      ctx.globalAlpha =
-        nodeState === "disappeared"
+      ctx.globalAlpha = suggested
+        ? 0.6
+        : nodeState === "disappeared"
           ? 0.4
-          : nodeState === "unchanged"
+          : nodeState === "unchanged" || nodeState === "changed"
             ? 0.5
             : hl && !inHL && !active
               ? 0.25
@@ -374,6 +401,32 @@ export function GraphView(props: {
       ctx.fillStyle = base;
       ctx.fill();
       ctx.globalAlpha = 1;
+
+      // Compare-mode "changed": a node present in both revisions whose metadata
+      // (degree/tags) shifted. Keep the base fill and add an amber ring so it
+      // reads as "same node, altered" — distinct from green-appeared and
+      // gray-disappeared. Amber is free here: the recency ring that also uses it
+      // only draws on the live path (mtimeSecs is unset on temporal builds).
+      if (nodeState === "changed") {
+        ctx.beginPath();
+        ctx.arc(node.x ?? 0, node.y ?? 0, r + 2, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#f59e0b";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Dashed ghost ring marks a suggested-only node.
+      if (suggested) {
+        ctx.beginPath();
+        ctx.arc(node.x ?? 0, node.y ?? 0, r + 2, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#8b8fa3";
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.8;
+        ctx.setLineDash([2, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
 
       // Recency ring: an outer halo whose brightness/width fades with the note's
       // age, drawn only in the live path (mtimeSecs is unset on temporal builds).

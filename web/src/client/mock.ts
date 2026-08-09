@@ -94,7 +94,6 @@ export class MockClient implements CairnClient {
   private notes: Map<string, string>;
   private history: Map<string, HistoryFixture>;
   private vaultSnapshots: Map<string, VaultSnapshot>;
-  private vaultRevisions: Revision[];
   private subscribers = new Set<(e: Event) => void>();
   private commitSeq = 0;
   private plugins: PluginSummary[] = [
@@ -184,16 +183,21 @@ export class MockClient implements CairnClient {
     },
   ];
 
+  // Vault-wide commit history (newest first), returned by the `vault_history`
+  // query. Seeded like the per-note fixtures so the temporal surface is
+  // testable offline.
+  private vaultHistory: Revision[];
+
   constructor(
     seed: Record<string, string> = {},
     history: Record<string, HistoryFixture> = {},
     vaultSnapshots: Record<string, VaultSnapshot> = {},
-    vaultRevisions: Revision[] = [],
+    vaultHistory: Revision[] = [],
   ) {
     this.notes = new Map(Object.entries(seed));
     this.history = new Map(Object.entries(history));
     this.vaultSnapshots = new Map(Object.entries(vaultSnapshots));
-    this.vaultRevisions = vaultRevisions;
+    this.vaultHistory = vaultHistory;
   }
 
   // The mock channel never fails to attach, so it ignores the contract's
@@ -320,7 +324,7 @@ export class MockClient implements CairnClient {
         path,
         title: displayTitle(path, raw),
         tags: extractTags(raw),
-        mtime_secs: 0n,
+        mtime_secs: 0,
       }))
       .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     const seen = new Set<string>();
@@ -398,7 +402,10 @@ export class MockClient implements CairnClient {
 
   async runQuery(q: Query): Promise<QueryResponse> {
     switch (q.type) {
-      case "get_note": {
+      case "get_note":
+      case "render_note": {
+        // The mock does not render markdown, so `render_note` returns the raw
+        // contents just like `get_note` — both answer with a `note` response.
         const contents = this.notes.get(q.path);
         if (contents === undefined) {
           const err: ContractError = { type: "not_found", what: q.path };
@@ -486,8 +493,14 @@ export class MockClient implements CairnClient {
         const fix = this.history.get(q.path);
         return { type: "history", revisions: fix ? fix.revisions : [] };
       }
-      case "vault_history":
-        return { type: "history", revisions: this.vaultRevisions };
+      case "vault_history": {
+        // Newest-first, capped at `limit` (null = all).
+        const revs =
+          q.limit === null
+            ? this.vaultHistory
+            : this.vaultHistory.slice(0, q.limit);
+        return { type: "history", revisions: revs };
+      }
       case "note_at": {
         const fix = this.history.get(q.path);
         const contents = fix?.contents[q.revision];
@@ -517,28 +530,26 @@ export class MockClient implements CairnClient {
         };
         const a = this.buildGraph(load(q.from), q.scope);
         const b = this.buildGraph(load(q.to), q.scope);
-        const aNodes = new Set(a.nodes.map((n) => n.path));
-        const bNodes = new Set(b.nodes.map((n) => n.path));
         const aByPath = new Map(a.nodes.map((n) => [n.path, n]));
-        // A node present in both revisions whose metadata (title, degree, tags,
-        // or mtime) differs — mirrors the engine's GraphDiff.nodes_changed.
-        // Field-wise compare (not JSON.stringify: mtime_secs is a bigint).
-        const changed = (p: GraphNode, n: GraphNode) =>
-          p.title !== n.title ||
-          p.degree !== n.degree ||
-          p.mtime_secs !== n.mtime_secs ||
-          p.tags.length !== n.tags.length ||
-          p.tags.some((t, i) => t !== n.tags[i]);
+        const bNodes = new Set(b.nodes.map((n) => n.path));
         const eKey = (e: GraphEdge) => `${e.from}->${e.to}`;
         const aEdges = new Set(a.edges.map(eKey));
         const bEdges = new Set(b.edges.map(eKey));
+        // Present in both revisions but with changed metadata (title, degree,
+        // tags, or mtime); carries the `to`-revision values — mirrors engine.
+        const metaChanged = (x: GraphNode, y: GraphNode) =>
+          x.title !== y.title ||
+          x.degree !== y.degree ||
+          x.mtime_secs !== y.mtime_secs ||
+          x.tags.length !== y.tags.length ||
+          x.tags.some((t, i) => t !== y.tags[i]);
         return {
           type: "graph_diff",
-          nodes_added: b.nodes.filter((n) => !aNodes.has(n.path)),
+          nodes_added: b.nodes.filter((n) => !aByPath.has(n.path)),
           nodes_removed: a.nodes.filter((n) => !bNodes.has(n.path)),
           nodes_changed: b.nodes.filter((n) => {
             const prev = aByPath.get(n.path);
-            return prev !== undefined && changed(prev, n);
+            return prev !== undefined && metaChanged(prev, n);
           }),
           edges_added: b.edges.filter((e) => !aEdges.has(eKey(e))),
           edges_removed: a.edges.filter((e) => !bEdges.has(eKey(e))),

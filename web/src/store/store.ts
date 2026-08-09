@@ -128,6 +128,7 @@ export const DEFAULT_UI: UiState = {
 export type GraphDiff = {
   nodes_added: GraphNode[];
   nodes_removed: GraphNode[];
+  nodes_changed: GraphNode[];
   edges_added: { from: string; to: string }[];
   edges_removed: { from: string; to: string }[];
 };
@@ -1193,6 +1194,7 @@ export function createCairnStore(
                 diff: {
                   nodes_added: delta.nodes_added,
                   nodes_removed: delta.nodes_removed,
+                  nodes_changed: delta.nodes_changed,
                   edges_added: delta.edges_added,
                   edges_removed: delta.edges_removed,
                 },

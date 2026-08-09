@@ -6,6 +6,7 @@ import {
   nodeRadius,
   labelAlpha,
   buildSuggestedLinks,
+  buildSuggestedNodes,
 } from "./graphData";
 import type { GLink } from "./graphData";
 import type { SuggestedEdge } from "../../contract";
@@ -72,7 +73,7 @@ const gn = (path: string): GraphNode => ({
   title: path,
   degree: 0,
   tags: [],
-  mtime_secs: 0n,
+  mtime_secs: 0,
 });
 const ge = (from: string, to: string): GraphEdge => ({ from, to });
 
@@ -85,16 +86,19 @@ describe("buildCompareGraphData", () => {
   const diff = {
     nodes_added: [gn("c")],
     nodes_removed: [gn("x")],
+    // b persisted across revisions but its metadata shifted (degree/tags) →
+    // engine reports it in nodes_changed carrying the `to`-revision values.
+    nodes_changed: [gn("b")],
     edges_added: [ge("b", "c")],
     edges_removed: [ge("a", "x")],
   };
 
-  it("labels appeared / disappeared / unchanged and injects removed nodes", () => {
+  it("labels appeared / disappeared / changed / unchanged and injects removed nodes", () => {
     const { nodes, links } = buildCompareGraphData(base, diff);
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n.state]));
     expect(byId).toEqual({
       a: "unchanged",
-      b: "unchanged",
+      b: "changed",
       c: "appeared",
       x: "disappeared",
     });
@@ -104,9 +108,14 @@ describe("buildCompareGraphData", () => {
     expect(linkState).toContainEqual(["a", "x", "disappeared"]);
   });
 
-  it("never emits a changed state", () => {
-    const { nodes, links } = buildCompareGraphData(base, diff);
-    expect(nodes.every((n) => n.state !== "changed")).toBe(true);
+  it("marks a metadata-only delta as changed without disturbing appeared/removed", () => {
+    const { nodes } = buildCompareGraphData(base, diff);
+    const changed = nodes.filter((n) => n.state === "changed").map((n) => n.id);
+    expect(changed).toEqual(["b"]);
+  });
+
+  it("emits no changed links (contract carries nodes_changed only)", () => {
+    const { links } = buildCompareGraphData(base, diff);
     expect(links.every((l) => l.state !== "changed")).toBe(true);
   });
 });
@@ -116,13 +125,13 @@ describe("buildGraphDataFromNodes", () => {
     path: string,
     degree: number,
     tags: string[],
-    mtime: bigint,
+    mtime: number,
   ): GraphNode => ({ path, title: path, degree, tags, mtime_secs: mtime });
 
   it("carries server degree, tags and coerced mtimeSecs onto GNode", () => {
     const nodes = [
-      gnode("a.md", 5, ["topic"], 1700000000n),
-      gnode("b.md", 2, [], 1600000000n),
+      gnode("a.md", 5, ["topic"], 1700000000),
+      gnode("b.md", 2, [], 1600000000),
     ];
     const edges = [{ from: "a.md", to: "b.md" }];
     const { nodes: gn, links } = buildGraphDataFromNodes(nodes, edges);
@@ -137,7 +146,7 @@ describe("buildGraphDataFromNodes", () => {
   });
 
   it("drops links whose endpoint is not a present node", () => {
-    const nodes = [gnode("a.md", 1, [], 0n)];
+    const nodes = [gnode("a.md", 1, [], 0)];
     const edges = [{ from: "a.md", to: "gone.md" }];
     expect(buildGraphDataFromNodes(nodes, edges).links).toEqual([]);
   });
@@ -209,5 +218,80 @@ describe("buildSuggestedLinks", () => {
     expect(buildSuggestedLinks([sug("a.md", "b.md")], new Set(), [])).toEqual(
       [],
     );
+  });
+
+  it("keeps an edge whose far endpoint is being injected (inject mode)", () => {
+    const injected = new Set(["z.md"]);
+    const out = buildSuggestedLinks(
+      [sug("a.md", "z.md", 0.7, "shared: y")],
+      visible,
+      [],
+      injected,
+    );
+    expect(out).toEqual([
+      {
+        source: "a.md",
+        target: "z.md",
+        kind: "suggested",
+        weight: 0.7,
+        why: "shared: y",
+      },
+    ]);
+  });
+
+  it("still drops an edge whose far endpoint is missing AND not injected", () => {
+    const injected = new Set(["q.md"]);
+    const out = buildSuggestedLinks(
+      [sug("a.md", "z.md")],
+      visible,
+      [],
+      injected,
+    );
+    expect(out).toEqual([]);
+  });
+});
+
+describe("buildSuggestedNodes", () => {
+  const sug = (
+    from: string,
+    to: string,
+    weight = 0.5,
+    why: string | null = null,
+  ): SuggestedEdge => ({ from, to, weight, why });
+  const visible = new Set(["a.md", "b.md", "c.md"]);
+
+  it("returns [] when both endpoints are already visible", () => {
+    expect(buildSuggestedNodes([sug("a.md", "b.md")], visible)).toEqual([]);
+  });
+
+  it("injects the missing far endpoint as a suggested-only GNode", () => {
+    const out = buildSuggestedNodes([sug("a.md", "z.md")], visible);
+    expect(out).toEqual([
+      { id: "z.md", label: "z", degree: 0, suggested: true },
+    ]);
+  });
+
+  it("injects the missing endpoint regardless of suggestion direction", () => {
+    const out = buildSuggestedNodes([sug("z.md", "a.md")], visible);
+    expect(out).toEqual([
+      { id: "z.md", label: "z", degree: 0, suggested: true },
+    ]);
+  });
+
+  it("does not inject when neither endpoint is visible (no anchor)", () => {
+    expect(buildSuggestedNodes([sug("y.md", "z.md")], visible)).toEqual([]);
+  });
+
+  it("dedupes two suggestions pointing at the same missing node", () => {
+    const out = buildSuggestedNodes(
+      [sug("a.md", "z.md"), sug("b.md", "z.md")],
+      visible,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("z.md");
+  });
+
+  it("returns [] for empty suggestions", () => {
+    expect(buildSuggestedNodes([], visible)).toEqual([]);
   });
 });
