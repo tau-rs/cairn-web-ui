@@ -13,9 +13,11 @@ export function useCairn<T>(selector: (s: CairnState) => T): T {
 
 /** The action (method) subset of the store — every function-valued member. */
 export type CairnActions = {
-  [K in keyof CairnState as CairnState[K] extends (...args: never[]) => unknown
-    ? K
-    : never]: CairnState[K];
+  [
+    K in keyof CairnState as CairnState[K] extends (...args: never[]) => unknown
+      ? K
+      : never
+  ]: CairnState[K];
 };
 
 const selectActions = (s: CairnState): CairnActions =>
