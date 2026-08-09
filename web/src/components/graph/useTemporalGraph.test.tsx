@@ -75,6 +75,7 @@ describe("useTemporalGraph", () => {
         { path: "b.md", title: "b", degree: 1, tags: [], mtime_secs: 0 },
       ],
       nodes_removed: [],
+      nodes_changed: [],
       edges_added: [{ from: "a.md", to: "b.md" }],
       edges_removed: [],
     };

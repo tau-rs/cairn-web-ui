@@ -375,7 +375,7 @@ export function GraphView(props: {
         ? 0.6
         : nodeState === "disappeared"
           ? 0.4
-          : nodeState === "unchanged"
+          : nodeState === "unchanged" || nodeState === "changed"
             ? 0.5
             : hl && !inHL && !active
               ? 0.25
@@ -383,6 +383,19 @@ export function GraphView(props: {
       ctx.fillStyle = base;
       ctx.fill();
       ctx.globalAlpha = 1;
+
+      // Compare-mode "changed": a node present in both revisions whose metadata
+      // (degree/tags) shifted. Keep the base fill and add an amber ring so it
+      // reads as "same node, altered" — distinct from green-appeared and
+      // gray-disappeared. Amber is free here: the recency ring that also uses it
+      // only draws on the live path (mtimeSecs is unset on temporal builds).
+      if (nodeState === "changed") {
+        ctx.beginPath();
+        ctx.arc(node.x ?? 0, node.y ?? 0, r + 2, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#f59e0b";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
 
       // Dashed ghost ring marks a suggested-only node.
       if (suggested) {

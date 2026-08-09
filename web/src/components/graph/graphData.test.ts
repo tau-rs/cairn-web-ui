@@ -86,16 +86,19 @@ describe("buildCompareGraphData", () => {
   const diff = {
     nodes_added: [gn("c")],
     nodes_removed: [gn("x")],
+    // b persisted across revisions but its metadata shifted (degree/tags) →
+    // engine reports it in nodes_changed carrying the `to`-revision values.
+    nodes_changed: [gn("b")],
     edges_added: [ge("b", "c")],
     edges_removed: [ge("a", "x")],
   };
 
-  it("labels appeared / disappeared / unchanged and injects removed nodes", () => {
+  it("labels appeared / disappeared / changed / unchanged and injects removed nodes", () => {
     const { nodes, links } = buildCompareGraphData(base, diff);
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n.state]));
     expect(byId).toEqual({
       a: "unchanged",
-      b: "unchanged",
+      b: "changed",
       c: "appeared",
       x: "disappeared",
     });
@@ -105,9 +108,14 @@ describe("buildCompareGraphData", () => {
     expect(linkState).toContainEqual(["a", "x", "disappeared"]);
   });
 
-  it("never emits a changed state", () => {
-    const { nodes, links } = buildCompareGraphData(base, diff);
-    expect(nodes.every((n) => n.state !== "changed")).toBe(true);
+  it("marks a metadata-only delta as changed without disturbing appeared/removed", () => {
+    const { nodes } = buildCompareGraphData(base, diff);
+    const changed = nodes.filter((n) => n.state === "changed").map((n) => n.id);
+    expect(changed).toEqual(["b"]);
+  });
+
+  it("emits no changed links (contract carries nodes_changed only)", () => {
+    const { links } = buildCompareGraphData(base, diff);
     expect(links.every((l) => l.state !== "changed")).toBe(true);
   });
 });
