@@ -17,6 +17,8 @@ function renderScrubber(overrides = {}) {
     onSelect: vi.fn(),
     counts: { notes: 3, links: 2 },
     delta: null,
+    structural: false,
+    onToggleStructural: vi.fn(),
     ...overrides,
   };
   render(<TemporalScrubber {...props} />);
@@ -117,5 +119,67 @@ describe("TemporalScrubber", () => {
     renderScrubber({ timeline: long });
     // histogram is fixed-bucket; no 120 buttons
     expect(screen.getAllByRole("button").length).toBeLessThan(20);
+  });
+
+  it("renders a Structural-only toggle reflecting the structural prop", () => {
+    renderScrubber({ structural: true });
+    const toggle = screen.getByRole("button", { name: /structural only/i });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("clicking the Structural-only toggle flips the current value", () => {
+    const { onToggleStructural } = renderScrubber({ structural: false });
+    fireEvent.click(screen.getByRole("button", { name: /structural only/i }));
+    expect(onToggleStructural).toHaveBeenCalledWith(true);
+  });
+
+  it("clamps stale compare endpoints when the timeline shrinks (source swap)", () => {
+    // Toggling "Structural only" swaps the timeline to a shorter source at
+    // runtime. The compare endpoints were stored against the OLD length, so a
+    // subsequent Compare click emitted out-of-range indices that silently
+    // degraded to Live. The endpoints must re-clamp to the new range.
+    const onSelect = vi.fn();
+    const long: Revision[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `r${i}`,
+      message: `m${i}`,
+      timestamp_secs: i,
+      author: "a",
+    }));
+    const short = long.slice(0, 3); // 3 revisions → display idx 0..2
+    const { rerender } = render(
+      <TemporalScrubber
+        timeline={long}
+        selection={{ kind: "live" }}
+        onSelect={onSelect}
+        counts={null}
+        delta={null}
+        structural={false}
+        onToggleStructural={vi.fn()}
+      />,
+    );
+    // Enter compare while long (cmp defaults to the full 0..11 span).
+    fireEvent.click(screen.getByRole("button", { name: /^compare$/i }));
+    // Timeline shrinks (structural source swapped in).
+    rerender(
+      <TemporalScrubber
+        timeline={short}
+        selection={{ kind: "live" }}
+        onSelect={onSelect}
+        counts={null}
+        delta={null}
+        structural={true}
+        onToggleStructural={vi.fn()}
+      />,
+    );
+    onSelect.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /^compare$/i }));
+    // Emitted endpoints are within the new 3-revision timeline (tl indices 0..2).
+    const calls = onSelect.mock.calls;
+    const arg = calls[calls.length - 1]?.[0];
+    expect(arg.kind).toBe("compare");
+    expect(arg.from).toBeLessThanOrEqual(2);
+    expect(arg.from).toBeGreaterThanOrEqual(0);
+    expect(arg.to).toBeLessThanOrEqual(2);
+    expect(arg.to).toBeGreaterThanOrEqual(0);
   });
 });

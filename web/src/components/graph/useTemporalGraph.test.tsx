@@ -73,4 +73,21 @@ describe("useTemporalGraph", () => {
     expect(cairnStore.getState().loadDiff).toHaveBeenCalledWith("r1", "r2");
     expect(result.current.mode).toBe("compare");
   });
+
+  it("starts non-structural and loads the full vault timeline", () => {
+    const { result } = renderHook(() => useTemporalGraph());
+    expect(result.current.structural).toBe(false);
+    expect(cairnStore.getState().loadVaultTimeline).toHaveBeenCalledWith(false);
+  });
+
+  it("toggling structural reloads the structural source and resets to live", () => {
+    const { result } = renderHook(() => useTemporalGraph());
+    // Move off live first so the reset is observable.
+    act(() => result.current.setSelection({ kind: "snapshot", at: 0 }));
+    vi.mocked(cairnStore.getState().loadVaultTimeline).mockClear();
+    act(() => result.current.setStructural(true));
+    expect(result.current.structural).toBe(true);
+    expect(result.current.mode).toBe("live");
+    expect(cairnStore.getState().loadVaultTimeline).toHaveBeenCalledWith(true);
+  });
 });

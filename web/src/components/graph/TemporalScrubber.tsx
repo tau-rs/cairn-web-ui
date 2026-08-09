@@ -12,8 +12,13 @@ export function TemporalScrubber(props: {
   onSelect: (s: TemporalSelection) => void;
   counts: { notes: number; links: number } | null;
   delta: { added: number; removed: number } | null;
+  /** When on, the timeline is sourced from `structural_revisions` (only
+   *  graph-changing commits) rather than the full `vault_history`. */
+  structural: boolean;
+  onToggleStructural: (v: boolean) => void;
 }) {
   const { timeline, selection, onSelect, counts, delta } = props;
+  const { structural, onToggleStructural } = props;
   const n = timeline.length;
   const [mode, setMode] = useState<"browse" | "compare">(
     selection.kind === "compare" ? "compare" : "browse",
@@ -39,6 +44,16 @@ export function TemporalScrubber(props: {
       });
     }
   }, [selection, n]);
+
+  // "Structural only" swaps the timeline to a shorter source at runtime, so the
+  // compare endpoints (display indices against the OLD length) can fall out of
+  // range — a later Compare click would then emit an out-of-range selection that
+  // silently degrades to Live. Clamp them back into the new range on any length
+  // change.
+  useEffect(() => {
+    const max = Math.max(0, n - 1);
+    setCmp((c) => ({ from: Math.min(c.from, max), to: Math.min(c.to, max) }));
+  }, [n]);
 
   const buckets = useMemo(() => timelineBuckets(timeline), [timeline]);
   const maxBar = Math.max(1, ...buckets.map((b) => b.count));
@@ -130,6 +145,15 @@ export function TemporalScrubber(props: {
           onClick={setLive}
         >
           Live
+        </button>
+        <button
+          type="button"
+          aria-pressed={structural}
+          className={segBtn(structural)}
+          title="Show only revisions that changed the link graph"
+          onClick={() => onToggleStructural(!structural)}
+        >
+          Structural only
         </button>
 
         {/* histogram backdrop + range control(s) */}
