@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GraphView } from "./GraphView";
@@ -36,6 +36,10 @@ function setup(over = {}) {
 }
 
 describe("GraphView", () => {
+  // The scrubber's open state persists to localStorage; clear it so opening it
+  // in one test doesn't leave it open for the next.
+  beforeEach(() => localStorage.clear());
+
   it("shows a loading overlay while the graph loads", () => {
     setup({ loading: true });
     expect(
@@ -67,6 +71,43 @@ describe("GraphView", () => {
     expect(
       screen.getByRole("button", { name: /graph history/i }),
     ).not.toBeDisabled();
+  });
+
+  it("renders the compare diff counts and +added/−removed delta in the scrubber banner", async () => {
+    vi.spyOn(cairnStore.getState(), "loadVaultTimeline").mockResolvedValue();
+    vi.spyOn(cairnStore.getState(), "loadDiff").mockResolvedValue();
+    vi.spyOn(cairnStore.getState(), "clearTemporal").mockImplementation(
+      () => {},
+    );
+    // Seed a base snapshot (drives the "N notes · M links" count) and a diff
+    // (drives the "+added / −removed" delta): added = nodes_added(2) +
+    // edges_added(2) = 4; removed = nodes_removed(1) + edges_removed(0) = 1.
+    const snapshot = {
+      nodes: [gnode("a.md"), gnode("b.md"), gnode("c.md")],
+      edges: [
+        { from: "a.md", to: "b.md" },
+        { from: "b.md", to: "c.md" },
+      ],
+    };
+    const diff = {
+      nodes_added: [gnode("b.md"), gnode("c.md")],
+      nodes_removed: [gnode("z.md")],
+      nodes_changed: [],
+      edges_added: [
+        { from: "a.md", to: "b.md" },
+        { from: "b.md", to: "c.md" },
+      ],
+      edges_removed: [],
+    };
+    cairnStore.setState({ temporal: { timeline: TL, snapshot, diff } });
+    setup({ nodes: [gnode("a.md")], activePath: null });
+    await userEvent.click(
+      screen.getByRole("button", { name: /graph history/i }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^compare$/i }));
+    expect(screen.getByText(/3 notes · 2 links/)).toBeInTheDocument();
+    expect(screen.getByText("+4")).toBeInTheDocument();
+    expect(screen.getByText("−1")).toBeInTheDocument();
   });
 
   it("shows the scrubber when temporal is opened, even with no note active", async () => {
