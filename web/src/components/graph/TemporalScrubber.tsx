@@ -59,12 +59,24 @@ export function TemporalScrubber(props: {
   const emitCompare = (fromD: number, toD: number) => {
     const from = Math.max(toTl(fromD), toTl(toD)); // older = higher tl index
     const to = Math.min(toTl(fromD), toTl(toD));
-    if (from === to) onSelect({ kind: "snapshot", at: to });
-    else onSelect({ kind: "compare", from, to });
+    if (from === to) {
+      // Collapsed range → a single snapshot; follow the banner into Browse mode
+      // so the UI shows one slider instead of the two-slider compare pair.
+      setMode("browse");
+      onSelect({ kind: "snapshot", at: to });
+    } else onSelect({ kind: "compare", from, to });
   };
   const enterCompare = () => {
     setMode("compare");
     emitCompare(cmp.from, cmp.to);
+  };
+  // Entering Browse must reconcile the selection so the banner (which reads
+  // `selection`) can't keep showing a stale "Comparing…" under the single
+  // Browse slider. A live/snapshot selection already agrees with Browse; only a
+  // lingering compare needs collapsing — land on the newest snapshot.
+  const enterBrowse = () => {
+    setMode("browse");
+    if (selection.kind === "compare") onBrowse(browseDisplay);
   };
 
   const segBtn = (active: boolean) =>
@@ -98,7 +110,7 @@ export function TemporalScrubber(props: {
             type="button"
             aria-pressed={mode === "browse"}
             className={segBtn(mode === "browse")}
-            onClick={() => setMode("browse")}
+            onClick={enterBrowse}
           >
             Browse
           </button>

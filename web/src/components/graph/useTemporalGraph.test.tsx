@@ -48,6 +48,24 @@ describe("useTemporalGraph", () => {
     expect(cairnStore.getState().clearTemporal).toHaveBeenCalled();
   });
 
+  it("cancels a pending snapshot load when returning to live before the debounce fires", () => {
+    const { result } = renderHook(() => useTemporalGraph());
+    // Spies are shared across this file's tests (beforeEach re-spies but doesn't
+    // clear); scope the assertion to this interaction only.
+    const { loadSnapshot, loadDiff, clearTemporal } = cairnStore.getState();
+    vi.mocked(loadSnapshot).mockClear();
+    vi.mocked(loadDiff).mockClear();
+    vi.mocked(clearTemporal).mockClear();
+
+    act(() => result.current.setSelection({ kind: "snapshot", at: 0 }));
+    act(() => vi.advanceTimersByTime(100)); // < 150ms: debounce still pending
+    act(() => result.current.setSelection({ kind: "live" }));
+    act(() => vi.advanceTimersByTime(100)); // cumulative > 150ms, but it was cancelled
+    expect(loadSnapshot).not.toHaveBeenCalled();
+    expect(loadDiff).not.toHaveBeenCalled();
+    expect(clearTemporal).toHaveBeenCalled();
+  });
+
   it("dispatches loadDiff on a compare selection after the delay", () => {
     const { result } = renderHook(() => useTemporalGraph());
     act(() => result.current.setSelection({ kind: "compare", from: 1, to: 0 }));

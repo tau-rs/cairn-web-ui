@@ -1258,17 +1258,37 @@ describe("temporal graph", () => {
   });
 
   it("loadVaultTimeline ignores a stale response (token guard)", async () => {
-    const { store } = setup({
-      vaultRevisions: [
-        { id: "r1", message: "a", timestamp_secs: 10n, author: "x" },
+    const { client, store } = setup();
+    await store.getState().init();
+    // Two in-flight loads with DISTINCT payloads; the first-issued (stale) call
+    // resolves LAST. Without the token guard its response would clobber the
+    // fresher one — so the payloads must differ for the test to discriminate.
+    let resolveStale!: (r: QueryResponse) => void;
+    let resolveFresh!: (r: QueryResponse) => void;
+    vi.spyOn(client, "runQuery")
+      .mockReturnValueOnce(
+        new Promise<QueryResponse>((r) => (resolveStale = r)),
+      )
+      .mockReturnValueOnce(
+        new Promise<QueryResponse>((r) => (resolveFresh = r)),
+      );
+    const p1 = store.getState().loadVaultTimeline(); // token 1 — stale
+    const p2 = store.getState().loadVaultTimeline(); // token 2 — fresh, wins
+    resolveFresh({
+      type: "history",
+      revisions: [
+        { id: "fresh", message: "b", timestamp_secs: 20n, author: "x" },
       ],
     });
-    await store.getState().init();
-    const p1 = store.getState().loadVaultTimeline();
-    const p2 = store.getState().loadVaultTimeline();
+    resolveStale({
+      type: "history",
+      revisions: [
+        { id: "stale", message: "a", timestamp_secs: 10n, author: "x" },
+      ],
+    });
     await Promise.all([p1, p2]);
     expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
-      "r1",
+      "fresh",
     ]);
   });
 

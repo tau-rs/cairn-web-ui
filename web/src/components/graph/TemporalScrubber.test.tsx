@@ -79,6 +79,34 @@ describe("TemporalScrubber", () => {
     ).toBe("2");
   });
 
+  it("entering Browse from an active compare selection reconciles the selection", async () => {
+    // Bug T3a: the Browse tab only flipped local `mode`, leaving `selection` a
+    // compare — so the banner (which reads `selection`) kept saying "Comparing…"
+    // under the single Browse slider until the user dragged. Entering Browse must
+    // emit a browse-consistent selection (snapshot of the newest revision).
+    const { onSelect } = renderScrubber({
+      selection: { kind: "compare", from: 1, to: 0 },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /^browse$/i }));
+    expect(onSelect).toHaveBeenCalledWith({ kind: "snapshot", at: 0 });
+  });
+
+  it("collapsing a compare range to one point switches to Browse mode", () => {
+    // Bug T3b: emitCompare emitted a {kind:"snapshot"} on from===to but left
+    // local `mode` on "compare", so the "Viewing vault as of…" banner rendered
+    // under the two-slider compare UI. The collapse must reconcile mode too.
+    const { onSelect } = renderScrubber();
+    fireEvent.click(screen.getByRole("button", { name: /^compare$/i }));
+    // set `from` (display idx 2, newest) equal to `to` (defaults to idx 2)
+    fireEvent.change(screen.getByLabelText(/compare from/i), {
+      target: { value: "2" },
+    });
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: "snapshot", at: 0 });
+    // UI follows the snapshot banner: a single Browse slider, no compare pair.
+    expect(screen.getByLabelText(/timeline position/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/compare from/i)).toBeNull();
+  });
+
   it("renders a long timeline without a per-revision DOM blowup", () => {
     const long: Revision[] = Array.from({ length: 120 }, (_, i) => ({
       id: `r${i}`,
