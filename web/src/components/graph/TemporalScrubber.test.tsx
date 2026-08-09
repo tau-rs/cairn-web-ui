@@ -17,6 +17,8 @@ function renderScrubber(overrides = {}) {
     onSelect: vi.fn(),
     counts: { notes: 3, links: 2 },
     delta: null,
+    structural: false,
+    onToggleStructural: vi.fn(),
     ...overrides,
   };
   render(<TemporalScrubber {...props} />);
@@ -117,5 +119,17 @@ describe("TemporalScrubber", () => {
     renderScrubber({ timeline: long });
     // histogram is fixed-bucket; no 120 buttons
     expect(screen.getAllByRole("button").length).toBeLessThan(20);
+  });
+
+  it("renders a Structural-only toggle reflecting the structural prop", () => {
+    renderScrubber({ structural: true });
+    const toggle = screen.getByRole("button", { name: /structural only/i });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("clicking the Structural-only toggle flips the current value", () => {
+    const { onToggleStructural } = renderScrubber({ structural: false });
+    fireEvent.click(screen.getByRole("button", { name: /structural only/i }));
+    expect(onToggleStructural).toHaveBeenCalledWith(true);
   });
 });

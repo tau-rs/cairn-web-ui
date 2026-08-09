@@ -238,7 +238,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   loadGraph(): Promise<void>;
   loadSuggestions(scope: SuggestionScope): Promise<void>;
   loadTimeline(path: string): Promise<void>;
-  loadVaultTimeline(): Promise<void>;
+  loadVaultTimeline(structural?: boolean): Promise<void>;
   loadSnapshot(revision: string): Promise<void>;
   loadDiff(from: string, to: string): Promise<void>;
   clearTemporal(): void;
@@ -1128,13 +1128,14 @@ export function createCairnStore(
         }
       },
 
-      async loadVaultTimeline() {
+      async loadVaultTimeline(structural = false) {
         const token = ++seq.timeline;
         try {
-          const res = await client.runQuery({
-            type: "vault_history",
-            limit: null,
-          });
+          const res = await client.runQuery(
+            structural
+              ? { type: "structural_revisions", limit: null }
+              : { type: "vault_history", limit: null },
+          );
           if (token !== seq.timeline) return;
           if (res.type === "history")
             set((s) => ({

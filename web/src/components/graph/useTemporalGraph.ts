@@ -26,10 +26,20 @@ export function useTemporalGraph() {
     saveTemporalOpen(o);
   };
 
-  // Load the vault-wide timeline once.
+  // "Structural only" swaps the timeline SOURCE (structural_revisions vs
+  // vault_history); the engine pre-filters, so no client-side filtering here.
+  const [structural, setStructuralState] = useState(false);
+  const setStructural = (v: boolean) => {
+    setStructuralState(v);
+    // Timeline indices refer to positions in the current source array; swapping
+    // sources changes its length, so snap back to live to avoid a stale index.
+    setSelection({ kind: "live" });
+  };
+
+  // Load the vault-wide timeline; reload when the source (structural) changes.
   useEffect(() => {
-    void actions.loadVaultTimeline();
-  }, [actions]);
+    void actions.loadVaultTimeline(structural);
+  }, [actions, structural]);
 
   const request = useMemo(
     () => selectionToRequest(selection, temporal.timeline),
@@ -71,5 +81,7 @@ export function useTemporalGraph() {
     mode,
     source,
     diff,
+    structural,
+    setStructural,
   };
 }

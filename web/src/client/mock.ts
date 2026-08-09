@@ -188,16 +188,23 @@ export class MockClient implements CairnClient {
   // testable offline.
   private vaultHistory: Revision[];
 
+  // Structural subset (revisions that changed the link graph), returned by the
+  // `structural_revisions` query. The engine pre-filters this server-side, so
+  // it's a separate fixture — the UI never derives it from `vaultHistory`.
+  private structuralHistory: Revision[];
+
   constructor(
     seed: Record<string, string> = {},
     history: Record<string, HistoryFixture> = {},
     vaultSnapshots: Record<string, VaultSnapshot> = {},
     vaultHistory: Revision[] = [],
+    structuralHistory: Revision[] = [],
   ) {
     this.notes = new Map(Object.entries(seed));
     this.history = new Map(Object.entries(history));
     this.vaultSnapshots = new Map(Object.entries(vaultSnapshots));
     this.vaultHistory = vaultHistory;
+    this.structuralHistory = structuralHistory;
   }
 
   // The mock channel never fails to attach, so it ignores the contract's
@@ -499,6 +506,14 @@ export class MockClient implements CairnClient {
           q.limit === null
             ? this.vaultHistory
             : this.vaultHistory.slice(0, q.limit);
+        return { type: "history", revisions: revs };
+      }
+      case "structural_revisions": {
+        // Pre-filtered structural subset, newest-first, capped at `limit`.
+        const revs =
+          q.limit === null
+            ? this.structuralHistory
+            : this.structuralHistory.slice(0, q.limit);
         return { type: "history", revisions: revs };
       }
       case "note_at": {

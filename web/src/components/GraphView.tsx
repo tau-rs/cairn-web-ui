@@ -701,6 +701,8 @@ export function GraphView(props: {
           onSelect={temporal.setSelection}
           counts={scrubberCounts}
           delta={scrubberDelta}
+          structural={temporal.structural}
+          onToggleStructural={temporal.setStructural}
         />
       )}
     </div>

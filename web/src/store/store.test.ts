@@ -38,6 +38,7 @@ function setup(
     history?: Record<string, HistoryFixture>;
     vaultSnapshots?: Record<string, VaultSnapshot>;
     vaultRevisions?: Revision[];
+    structuralRevisions?: Revision[];
   } = {},
 ) {
   const client = new MockClient(
@@ -45,6 +46,7 @@ function setup(
     opts.history ?? {},
     opts.vaultSnapshots ?? {},
     opts.vaultRevisions ?? [],
+    opts.structuralRevisions ?? [],
   );
   const store = createCairnStore(client);
   return { client, store };
@@ -1254,6 +1256,29 @@ describe("temporal graph", () => {
       "r3",
       "r2",
       "r1",
+    ]);
+  });
+
+  it("loadVaultTimeline(true) swaps the source to structural_revisions", async () => {
+    // Distinct fixtures per source so the assertion proves the toggle swaps the
+    // data source (engine pre-filters; the UI does NO client-side filtering).
+    const vaultRevisions = [
+      { id: "v2", message: "tag edit", timestamp_secs: 20, author: "x" },
+      { id: "v1", message: "init", timestamp_secs: 10, author: "x" },
+    ];
+    const structuralRevisions = [
+      { id: "v1", message: "init", timestamp_secs: 10, author: "x" },
+    ];
+    const { client, store } = setup({ vaultRevisions, structuralRevisions });
+    const spy = vi.spyOn(client, "runQuery");
+    await store.getState().init();
+    await store.getState().loadVaultTimeline(true);
+    expect(spy).toHaveBeenCalledWith({
+      type: "structural_revisions",
+      limit: null,
+    });
+    expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
+      "v1",
     ]);
   });
 

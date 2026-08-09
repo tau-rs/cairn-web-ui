@@ -12,8 +12,13 @@ export function TemporalScrubber(props: {
   onSelect: (s: TemporalSelection) => void;
   counts: { notes: number; links: number } | null;
   delta: { added: number; removed: number } | null;
+  /** When on, the timeline is sourced from `structural_revisions` (only
+   *  graph-changing commits) rather than the full `vault_history`. */
+  structural: boolean;
+  onToggleStructural: (v: boolean) => void;
 }) {
   const { timeline, selection, onSelect, counts, delta } = props;
+  const { structural, onToggleStructural } = props;
   const n = timeline.length;
   const [mode, setMode] = useState<"browse" | "compare">(
     selection.kind === "compare" ? "compare" : "browse",
@@ -130,6 +135,15 @@ export function TemporalScrubber(props: {
           onClick={setLive}
         >
           Live
+        </button>
+        <button
+          type="button"
+          aria-pressed={structural}
+          className={segBtn(structural)}
+          title="Show only revisions that changed the link graph"
+          onClick={() => onToggleStructural(!structural)}
+        >
+          Structural only
         </button>
 
         {/* histogram backdrop + range control(s) */}
