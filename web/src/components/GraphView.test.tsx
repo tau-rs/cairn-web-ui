@@ -13,8 +13,8 @@ const gnode = (p: string): GraphNode => ({
   mtime_secs: 0,
 });
 const TL: Revision[] = [
-  { id: "r2", message: "add b", timestamp_secs: 20n, author: "x" },
-  { id: "r1", message: "init", timestamp_secs: 10n, author: "x" },
+  { id: "r2", message: "add b", timestamp_secs: 20, author: "x" },
+  { id: "r1", message: "init", timestamp_secs: 10, author: "x" },
 ];
 
 // react-force-graph-2d only mounts once the container has a measured size,

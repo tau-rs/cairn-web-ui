@@ -24,12 +24,12 @@ log = "0.4"
 tauri = { version = "2.11.2", features = ["protocol-asset"] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
-cairn-domain   = { git = "https://github.com/tau-rs/cairn", rev = "057bf5e8682cfcc1fcbed0fb5fd4fc56973f26e7" }
-cairn-app      = { git = "https://github.com/tau-rs/cairn", rev = "057bf5e8682cfcc1fcbed0fb5fd4fc56973f26e7" }
-cairn-infra    = { git = "https://github.com/tau-rs/cairn", rev = "057bf5e8682cfcc1fcbed0fb5fd4fc56973f26e7" }
-cairn-contract = { git = "https://github.com/tau-rs/cairn", rev = "057bf5e8682cfcc1fcbed0fb5fd4fc56973f26e7" }
-cairn-service  = { git = "https://github.com/tau-rs/cairn", rev = "057bf5e8682cfcc1fcbed0fb5fd4fc56973f26e7" }
-cairn-ports    = { git = "https://github.com/tau-rs/cairn", rev = "057bf5e8682cfcc1fcbed0fb5fd4fc56973f26e7" }
+cairn-domain   = { git = "https://github.com/tau-rs/cairn", rev = "8abc0efcb09dfae209101557b3ca68eb0a7aa6b4" }
+cairn-app      = { git = "https://github.com/tau-rs/cairn", rev = "8abc0efcb09dfae209101557b3ca68eb0a7aa6b4" }
+cairn-infra    = { git = "https://github.com/tau-rs/cairn", rev = "8abc0efcb09dfae209101557b3ca68eb0a7aa6b4" }
+cairn-contract = { git = "https://github.com/tau-rs/cairn", rev = "8abc0efcb09dfae209101557b3ca68eb0a7aa6b4" }
+cairn-service  = { git = "https://github.com/tau-rs/cairn", rev = "8abc0efcb09dfae209101557b3ca68eb0a7aa6b4" }
+cairn-ports    = { git = "https://github.com/tau-rs/cairn", rev = "8abc0efcb09dfae209101557b3ca68eb0a7aa6b4" }
 
 [dev-dependencies]
 tempfile = "3"

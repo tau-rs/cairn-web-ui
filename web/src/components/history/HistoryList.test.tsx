@@ -4,8 +4,8 @@ import { HistoryList } from "./HistoryList";
 import type { Revision } from "../../contract";
 
 const REVS: Revision[] = [
-  { id: "r2", message: "second", timestamp_secs: 2n, author: "tau" },
-  { id: "r1", message: "first", timestamp_secs: 1n, author: "tau" },
+  { id: "r2", message: "second", timestamp_secs: 2, author: "tau" },
+  { id: "r1", message: "first", timestamp_secs: 1, author: "tau" },
 ];
 
 describe("HistoryList", () => {

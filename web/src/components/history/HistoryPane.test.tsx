@@ -39,7 +39,7 @@ describe("HistoryPane", () => {
     await cairnStore.getState().openNote("index.md");
     cairnStore.setState({
       history: [
-        { id: "old1", message: "stale", timestamp_secs: 1n, author: "t" },
+        { id: "old1", message: "stale", timestamp_secs: 1, author: "t" },
       ],
       historyPath: "some-other-note.md",
       historyLoading: false,

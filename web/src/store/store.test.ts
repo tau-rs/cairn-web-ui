@@ -1224,8 +1224,8 @@ describe("temporal graph", () => {
     const history = {
       "a.md": {
         revisions: [
-          { id: "r2", message: "add b", timestamp_secs: 20n, author: "x" },
-          { id: "r1", message: "init", timestamp_secs: 10n, author: "x" },
+          { id: "r2", message: "add b", timestamp_secs: 20, author: "x" },
+          { id: "r1", message: "init", timestamp_secs: 10, author: "x" },
         ],
         contents: { r1: "lone", r2: "links [[b]]" },
       },
@@ -1241,9 +1241,9 @@ describe("temporal graph", () => {
 
   it("loadVaultTimeline populates the timeline from vault_history", async () => {
     const vaultRevisions = [
-      { id: "r3", message: "c", timestamp_secs: 30n, author: "x" },
-      { id: "r2", message: "b", timestamp_secs: 20n, author: "x" },
-      { id: "r1", message: "a", timestamp_secs: 10n, author: "x" },
+      { id: "r3", message: "c", timestamp_secs: 30, author: "x" },
+      { id: "r2", message: "b", timestamp_secs: 20, author: "x" },
+      { id: "r1", message: "a", timestamp_secs: 10, author: "x" },
     ];
     const { client, store } = setup({ vaultRevisions });
     const spy = vi.spyOn(client, "runQuery");
@@ -1277,13 +1277,13 @@ describe("temporal graph", () => {
     resolveFresh({
       type: "history",
       revisions: [
-        { id: "fresh", message: "b", timestamp_secs: 20n, author: "x" },
+        { id: "fresh", message: "b", timestamp_secs: 20, author: "x" },
       ],
     });
     resolveStale({
       type: "history",
       revisions: [
-        { id: "stale", message: "a", timestamp_secs: 10n, author: "x" },
+        { id: "stale", message: "a", timestamp_secs: 10, author: "x" },
       ],
     });
     await Promise.all([p1, p2]);

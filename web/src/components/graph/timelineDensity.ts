@@ -27,9 +27,9 @@ export function timelineBuckets(
   return buckets;
 }
 
-function fmtDate(secs: bigint): string {
+function fmtDate(secs: number): string {
   // UTC ISO date — deterministic across locales.
-  return new Date(Number(secs) * 1000).toISOString().slice(0, 10);
+  return new Date(secs * 1000).toISOString().slice(0, 10);
 }
 
 /** Human-readable "where am I" text for the scrubber banner. Out-of-range
