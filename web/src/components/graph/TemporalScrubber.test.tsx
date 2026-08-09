@@ -67,11 +67,13 @@ describe("TemporalScrubber", () => {
   });
 
   it("Compare mode syncs the range inputs from an incoming compare selection", () => {
-    // from=2 (tl idx, oldest c1) / to=0 (tl idx, newest c3) → display 0 / 2
-    renderScrubber({ selection: { kind: "compare", from: 2, to: 0 } });
+    // partial range (not the full span, so it diverges from the old buggy
+    // {from:0, to:n-1} default): from=1 (tl idx, c2) / to=0 (tl idx, c3)
+    // → display from = n-1-1 = 1, display to = n-1-0 = 2
+    renderScrubber({ selection: { kind: "compare", from: 1, to: 0 } });
     expect(
       (screen.getByLabelText(/compare from/i) as HTMLInputElement).value,
-    ).toBe("0");
+    ).toBe("1");
     expect(
       (screen.getByLabelText(/compare to/i) as HTMLInputElement).value,
     ).toBe("2");
