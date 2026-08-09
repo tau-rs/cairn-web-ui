@@ -61,23 +61,23 @@ describe("GraphView", () => {
     expect(screen.queryByText(/most-connected of/i)).toBeNull();
   });
 
-  it("disables the temporal toggle when no note is open", () => {
-    vi.spyOn(cairnStore.getState(), "loadTimeline").mockResolvedValue();
+  it("keeps the temporal toggle enabled with no note open", () => {
+    vi.spyOn(cairnStore.getState(), "loadVaultTimeline").mockResolvedValue();
     setup({ nodes: [gnode("a.md")], activePath: null });
     expect(
       screen.getByRole("button", { name: /graph history/i }),
-    ).toBeDisabled();
+    ).not.toBeDisabled();
   });
 
-  it("shows the scrubber when temporal is opened with a note active", async () => {
-    vi.spyOn(cairnStore.getState(), "loadTimeline").mockResolvedValue();
+  it("shows the scrubber when temporal is opened, even with no note active", async () => {
+    vi.spyOn(cairnStore.getState(), "loadVaultTimeline").mockResolvedValue();
     vi.spyOn(cairnStore.getState(), "clearTemporal").mockImplementation(
       () => {},
     );
     cairnStore.setState({
       temporal: { timeline: TL, snapshot: null, diff: null },
     });
-    setup({ nodes: [gnode("a.md")], activePath: "a.md" });
+    setup({ nodes: [gnode("a.md")], activePath: null });
     await userEvent.click(
       screen.getByRole("button", { name: /graph history/i }),
     );

@@ -84,7 +84,7 @@ export function GraphView(props: {
     [props.nodes],
   );
 
-  const temporal = useTemporalGraph(props.activePath);
+  const temporal = useTemporalGraph();
 
   // Effective source: live uses props; snapshot uses the historical graph
   // (still honoring local mode); compare builds a diff-styled global graph.
@@ -96,6 +96,24 @@ export function GraphView(props: {
   const srcEdges = useMemo(
     () => (temporal.source ? temporal.source.edges : props.edges),
     [temporal.source, props.edges],
+  );
+  const scrubberCounts = useMemo(
+    () => ({ notes: srcNodes.length, links: srcEdges.length }),
+    [srcNodes, srcEdges],
+  );
+  const scrubberDelta = useMemo(
+    () =>
+      temporal.diff
+        ? {
+            added:
+              temporal.diff.nodes_added.length +
+              temporal.diff.edges_added.length,
+            removed:
+              temporal.diff.nodes_removed.length +
+              temporal.diff.edges_removed.length,
+          }
+        : null,
+    [temporal.diff],
   );
 
   const compareData = useMemo(
@@ -584,12 +602,7 @@ export function GraphView(props: {
         <IconButton
           label="Graph history"
           className="border border-border bg-surface"
-          disabled={temporal.disabled}
-          title={
-            temporal.disabled
-              ? "Open a note to scrub its history"
-              : "Graph history"
-          }
+          title="Graph history"
           onClick={() => temporal.setOpen(!temporal.open)}
         >
           <svg
@@ -681,11 +694,13 @@ export function GraphView(props: {
           />
         )
       )}
-      {temporal.open && !temporal.disabled && temporal.timeline && (
+      {temporal.open && temporal.timeline && (
         <TemporalScrubber
           timeline={temporal.timeline}
           selection={temporal.selection}
           onSelect={temporal.setSelection}
+          counts={scrubberCounts}
+          delta={scrubberDelta}
         />
       )}
     </div>

@@ -238,6 +238,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   loadGraph(): Promise<void>;
   loadSuggestions(scope: SuggestionScope): Promise<void>;
   loadTimeline(path: string): Promise<void>;
+  loadVaultTimeline(): Promise<void>;
   loadSnapshot(revision: string): Promise<void>;
   loadDiff(from: string, to: string): Promise<void>;
   clearTemporal(): void;
@@ -1108,6 +1109,10 @@ export function createCairnStore(
         }
       },
 
+      // Note-scoped timeline loader. Currently unused in production: the graph
+      // scrubber switched to loadVaultTimeline (vault-wide) in the vault-history
+      // work. Retained for the deferred note-scoped-filter follow-up (see
+      // docs/superpowers/specs/2026-08-09-vault-history-timeline-design.md).
       async loadTimeline(path) {
         const token = ++seq.timeline;
         try {
@@ -1120,6 +1125,24 @@ export function createCairnStore(
           else unexpected("Load timeline", res);
         } catch (err) {
           if (token === seq.timeline) pushError("Load timeline", err, { path });
+        }
+      },
+
+      async loadVaultTimeline() {
+        const token = ++seq.timeline;
+        try {
+          const res = await client.runQuery({
+            type: "vault_history",
+            limit: null,
+          });
+          if (token !== seq.timeline) return;
+          if (res.type === "history")
+            set((s) => ({
+              temporal: { ...s.temporal, timeline: res.revisions },
+            }));
+          else unexpected("Load vault timeline", res);
+        } catch (err) {
+          if (token === seq.timeline) pushError("Load vault timeline", err);
         }
       },
 
