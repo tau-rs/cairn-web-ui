@@ -1,178 +1,153 @@
 # Vault-history structural-marker filter — design
 
 **Date:** 2026-08-09
-**Status:** approved (brainstorm), pending spec review
+**Status:** revised to conform to the shipped engine (`tau-rs/cairn` PR #160, main `8abc0ef`)
 **Feature:** Phase 2 of the vault-history timeline. Let the vault-history scrubber
 filter its markers to *structural* (graph-changing) commits, hiding purely
 cosmetic body edits.
+
+> **Revision note (important):** an earlier draft of this spec chose to *annotate*
+> each `Revision` with a `structural: boolean` and to count *tag* changes as
+> structural. That draft was written against a stale handoff ("engine not
+> started"). The engine had in fact already shipped the **opposite** design in
+> PR #160 (merged 2026-08-09): a **separate `structural_revisions` query** that
+> returns a pre-filtered list, with structural defined as **link-graph changes
+> only (node/edge add/remove) — tags, title, and frontmatter explicitly
+> excluded.** This spec now conforms to what shipped. There is no `Revision`
+> field change and no client-side classification.
 
 ## Problem
 
 The vault-history scrubber's density histogram + slider domain cover **every**
 revision. On active vaults that is noisy: most commits are prose edits that don't
-change the graph you're looking at. Users want to step through only the commits
-that actually rewired the graph.
+change the graph. Users want to step through only the commits that actually
+rewired the graph.
 
-"Structural?" cannot be answered cheaply in the web client. The only client-side
-signal is `graph_at{revision}`, and the engine reparses the whole vault tree per
-revision (LRU-16 cache) to serve it — so classifying N revisions client-side is N
-full-vault reparses. Classification must live in the engine, computed
-incrementally against each commit's parent.
+"Structural?" cannot be answered cheaply in the web client (classifying N
+revisions client-side = N full-vault reparses via `graph_at`). The engine
+computes it incrementally instead — which it now does.
 
 ## Scope
 
-One feature spanning two repos. This spec is authoritative for **both** sides.
-Execution is split:
+One feature spanning two repos. **The engine half is already done and merged**
+(PR #160). This spec's remaining work is entirely in **`cairn-web-ui`** (this
+workspace): re-sync the vendored contract to pick up the `structural_revisions`
+query, then add a scrubber toggle that swaps the timeline data source.
 
-- **Engine** (`tau-rs/cairn`): the classifier + the contract field. Driven from a
-  `cairn` engine workspace (Rust can't be built/tested from the UI workspace).
-- **UI** (`cairn-web-ui`, this workspace): re-sync the vendored contract + the
-  scrubber toggle. Blocked on the engine PR merging.
+## What the engine shipped (fixed constraints — we conform)
 
-## Decisions (from brainstorm)
+- **Query:** `{ type: "structural_revisions", limit: number | null }`
+  (`limit: null` = all). `limit` = the N most-recent structural revisions.
+- **Response:** `QueryResponse::History` — i.e. `{ type: "history", revisions:
+  Revision[] }`, the **same shape** `vault_history` returns. `Revision` is
+  **unchanged**: `{ id, message, timestamp_secs, author }`. No `structural` field.
+- **Definition of structural (engine-authoritative):** a note node or a link
+  edge added/removed vs the commit's first parent, compared on the built graph's
+  node set + edge set. **Excludes** title, tags, mtime, and body-text edits that
+  add/remove no link. Merge commits are compared against the first parent. Root
+  commit's notes count as added.
+- The engine returns the list **newest-first**, already filtered.
 
-1. **What counts as structural** = any of: a note added / deleted / renamed
-   (node-set change), a note's outbound `[[wikilink]]` set changed (edge-set
-   change), or a note's tag set changed. "Tag set" means the same frontmatter
-   tags the engine already surfaces on `GraphNode.tags` (the graph colors by
-   them, so a re-tag repaints a node/group) — the classifier reuses that existing
-   parse, not any inline-`#tag` scan. **Not** structural: title-only changes,
-   other frontmatter, body prose with no link/tag delta.
-2. **Contract shape** = one shared `Revision.structural: boolean`, populated in
-   both `vault_history` (vault-wide test) and `note_history` (that single note's
-   own delta). Not a separate query, not a split type. The classifier is
-   per-commit-vs-parent regardless, so the note-scoped case is nearly free and the
-   field is truthful in every response that carries it.
-3. **Merge / multi-parent commits** classified against the **first parent**
-   (`C^1`), i.e. `git log --first-parent` semantics — consistent with the linear
-   model the scrubber presents.
-4. **UI toggle behavior**: toggling "structural only" **resets the selection to
-   Live**, avoiding stale-index remapping (selections are stored as indices;
-   filtering the list would repoint them). Reset-to-Live over snap-to-nearest:
-   simpler, and Live is the natural "I just changed what I'm looking at" state.
+Because the engine returns a ready-made filtered list, the client does **no**
+classification and needs **no** per-revision flag.
+
+## Design decisions (this UI)
+
+1. **Data-source swap, not client-side filter.** The "Structural only" toggle
+   selects *which query feeds the scrubber*: ON → `structural_revisions`; OFF →
+   `vault_history` (today's behavior). The scrubber renders whichever `Revision[]`
+   it's handed — histogram, slider domain, and id-resolution all follow the same
+   array, exactly as they do now.
+2. **Tags are NOT structural.** We adopt the engine's node/edge-only semantics.
+   (Honoring the earlier "tags-in" idea would require a *different* engine query;
+   out of scope and not requested.)
+3. **Toggling resets the selection to Live.** The two lists have different lengths
+   and orderings, so a stored snapshot/compare index would repoint to the wrong
+   revision after a swap. Reset-to-Live is the honest "I just changed what I'm
+   looking at" state and needs no index remapping.
+4. **Lazy load, cached in the store.** The structural list is fetched the first
+   time the toggle turns on (a new `loadStructuralTimeline` action writing a
+   parallel `temporal.structuralTimeline`), then reused. The full `vault_history`
+   list keeps loading on mount as today. While the structural list is still
+   loading, the scrubber falls back to the full timeline (no disappearing UI;
+   selection is Live so there's no misindex).
+5. **Empty structural set degrades to Live.** If a vault has zero structural
+   revisions, the fetched list is empty; `selectionToRequest` already turns an
+   empty timeline into Live. The toggle stays enabled (we don't pre-fetch to
+   disable it). A "no structural revisions" hint is optional/deferred.
 
 ## Contract change
 
-`Revision` gains one field (regenerated by ts-rs in the engine, vendored raw into
-`web/src/contract`; do **not** hand-edit the vendored `.ts`):
+**None to `Revision`.** The only contract delta is the additive
+`structural_revisions` query variant, which arrives by re-syncing the vendored
+contract to engine `8abc0ef`:
 
 ```ts
-export type Revision = {
-  id: string;
-  message: string;
-  timestamp_secs: bigint;
-  author: string;
-  structural: boolean;   // NEW — graph changed vs first parent
-};
+// Query.ts (regenerated by ts-rs; do NOT hand-edit vendored contract)
+… | { "type": "structural_revisions", limit: number | null } | …
 ```
 
-Contract-breaking. The engine bumps its generated contract; the UI bumps the
-vendored rev in a coordinated PR and passes the drift-check gate.
+Note: the UI's vendored contract is several engine PRs behind `8abc0ef`, so the
+re-sync also pulls unrelated additive drift (collab wire types from #157–#159).
+Additive types don't break existing call sites; verify with `typecheck` + the
+drift gate.
 
-### Worked example (one vault, four commits)
-
-```
-c1  create alpha.md   → body + [[beta]] + tag #project
-c2  edit   alpha.md   → fix a typo (no link/tag change)
-c3  edit   alpha.md   → add a [[gamma]] link
-c4  edit   delta.md   → reword a paragraph (body only)
-```
-
-`vault_history` (newest-first), `structural` = vault-wide test:
-
-```jsonc
-[ { id:"c4", structural:false },   // body-only
-  { id:"c3", structural:true  },   // alpha gained [[gamma]]
-  { id:"c2", structural:false },   // typo
-  { id:"c1", structural:true  } ]  // node created
-```
-
-`note_history` of `alpha.md` (c4 absent — didn't touch alpha), `structural` = this
-note's own delta:
-
-```jsonc
-[ { id:"c3", structural:true  },
-  { id:"c2", structural:false },
-  { id:"c1", structural:true  } ]
-```
-
-## Engine classifier (`tau-rs/cairn`)
-
-Per commit `C` with first parent `P = C^1`:
+## Data flow
 
 ```
-touched = git diff --name-only P..C
-  ├─ any .md added / deleted / renamed?            → structural = true
-  ├─ else, for each modified .md, parse @C and @P:
-  │     outbound [[wikilink]] set differs?          → structural = true
-  │     frontmatter tag set differs?                → structural = true
-  └─ else                                           → structural = false
+useTemporalGraph
+  ├─ on mount: loadVaultTimeline()        → temporal.timeline          (full)
+  ├─ structuralOnly (persisted) turns on  → loadStructuralTimeline()   → temporal.structuralTimeline (filtered, lazy)
+  ├─ displayTimeline = structuralOnly ? (structuralTimeline ?? timeline) : timeline
+  ├─ selectionToRequest(selection, displayTimeline)   ← same array the scrubber renders
+  └─ setStructuralOnly(next) ⇒ persist + reset selection to Live
+
+TemporalScrubber(timeline = displayTimeline)          ← histogram + slider domain over it
 ```
 
-- Cost is O(touched files) per commit, not O(vault).
-- `vault_history` ORs the test across all touched `.md` in the commit.
-- `note_history` runs the test on the single note the query targets.
-- The flag is immutable per commit id → cache alongside the existing history
-  cache.
-- Root commit (no parent): treat all touched `.md` as added ⇒ structural.
+## Components touched (`cairn-web-ui`)
 
-## UI toggle & filtering (`cairn-web-ui`)
-
-Files in play:
-- `web/src/components/graph/TemporalScrubber.tsx` — histogram + slider(s).
-- `web/src/components/graph/temporalControls.ts` — `selectionToRequest`,
-  persistence helpers.
-- `web/src/components/graph/timelineDensity.ts` — `timelineBuckets`.
-- the graph view parent that owns `TemporalSelection` state and feeds `timeline`.
-
-Behavior:
-- Add a **"Structural only"** toggle to the scrubber controls row. Persist it
-  (`cairn.graph.temporal.structuralOnly`) next to the existing open-state key,
-  via helpers mirroring `loadTemporalOpen` / `saveTemporalOpen`.
-- The parent derives `displayTimeline = structuralOnly ? timeline.filter(r =>
-  r.structural) : timeline` and passes that **single** array to
-  `TemporalScrubber`, `timelineBuckets`, and `selectionToRequest`. Histogram,
-  slider domain, and id-resolution stay internally consistent because they all
-  read the same array.
-- **On toggle**, reset the selection to `{ kind: "live" }` (decision 4).
-- **Empty structural set** (no structural commits): disable the toggle and show a
-  "no structural revisions" hint; `selectionToRequest` already degrades an empty
-  timeline to live.
+- `web/src/store/store.ts` — new `temporal.structuralTimeline: Revision[] | null`
+  field + `loadStructuralTimeline()` action (mirrors `loadVaultTimeline`, queries
+  `structural_revisions`, own seq token).
+- `web/src/client/mock.ts` — a `structural_revisions` case + a seeded
+  `structuralRevisions` fixture so the feature works offline/in tests.
+- `web/src/components/graph/temporalControls.ts` — `loadStructuralOnly` /
+  `saveStructuralOnly` persistence (key `cairn.graph.temporal.structuralOnly`).
+- `web/src/components/graph/useTemporalGraph.ts` — toggle state, lazy fetch,
+  `displayTimeline`, reset-on-toggle; returns `structuralOnly` /
+  `setStructuralOnly` and the filtered `timeline`.
+- `web/src/components/graph/TemporalScrubber.tsx` — a "Structural" toggle button.
+- `web/src/components/GraphView.tsx` — pass the two new props through.
 
 ## Testing
 
-**Engine:**
-- Classifier unit tests: add ⇒ structural; delete ⇒ structural; rename ⇒
-  structural; body-only edit ⇒ not structural; wikilink delta ⇒ structural; tag
-  delta ⇒ structural; title-only / arbitrary-frontmatter edit ⇒ not structural.
-- Merge commit classified against first parent.
-- Root commit ⇒ structural.
-- Repo-fixture integration test exercising `vault_history` end-to-end.
-- `note_history` single-note case.
+- **Store:** `loadStructuralTimeline` populates `temporal.structuralTimeline` from
+  the `structural_revisions` query (against the mock's seeded fixture).
+- **Persistence:** `loadStructuralOnly` / `saveStructuralOnly` round-trip.
+- **Scrubber:** the "Structural" toggle renders, reflects state, fires the
+  callback.
+- **Hook:** turning the toggle on selects the structural list as `displayTimeline`
+  and triggers the lazy load; toggling resets the selection to Live.
+- **GraphView:** the toggle is wired and appears when the scrubber is open.
+- Full `just web-ci` incl. `prettier --check`.
 
-**UI (TDD):**
-- `TemporalScrubber.test.tsx`: structural-only filters the histogram buckets and
-  the slider domain to `timeline.filter(r => r.structural)`; toggling resets to
-  Live; empty structural set disables the toggle.
-- `web/src/client/mock.ts` `vault_history` handler seeds `structural` on each
-  revision.
-- `store.test.ts` / history fixtures carry `structural`.
-- Full `just web-ci`, including `prettier --check`.
+## Sequencing
 
-## Sequencing (engine-first)
+Engine is **done** (#160, `8abc0ef`). The UI is one PR:
+1. Re-sync vendored contract to `8abc0ef` (rev-bump the six `cairn-*` git deps in
+   `src-tauri/Cargo.toml`, regenerate, pass the drift gate).
+2. Store field + loader + mock, persistence, toggle button, hook wiring, GraphView
+   wiring. `just web-ci` green.
 
-1. **Engine PR** (`tau-rs/cairn`): classifier + `Revision.structural` + tests.
-   Merge; record the resulting engine rev.
-2. **UI PR** (this workspace): re-sync the vendored contract to that rev (drift
-   gate), add the scrubber toggle, update mock + fixtures, `just web-ci` green.
-   Blocked on step 1.
-
-Single-branch discipline: run `scripts/claim-plan.sh vault-history-structural-filter`
-before executing the UI branch; plant the flag early.
+Single-branch discipline: run
+`scripts/claim-plan.sh vault-history-structural-filter` before executing; plant
+the flag early.
 
 ## Out of scope
 
-- Note-scoped structural timeline UI (the `note_history` flag is populated but its
-  own timeline consuming it is a later piece).
-- Any change to what the graph renders — this only filters which revisions the
-  scrubber surfaces.
+- Any change to `Revision` or to what the graph renders.
+- Tag-aware structural semantics (would need a different engine query).
+- Per-commit delta summaries (`+nodes / −nodes`) in tooltips — the engine spec
+  explicitly deferred these.
+- A note-scoped structural timeline.
