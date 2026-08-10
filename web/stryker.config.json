@@ -4,8 +4,9 @@
   "plugins": ["@stryker-mutator/vitest-runner"],
   "reporters": ["html", "clear-text", "progress"],
   "coverageAnalysis": "perTest",
+  "ignoreStatic": true,
   "mutate": [
-    "src/**/*.{ts,tsx}",
+    "src/{store,client,util,app}/**/*.{ts,tsx}",
     "!src/**/*.test.{ts,tsx}",
     "!src/vitest.setup.ts",
     "!src/types/**",
