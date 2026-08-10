@@ -79,6 +79,27 @@ updates:
           - "@tailwindcss/*"
           - "autoprefixer"
           - "postcss"
+      # Catch-all so every remaining dev-dependency minor/patch bump lands
+      # in ONE weekly PR instead of one-per-package (each npm PR touches
+      # pnpm-lock.yaml, so N separate PRs serialize on lockfile conflicts).
+      # This group is auto-merged by dependabot-automerge.yml. Named groups
+      # above take precedence; majors fall out to their own PRs (reviewable).
+      dev-minor:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+      # Remaining production-dependency minor/patch bumps in one PR. NOT
+      # auto-merged — production surface stays manually reviewed.
+      prod-minor:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
 
   # The Tauri Rust shell. Registry crates only — the cairn-* workspace
   # deps are git-pinned by rev and Dependabot does not bump git
@@ -106,3 +127,11 @@ updates:
       serde:
         patterns:
           - "serde*"
+      # Bundle remaining crate minor/patch bumps into one PR. NOT
+      # auto-merged — these are the app's Rust production deps (manual).
+      crates-minor:
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
