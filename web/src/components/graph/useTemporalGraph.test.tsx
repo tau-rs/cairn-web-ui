@@ -85,9 +85,13 @@ describe("useTemporalGraph", () => {
     // Move off live first so the reset is observable.
     act(() => result.current.setSelection({ kind: "snapshot", at: 0 }));
     vi.mocked(cairnStore.getState().loadVaultTimeline).mockClear();
+    vi.mocked(cairnStore.getState().clearTemporal).mockClear();
     act(() => result.current.setStructural(true));
     expect(result.current.structural).toBe(true);
     expect(result.current.mode).toBe("live");
     expect(cairnStore.getState().loadVaultTimeline).toHaveBeenCalledWith(true);
+    // A snapshot was active; the source swap must drop it explicitly so the
+    // graph returns to Live rather than leaving a stale historical snapshot.
+    expect(cairnStore.getState().clearTemporal).toHaveBeenCalled();
   });
 });
