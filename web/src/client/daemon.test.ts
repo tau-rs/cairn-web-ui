@@ -6,6 +6,7 @@ import {
   RECONNECT_BASE_MS,
   RECONNECT_MAX_MS,
   ESCALATE_AFTER_ATTEMPTS,
+  RECOVER_TIMEOUT_MS,
 } from "./daemon";
 import type { AnswerEvent } from "../contract";
 
@@ -399,6 +400,27 @@ describe("DaemonClient.openRecovery", () => {
     // on the 5s fallback timer.
     session.close();
     await rp;
+  });
+
+  it("times out and closes the socket if recoverable never arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = new DaemonClient({
+        url: URL,
+        fetch: vi.fn(),
+        WebSocket: WS,
+      });
+      const p = client.openRecovery("draft.md");
+      const ws = FakeWebSocket.last();
+      ws.emitOpen();
+      // No `recoverable` (or any) message ever arrives.
+      const assertion = expect(p).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(RECOVER_TIMEOUT_MS);
+      await assertion;
+      expect(ws.closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -28,6 +28,11 @@ export const RECONNECT_MAX_MS = 30_000;
  *  `onError` (the store's "live updates unavailable" banner). A brief blip
  *  heals before the user is ever nagged; sustained failure still surfaces. */
 export const ESCALATE_AFTER_ATTEMPTS = 4;
+/** How long `openRecovery` waits for `recoverable` after the socket opens
+ *  before giving up: a daemon that accepts the connection but never answers
+ *  `recover` (and never closes) must not hang the recovery UI forever or
+ *  leak the open socket. */
+export const RECOVER_TIMEOUT_MS = 10_000;
 
 export function backoffDelay(attempt: number): number {
   return Math.min(RECONNECT_BASE_MS * 2 ** (attempt - 1), RECONNECT_MAX_MS);
@@ -274,6 +279,15 @@ export class DaemonClient implements CairnClient {
 
     return new Promise<RecoverySession>((resolve, reject) => {
       let settled = false;
+      // Guards against a daemon that accepts the socket but never answers
+      // `recover` (and never closes it): without this, the promise would
+      // hang forever and the socket would never be closed.
+      const recoverTimeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        ws.close();
+        reject(new Error("recovery session timed out"));
+      }, RECOVER_TIMEOUT_MS);
       ws.onopen = () => {
         send({ type: "join", note, replica: replica as unknown as bigint });
         send({ type: "recover", note });
@@ -289,6 +303,7 @@ export class DaemonClient implements CairnClient {
         }
         if (msg.type === "recoverable" && msg.note === note && !settled) {
           settled = true;
+          clearTimeout(recoverTimeout);
           resolve({
             blocks: msg.blocks,
             // Restore resolves on the next `op` for the note — a heuristic
@@ -324,12 +339,14 @@ export class DaemonClient implements CairnClient {
           opWaiters.splice(0).forEach((w) => w());
         } else if (msg.type === "error" && !settled) {
           settled = true;
+          clearTimeout(recoverTimeout);
           reject(new Error(msg.message));
         }
       };
       ws.onclose = () => {
         if (!settled) {
           settled = true;
+          clearTimeout(recoverTimeout);
           reject(new Error("/collab closed before recover"));
         }
       };
