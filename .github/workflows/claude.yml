@@ -67,10 +67,38 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f # beta
+      # v1 of the action: `model` moved into `claude_args` (--model). Model
+      # stays pinned explicitly: the action's built-in default has been
+      # retired before (claude-sonnet-4-20250514 404'd) — a pinned, current
+      # model fails loudly at bump time instead of silently at retirement
+      # time. Sonnet 5 is the current Sonnet.
+      - name: Claude mention bot
+        id: claude
+        continue-on-error: true # failures are classified in the next step
+        uses: anthropics/claude-code-action@6b082c41935b4c8a3b8b0ef85ba4ba4d9eeb8975 # v1.0.189
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Pin the model explicitly: the action's built-in default
-          # (claude-sonnet-4-20250514) is retired and now 404s. Sonnet 4.6 is
-          # the current Sonnet.
-          model: claude-sonnet-4-6
+          claude_args: |
+            --model claude-sonnet-5
+
+      # The OAuth token bills against a Claude subscription; when its usage
+      # cap is exhausted the action fails in <1s with "Spending cap reached"
+      # until the cap resets. That's a quota condition, not a bot defect —
+      # swallow it (green check + notice). Anything else is a real failure.
+      - name: Classify bot outcome
+        if: steps.claude.outcome == 'failure'
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          result=""
+          if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
+            result=$(jq -r '[.[] | select(.type == "result")] | last | .result // empty' \
+              "$EXECUTION_FILE" 2>/dev/null || true)
+          fi
+          echo "Claude result message: ${result:-<none>}"
+          if printf '%s' "$result" | grep -qiE 'spending cap|usage limit|credit balance|rate limit'; then
+            echo "::notice::@claude run skipped: Claude usage cap reached (\"$result\"). It will resume once the cap resets."
+            exit 0
+          fi
+          echo "::error::Claude mention bot failed for a non-quota reason — see the 'Claude mention bot' step logs."
+          exit 1
