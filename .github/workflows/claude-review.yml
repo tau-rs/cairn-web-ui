@@ -1,6 +1,6 @@
 name: Claude review
 
-# AI code review via anthropics/claude-code-action.
+# AI code review via anthropics/claude-code-action (v1).
 #
 # Modes:
 #   1. PR auto-review — every non-draft PR opened/pushed gets a fresh
@@ -22,6 +22,17 @@ name: Claude review
 # Security: uses `pull_request` (not `pull_request_target`), so fork PRs
 # cannot access the secret. Untrusted PR fields are only consumed by the
 # action as data, never injected into a shell `run:` step.
+#
+# Failure policy: the review is advisory (non-required check). Two failure
+# classes are deliberately swallowed so they don't paint every PR red:
+#   - missing token (Dependabot runs never get repo secrets) — probed before
+#     the action runs;
+#   - Claude subscription usage/spending-cap exhaustion — the OAuth token is
+#     a subscription token, and when the cap is hit (e.g. after a heavy local
+#     Claude Code day) every review fails in <1s with "Spending cap reached"
+#     until the cap resets. That's a quota condition, not a broken review, so
+#     the job classifies it post-hoc and succeeds with a notice.
+# Any other action failure still fails the check.
 
 on:
   pull_request:
@@ -72,19 +83,29 @@ jobs:
             echo "::notice::CLAUDE_CODE_OAUTH_TOKEN unavailable (expected on Dependabot PRs); skipping AI review."
           fi
 
-      - if: steps.token.outputs.available == 'true'
-        uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f # beta
+      # v1 of the action: `direct_prompt` became `prompt`, and `model` moved
+      # into `claude_args` (--model). track_progress keeps the v0-style
+      # tracking comment the review is posted into. Model stays pinned
+      # explicitly: the action's built-in default has been retired before
+      # (claude-sonnet-4-20250514 404'd and failed every run) — a pinned,
+      # current model fails loudly at bump time instead of silently at
+      # retirement time. Sonnet 4.6 is the cost-appropriate model for an
+      # advisory PR review.
+      - name: Claude review
+        id: review
+        if: steps.token.outputs.available == 'true'
+        continue-on-error: true # failures are classified in the next step
+        uses: anthropics/claude-code-action@6b082c41935b4c8a3b8b0ef85ba4ba4d9eeb8975 # v1.0.189
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Pin the model explicitly: the action's built-in default
-          # (claude-sonnet-4-20250514) is retired and now 404s, failing the job
-          # before it can review. Sonnet 4.6 is the current cost-appropriate
-          # model for an advisory PR review.
-          model: claude-sonnet-4-6
           # Dependabot PRs run as a Bot actor; allow it so dependency
           # bumps still get an AI review.
           allowed_bots: "dependabot"
-          direct_prompt: |
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Review this pull request as a senior frontend engineer would.
             Focus on:
               - Correctness bugs and edge cases the tests miss
@@ -100,3 +121,27 @@ jobs:
             issues (the ESLint job covers those).
             Be concise. If the PR is in great shape, say so plainly
             instead of inventing nits.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
+      # Classify a failed review: usage/spending-cap exhaustion on the
+      # subscription OAuth token is a quota condition, not a review defect —
+      # swallow it (green check + notice). Anything else is a real failure.
+      - name: Classify review outcome
+        if: steps.token.outputs.available == 'true' && steps.review.outcome == 'failure'
+        env:
+          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+        run: |
+          result=""
+          if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
+            result=$(jq -r '[.[] | select(.type == "result")] | last | .result // empty' \
+              "$EXECUTION_FILE" 2>/dev/null || true)
+          fi
+          echo "Claude result message: ${result:-<none>}"
+          if printf '%s' "$result" | grep -qiE 'spending cap|usage limit|credit balance|rate limit'; then
+            echo "::notice::AI review skipped: Claude usage cap reached (\"$result\"). It will resume once the cap resets."
+            exit 0
+          fi
+          echo "::error::Claude review failed for a non-quota reason — see the 'Claude review' step logs."
+          exit 1
