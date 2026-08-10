@@ -1,7 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { RecoveryPanel } from "./RecoveryPanel";
 import type { WireRecoverableBlock } from "../../contract";
+
+class FakeResizeObserver {
+  static observed = 0;
+  observe() {
+    FakeResizeObserver.observed++;
+  }
+  disconnect() {}
+}
 
 const tombstoned = {
   id: { replica: 1, counter: 1 },
@@ -64,5 +72,26 @@ describe("RecoveryPanel", () => {
       <RecoveryPanel {...baseProps()} open={false} />,
     );
     expect(container.firstChild).toBeNull();
+  });
+
+  describe("responsive layout re-attach", () => {
+    afterEach(() => {
+      delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+    });
+
+    it("observes the panel root once it mounts after opening", () => {
+      (
+        globalThis as unknown as { ResizeObserver: typeof FakeResizeObserver }
+      ).ResizeObserver = FakeResizeObserver;
+      FakeResizeObserver.observed = 0;
+
+      const { rerender } = render(
+        <RecoveryPanel {...baseProps()} open={false} />,
+      );
+      expect(FakeResizeObserver.observed).toBe(0);
+
+      rerender(<RecoveryPanel {...baseProps()} open />);
+      expect(FakeResizeObserver.observed).toBeGreaterThan(0);
+    });
   });
 });

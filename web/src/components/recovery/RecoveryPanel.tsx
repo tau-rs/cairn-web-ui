@@ -47,7 +47,7 @@ export function RecoveryPanel(props: RecoveryPanelProps) {
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [open]);
 
   if (!open) return null;
 
