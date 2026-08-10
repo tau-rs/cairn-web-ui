@@ -1375,4 +1375,41 @@ describe("temporal graph", () => {
     expect(t.snapshot).toBeNull();
     expect(t.diff).toBeNull();
   });
+
+  it("reloadNoteBuffer re-fetches a clean buffer after an external change", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    expect(store.getState().openNotes["a.md"].contents).toBe("links to [[b]]");
+
+    // Simulate an out-of-band disk write (e.g. a restore) that the mock's
+    // note_changed event does NOT propagate into the open buffer.
+    await client.sendCommand({
+      type: "write_note",
+      path: "a.md",
+      contents: "NEW",
+    });
+    expect(store.getState().openNotes["a.md"].contents).toBe("links to [[b]]"); // unchanged by the watcher alone
+
+    await store.getState().reloadNoteBuffer("a.md");
+    expect(store.getState().openNotes["a.md"].contents).toBe("NEW");
+    expect(store.getState().openNotes["a.md"].dirty).toBe(false);
+  });
+
+  it("reloadNoteBuffer is a no-op when the buffer is dirty (never clobbers unsaved edits)", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("unsaved edit"); // marks dirty, schedules autosave
+
+    await client.sendCommand({
+      type: "write_note",
+      path: "a.md",
+      contents: "EXTERNAL",
+    });
+
+    await store.getState().reloadNoteBuffer("a.md");
+    expect(store.getState().openNotes["a.md"].contents).toBe("unsaved edit");
+    expect(store.getState().openNotes["a.md"].dirty).toBe(true);
+  });
 });

@@ -205,6 +205,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   openCairn(): Promise<void>;
   refreshNotePaths(): Promise<void>;
   openNote(path: string, opts?: { pane?: number }): Promise<void>;
+  reloadNoteBuffer(path: string): Promise<void>;
   editBuffer(contents: string): void;
   saveActive(): Promise<void>;
   saveNote(path: string): Promise<void>;
@@ -646,6 +647,19 @@ export function createCairnStore(
           await get().refreshBacklinks();
         } catch (err) {
           pushError("Open note", err, { path });
+        }
+      },
+
+      // note_changed refreshes derived views (tree/backlinks/graph) but does
+      // NOT reload an open note's buffer, so an external disk write (e.g. a
+      // restore) wouldn't otherwise appear. Clean-only: never clobber unsaved
+      // edits.
+      async reloadNoteBuffer(path) {
+        const buf = get().openNotes[path];
+        if (!buf || buf.dirty) return;
+        const res = await client.runQuery({ type: "get_note", path });
+        if (res.type === "note") {
+          setBuffer(path, { contents: res.contents, dirty: false });
         }
       },
 
