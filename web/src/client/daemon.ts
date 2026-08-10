@@ -7,7 +7,7 @@ import type {
   AskRequest,
   AnswerEvent,
 } from "../contract";
-import type { CairnClient, Unsubscribe } from "./types";
+import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
 import {
   assertEvent,
@@ -251,6 +251,12 @@ export class DaemonClient implements CairnClient {
     const res = await this.runQuery({ type: "list_notes" });
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
+  }
+
+  // TODO(task 4): implement the real /collab recovery session.
+  openRecovery(note: string): Promise<RecoverySession> {
+    void note;
+    throw new Error("not implemented");
   }
 }
 

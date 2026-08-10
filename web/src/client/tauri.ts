@@ -9,7 +9,7 @@ import type {
   AskRequest,
   AnswerEvent,
 } from "../contract";
-import type { CairnClient, Unsubscribe } from "./types";
+import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
 import { confineToRoot } from "./vaultPath";
 import {
@@ -107,6 +107,12 @@ export class TauriClient implements CairnClient {
     return () => {
       cancelled = true;
     };
+  }
+
+  // TODO(task 5): implement the real /collab recovery session.
+  openRecovery(note: string): Promise<RecoverySession> {
+    void note;
+    throw new Error("not implemented");
   }
 }
 

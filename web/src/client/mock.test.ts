@@ -601,3 +601,20 @@ describe("MockClient get_suggestions", () => {
     expect(res).toEqual({ type: "suggestions", suggestions: [] });
   });
 });
+
+describe("MockClient.openRecovery", () => {
+  it("returns retained blocks and restore() reflects into the note", async () => {
+    const c = new MockClient({ "draft.md": "# Draft\nkeep\n" });
+    const s = await c.openRecovery("draft.md");
+    expect(Array.isArray(s.blocks)).toBe(true);
+    expect(s.blocks.length).toBeGreaterThan(0);
+    const before = await c.runQuery({ type: "get_note", path: "draft.md" });
+    await s.restore(s.blocks[0].id, 0);
+    const after = await c.runQuery({ type: "get_note", path: "draft.md" });
+    // restore appended the chosen version's text
+    if (before.type === "note" && after.type === "note") {
+      expect(after.contents.length).toBeGreaterThan(before.contents.length);
+    }
+    s.close();
+  });
+});
