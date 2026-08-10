@@ -56,6 +56,7 @@ import type { Rename } from "../components/tree/treeMoves";
 import { type RefreshTrace, refreshTrace } from "./trace";
 import { createHistorySlice, type HistorySlice } from "./historySlice";
 import { createAskSlice, type AskState } from "./askSlice";
+import { createRecoverySlice, type RecoveryState } from "./recoverySlice";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -139,7 +140,8 @@ const EMPTY_TEMPORAL = {
   diff: null,
 } as const;
 
-export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
+export interface CairnState
+  extends PluginGrantsState, HistorySlice, AskState, RecoveryState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
   // waits for this so its URL<->store reconciliation can't race the restore.
@@ -591,6 +593,7 @@ export function createCairnStore(
       },
       liveUpdates: "ok",
       ...createAskSlice(set, get, client),
+      ...createRecoverySlice(set, get, client),
 
       async init() {
         if (started) return;
