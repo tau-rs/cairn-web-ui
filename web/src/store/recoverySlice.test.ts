@@ -31,4 +31,16 @@ describe("recoverySlice", () => {
     expect(s.getState().recovery.open).toBe(false);
     expect(s.getState().recovery.note).toBeNull();
   });
+  it("a restore in flight when closeRecovery fires does not clobber the reset state", async () => {
+    const s = make();
+    s.getState().openRecovery("draft.md");
+    await new Promise((r) => setTimeout(r, 0));
+    const id = s.getState().recovery.blocks[0].id;
+    s.getState().restoreVersion(id, 0);
+    s.getState().closeRecovery();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(s.getState().recovery.open).toBe(false);
+    expect(s.getState().recovery.restoring).toBeNull();
+    expect(s.getState().recovery.error).toBeNull();
+  });
 });

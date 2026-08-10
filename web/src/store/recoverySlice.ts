@@ -81,17 +81,23 @@ export function createRecoverySlice(
       const s = session;
       const note = get().recovery.note;
       if (!s || !note) return;
+      const t = token;
       set((st) => ({
         recovery: { ...st.recovery, restoring: blockLabel(id) },
       }));
       s.restore(id, versionIndex)
-        .then(() => get().reloadNoteBuffer(note))
-        .catch((err) =>
-          set((st) => ({ recovery: { ...st.recovery, error: errMsg(err) } })),
-        )
-        .finally(() =>
-          set((st) => ({ recovery: { ...st.recovery, restoring: null } })),
-        );
+        .then(() => {
+          if (t !== token) return;
+          return get().reloadNoteBuffer(note);
+        })
+        .catch((err) => {
+          if (t !== token) return;
+          set((st) => ({ recovery: { ...st.recovery, error: errMsg(err) } }));
+        })
+        .finally(() => {
+          if (t !== token) return;
+          set((st) => ({ recovery: { ...st.recovery, restoring: null } }));
+        });
     },
 
     closeRecovery() {
