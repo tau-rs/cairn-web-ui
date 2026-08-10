@@ -6,6 +6,8 @@ import type {
   QueryResponse,
   AskRequest,
   AnswerEvent,
+  CollabClientMsg,
+  CollabServerMsg,
 } from "../contract";
 import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
@@ -253,10 +255,81 @@ export class DaemonClient implements CairnClient {
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
   }
 
-  // TODO(task 4): implement the real /collab recovery session.
+  /** Open a `/collab` recovery session for `note`: join, request `recover`,
+   *  resolve with retained blocks + a handle to restore/close. This is a
+   *  short-lived request/response session (unlike `subscribe`'s long-lived
+   *  event stream), so it deliberately has no reconnect/backoff — a dropped
+   *  socket before `recoverable` arrives just rejects the promise. */
   openRecovery(note: string): Promise<RecoverySession> {
-    void note;
-    throw new Error("not implemented");
+    const collabUrl = this.url.replace(/^http/, "ws") + "/collab";
+    const replica = Math.floor(this.random() * 2 ** 40); // passive session id
+    const send = (msg: CollabClientMsg) =>
+      ws.send(
+        JSON.stringify(msg, (_k, v) => (typeof v === "bigint" ? Number(v) : v)),
+      );
+    const ws = new this.WS(collabUrl);
+
+    // restore() resolvers waiting for the next `op` on this note.
+    const opWaiters: Array<() => void> = [];
+
+    return new Promise<RecoverySession>((resolve, reject) => {
+      let settled = false;
+      ws.onopen = () => {
+        send({ type: "join", note, replica: replica as unknown as bigint });
+        send({ type: "recover", note });
+      };
+      ws.onmessage = (ev: { data: unknown }) => {
+        let msg: CollabServerMsg;
+        try {
+          msg = JSON.parse(
+            typeof ev.data === "string" ? ev.data : String(ev.data),
+          );
+        } catch {
+          return;
+        }
+        if (msg.type === "recoverable" && msg.note === note && !settled) {
+          settled = true;
+          resolve({
+            blocks: msg.blocks,
+            // Restore resolves on the next `op` for the note — a heuristic
+            // (a concurrent peer op could resolve it early); harmless since
+            // it only gates the buffer reload, not correctness.
+            restore: (id, versionIndex) =>
+              new Promise<void>((res) => {
+                send({
+                  type: "restore",
+                  note,
+                  id,
+                  version_index: versionIndex,
+                });
+                const t = setTimeout(res, 5000); // fallback if op is missed
+                opWaiters.push(() => {
+                  clearTimeout(t);
+                  res();
+                });
+              }),
+            close: () => {
+              try {
+                send({ type: "leave", note });
+              } finally {
+                ws.close();
+              }
+            },
+          });
+        } else if (msg.type === "op" && msg.note === note) {
+          opWaiters.splice(0).forEach((w) => w());
+        } else if (msg.type === "error" && !settled) {
+          settled = true;
+          reject(new Error(msg.message));
+        }
+      };
+      ws.onclose = () => {
+        if (!settled) {
+          settled = true;
+          reject(new Error("/collab closed before recover"));
+        }
+      };
+    });
   }
 }
 
