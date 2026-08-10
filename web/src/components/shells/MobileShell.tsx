@@ -6,6 +6,7 @@ import { isGraph, notePathFromLocation, noteUrl } from "../../app/routes";
 import { IconButton } from "../ui/IconButton";
 import { Drawer } from "../ui/Drawer";
 import { AskSheetHost } from "../ask/AskSheetHost";
+import { RecoverySheetHost } from "../recovery/RecoverySheetHost";
 import { BottomNav } from "./BottomNav";
 import { MoreMenu } from "./MoreMenu";
 import { MobileSearchView } from "./MobileSearchView";
@@ -100,6 +101,7 @@ export function MobileShell({ topBar, list, editor, backlinks }: ShellRegions) {
         {backlinks}
       </Drawer>
       <AskSheetHost side="bottom" />
+      <RecoverySheetHost side="bottom" />
     </div>
   );
 }
