@@ -373,6 +373,33 @@ describe("DaemonClient.openRecovery", () => {
     expect(ws.sent.some((m) => JSON.parse(m).type === "leave")).toBe(true);
     expect(ws.closed).toBe(true);
   });
+
+  it("close() drains a pending restore() so it resolves instead of hanging", async () => {
+    const client = new DaemonClient({
+      url: URL,
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    const p = client.openRecovery("draft.md");
+    const ws = FakeWebSocket.last();
+    ws.emitOpen();
+    ws.emitMessage(
+      JSON.stringify({
+        type: "recoverable",
+        note: "draft.md",
+        blocks: [
+          { id: { replica: 1, counter: 2 }, tombstoned: true, versions: ["x"] },
+        ],
+      }),
+    );
+    const session = await p;
+
+    const rp = session.restore(session.blocks[0].id, 0);
+    // No `op` is ever emitted; close() must still settle rp without relying
+    // on the 5s fallback timer.
+    session.close();
+    await rp;
+  });
 });
 
 describe("backoffDelay", () => {

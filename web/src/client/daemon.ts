@@ -309,6 +309,10 @@ export class DaemonClient implements CairnClient {
                 });
               }),
             close: () => {
+              // A closed socket can never deliver the `op` a pending
+              // restore() is waiting on — drain its waiters so the timer is
+              // cleared and the promise resolves instead of hanging/leaking.
+              opWaiters.splice(0).forEach((w) => w());
               try {
                 send({ type: "leave", note });
               } finally {
