@@ -34,6 +34,10 @@ export function useTemporalGraph() {
     // Timeline indices refer to positions in the current source array; swapping
     // sources changes its length, so snap back to live to avoid a stale index.
     setSelection({ kind: "live" });
+    // Drop any loaded snapshot/diff now, alongside the selection reset, rather
+    // than relying on the live-branch effect firing after the next render — the
+    // intent (return to the live graph) is then explicit and batching-agnostic.
+    actions.clearTemporal();
   };
 
   // Load the vault-wide timeline; reload when the source (structural) changes.
