@@ -58,6 +58,7 @@ export function FolderTree(props: {
   onOpen: (path: string) => void;
   onOpenToSide: (path: string) => void;
   onDelete: (path: string) => void;
+  onRecover: (path: string) => void;
   onRequestNew: () => void;
   onRequestNewInFolder: (folderPath: string) => void;
   onApplyRenames: (ops: Rename[]) => void;
@@ -393,6 +394,7 @@ export function FolderTree(props: {
           onNewNote={() => props.onRequestNewInFolder(menu.path)}
           onRename={() => setEditingPath(menu.path)}
           onDelete={() => props.onDelete(menu.path)}
+          onRecover={() => props.onRecover(menu.path)}
           onClose={() => setMenu(null)}
         />
       )}

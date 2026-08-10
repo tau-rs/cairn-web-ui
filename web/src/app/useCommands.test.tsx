@@ -70,4 +70,27 @@ describe("useCommands runCommand", () => {
     expect(cairnStore.getState().ask.mode).toBe("bar");
     cairnStore.getState().askClose();
   });
+
+  it("exposes recover-lost-work in the command list", () => {
+    const { result } = renderHook(() => useCommands(), { wrapper });
+    const ids = result.current.commands.map((c) => c.id);
+    expect(ids).toContain("recover-lost-work");
+  });
+
+  it("recover-lost-work opens recovery for the active note", () => {
+    cairnStore.setState({ activePath: "draft.md" });
+    const spy = vi.spyOn(cairnStore.getState(), "openRecovery");
+    const { result } = renderHook(() => useCommands(), { wrapper });
+    act(() => result.current.runCommand("recover-lost-work"));
+    expect(spy).toHaveBeenCalledWith("draft.md");
+  });
+
+  it("recover-lost-work does nothing without an active note", () => {
+    cairnStore.setState({ activePath: null });
+    const spy = vi.spyOn(cairnStore.getState(), "openRecovery");
+    spy.mockClear(); // vi.spyOn reuses an existing spy from a prior test
+    const { result } = renderHook(() => useCommands(), { wrapper });
+    act(() => result.current.runCommand("recover-lost-work"));
+    expect(spy).not.toHaveBeenCalled();
+  });
 });
