@@ -71,12 +71,12 @@ Implementations:
 | **0 — Scaffold** ✅ done | Vite + React + TS + Tailwind + Zustand app. Vendored contract TS types. `CairnClient` interface + `MockClient` + fixture cairn. CI. | — | this repo |
 | **1 — Walking-skeleton UI** ✅ done | Vertical slice on the mock: open a cairn, note list, open/edit a markdown note, search, backlinks panel, commit button, live refresh from the event stream. | 0 | this repo |
 | **2 — Real transport** ✅ done | `TauriClient` (wraps `cairn-service` in-process) + Tauri v2 desktop shell + open-a-cairn picker (persist + auto-reopen); mock↔real switch isolated to `makeBackend`. Mobile target scaffolded (open-on-mobile deferred). | 1 | this repo |
-| **3 — Editor depth** ✅ done | Rendered GitHub-README-style markdown (GFM + Tailwind Typography + code highlighting) is the DEFAULT view; CodeMirror source is the secondary "Edit source" mode; clickable `[[wikilinks]]` (resolved-by-stem). `editorMode` = `rendered`\|`source`. *Still open:* `[[wikilink]]` autocomplete in source, frontmatter rendering. | 1 | this repo |
+| **3 — Editor depth** ✅ done | Rendered GitHub-README-style markdown (GFM + Tailwind Typography + code highlighting) is the DEFAULT view; CodeMirror source is the secondary "Edit source" mode; clickable `[[wikilinks]]` (resolved-by-stem). `editorMode` = `rendered`\|`source`. `[[wikilink]]` autocomplete in source and frontmatter rendering shipped in PR #50. | 1 | this repo |
 | **4 — Graph view** ✅ done | `@xyflow/react` force-directed (`d3-force`) whole-cairn graph in a center-pane toggle; click node → opens note; live-refreshes on note events. *Deferred:* local/neighborhood graph. | 1 | this repo |
 | **5 — Shell polish** ✅ done | Command palette, keyboard shortcuts, dialog host, `Settings`/`SettingsDialog`/`DaemonSettings`. | 1 | this repo |
 | **6 — UI-plugin host** ✅ done | Iframe-sandboxed plugin host: broker (`pluginBroker`/`pluginBrokerHost`), permission prompts, slot/widget rendering, tier-3 contributions (`IframeHost`, `PermissionPrompt`, `SlotRenderer`, `WidgetView`, `PluginCapability`). | 3–5 | this repo |
 | **7 — Tau actions** ⏸ gated | Surface `AgentRuntime` actions (summarize, find-related, …) once tau firms up — engine seam is still `NullRuntime`. External dependency. | 2 + tau | this repo + engine |
-| **8 — Live-collab + recovery UI** 🟡 next | Surface engine epic A: CRDT collab sessions, the recovery surface (`Recover`/`Recoverable`), restore-to-new-block. Not started (`recover-lost-work-ui` branch is a stale snapshot, 0 ahead). | pin-resync (below) + engine A ✅ | this repo |
+| **8 — Live-collab + recovery UI** 🟡 next | Surface engine epic A: CRDT collab sessions, the recovery surface (`Recover`/`Recoverable`), restore-to-new-block. Not started (`recover-lost-work-ui` branch is a stale snapshot, 0 ahead). | pin-resync ✅ + engine A ✅ | this repo |
 
 **Critical path:** 0 → 1 → 2. Phases 3–8 fan out from the skeleton and can
 reorder freely.
@@ -84,7 +84,7 @@ reorder freely.
 ## Live status — 2026-08-10
 
 Engine `tau-rs/cairn` @ `main` #163 · UI `tau-rs/cairn-web-ui` @ `main` #137
-(pins engine `8abc0ef`). Combined `Lane | Deps | Status | Unblocks` board.
+(pins engine `ed037d9`). Combined `Lane | Deps | Status | Unblocks` board.
 Legend: ⬜ blocked · 🟡 ready · 🔵 in progress · 🟣 in review · ✅ done.
 
 **Engine (`tau-rs/cairn`)**
@@ -102,10 +102,10 @@ Legend: ⬜ blocked · 🟡 ready · 🔵 in progress · 🟣 in review · ✅ d
 | Lane | Deps | Status | Unblocks |
 |---|---|---|---|
 | Phases 0–6 (scaffold → Tauri transport → editor → graph → shell polish → plugin host) | — | ✅ | — |
-| pin-resync: bump engine `8abc0ef` → `main` #163 (pull recovery/restore/collab DTOs) | engine A ✅ | 🟡 ready | UI-8 |
-| Phase 8 — Live-collab + recovery UI | pin-resync | ⬜ blocked | — |
+| pin-resync: bump engine `8abc0ef` → `ed037d9` (`main` #163; pull recovery/restore/collab DTOs) | engine A ✅ | ✅ done | UI-8 |
+| Phase 8 — Live-collab + recovery UI | pin-resync ✅ | 🟡 ready | — |
 | Phase 7 — Tau actions | tau firms up (external) | ⬜ gated | — |
-| Phase 3 polish — `[[wikilink]]` autocomplete, frontmatter rendering | — | 🟡 small | — |
+| Phase 3 polish — `[[wikilink]]` autocomplete, frontmatter rendering | — | ✅ #50 | — |
 | Maintenance (8 dependabot PRs) | — | 🟡 ongoing | — |
 
 **The only real dependency edge left is pin-resync → Phase 8.** Everything else
