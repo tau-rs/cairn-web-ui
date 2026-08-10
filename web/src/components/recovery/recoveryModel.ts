@@ -10,12 +10,18 @@ export interface RecoveryItem {
 
 /** Wire blocks → view items: drop empty-string versions, drop now-empty
  *  blocks, tag kind by tombstone. */
-export function toRecoveryItems(blocks: WireRecoverableBlock[]): RecoveryItem[] {
+export function toRecoveryItems(
+  blocks: WireRecoverableBlock[],
+): RecoveryItem[] {
   const items: RecoveryItem[] = [];
   for (const b of blocks) {
     const versions = b.versions.filter((v) => v !== "");
     if (versions.length === 0) continue;
-    items.push({ id: b.id, kind: b.tombstoned ? "deleted" : "overwritten", versions });
+    items.push({
+      id: b.id,
+      kind: b.tombstoned ? "deleted" : "overwritten",
+      versions,
+    });
   }
   return items;
 }

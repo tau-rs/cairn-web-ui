@@ -8,20 +8,34 @@ const blk = (
   tombstoned: boolean,
   versions: string[],
 ): WireRecoverableBlock =>
-  ({ id: { replica, counter }, tombstoned, versions }) as unknown as WireRecoverableBlock;
+  ({
+    id: { replica, counter },
+    tombstoned,
+    versions,
+  }) as unknown as WireRecoverableBlock;
 
 describe("toRecoveryItems", () => {
   it("maps tombstoned→deleted and live→overwritten", () => {
-    const items = toRecoveryItems([blk(1, 2, true, ["x"]), blk(1, 3, false, ["y"])]);
+    const items = toRecoveryItems([
+      blk(1, 2, true, ["x"]),
+      blk(1, 3, false, ["y"]),
+    ]);
     expect(items.map((i) => i.kind)).toEqual(["deleted", "overwritten"]);
   });
   it("drops empty-string versions", () => {
-    expect(toRecoveryItems([blk(1, 2, true, ["", "keep", ""])])[0].versions).toEqual(["keep"]);
+    expect(
+      toRecoveryItems([blk(1, 2, true, ["", "keep", ""])])[0].versions,
+    ).toEqual(["keep"]);
   });
   it("drops a block whose only version is empty", () => {
     expect(toRecoveryItems([blk(1, 2, true, [""])])).toEqual([]);
   });
   it("blockLabel formats id", () => {
-    expect(blockLabel({ replica: 7, counter: 142 } as unknown as WireRecoverableBlock["id"])).toBe("#7·142");
+    expect(
+      blockLabel({
+        replica: 7,
+        counter: 142,
+      } as unknown as WireRecoverableBlock["id"]),
+    ).toBe("#7·142");
   });
 });
