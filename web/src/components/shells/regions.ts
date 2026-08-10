@@ -8,4 +8,6 @@ export interface ShellRegions {
   backlinks: ReactNode;
   /** Optional docked ask panel (desktop shell). */
   ask?: ReactNode;
+  /** Optional docked recovery panel (desktop shell). */
+  recovery?: ReactNode;
 }
