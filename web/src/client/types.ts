@@ -57,7 +57,8 @@ export interface CairnClient {
     onError?: (err: unknown) => void,
   ): Unsubscribe;
   /** Open a /collab recovery session for `note`: join, request `recover`,
-   *  resolve with retained blocks + a handle to restore/close. Rejects when
-   *  the transport has no collab session (Tauri stub). */
+   *  resolve with retained blocks + a handle to restore/close. Client-level
+   *  capability (not a contract Query), like `noteTags`: Tauri stubs a
+   *  rejection since recovery is daemon-only (no in-process /collab). */
   openRecovery(note: string): Promise<RecoverySession>;
 }

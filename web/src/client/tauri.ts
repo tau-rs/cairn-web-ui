@@ -109,10 +109,13 @@ export class TauriClient implements CairnClient {
     };
   }
 
-  // TODO(task 5): implement the real /collab recovery session.
+  /** No in-process Tauri recovery transport exists: `/collab` recovery is
+   *  daemon-only, so this always rejects. */
   openRecovery(note: string): Promise<RecoverySession> {
     void note;
-    throw new Error("not implemented");
+    return Promise.reject(
+      new Error("recovery is only available over a live collab daemon"),
+    );
   }
 }
 
