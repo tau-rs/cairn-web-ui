@@ -24,4 +24,23 @@ describe("debounce", () => {
     vi.advanceTimersByTime(1000);
     expect(fn).not.toHaveBeenCalled();
   });
+
+  it("re-reads a thunk delay on every trigger", () => {
+    // Exercises the `typeof ms === "function"` branch: a changed delay must
+    // take effect without rebuilding the debounce.
+    let delay = 100;
+    const fn = vi.fn();
+    const d = debounce(fn, () => delay);
+
+    d();
+    vi.advanceTimersByTime(100);
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    delay = 500;
+    d();
+    vi.advanceTimersByTime(100); // old delay would have fired here
+    expect(fn).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(400);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
 });

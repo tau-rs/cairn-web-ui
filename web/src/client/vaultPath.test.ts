@@ -33,6 +33,21 @@ describe("confineToRoot", () => {
   it("treats backslashes as separators when confining", () => {
     expect(confineToRoot("/vault", "img\\..\\..\\secret")).toBeNull();
   });
+  it("drops a trailing separator on the relative path (empty last segment)", () => {
+    // Exercises the `seg === ""` skip on a trailing-slash-produced empty seg.
+    expect(confineToRoot("/vault", "img/")).toBe("/vault/img");
+  });
+  it("skips a bare interior `.` segment", () => {
+    // Exercises the `seg === "."` skip in isolation (no `..` interplay).
+    expect(confineToRoot("/vault", "a/./b")).toBe("/vault/a/b");
+  });
+  it("collapses repeated separators in the relative path", () => {
+    expect(confineToRoot("/vault", "a//b")).toBe("/vault/a/b");
+  });
+  it("strips ALL trailing separators from the root, not just one", () => {
+    // Kills the `/[/\\]+$/ → /[/\\]$/` regex mutant on the root.
+    expect(confineToRoot("/vault//", "x")).toBe("/vault/x");
+  });
   it("rejects a path containing a NUL or control character", () => {
     expect(confineToRoot("/vault", "img/\0/passwd")).toBeNull();
     expect(confineToRoot("/vault", "img/\x07x.png")).toBeNull();
