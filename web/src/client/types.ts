@@ -31,8 +31,10 @@ export interface CollabHandlers {
    *  disk, so this carries no ops — it just confirms the session is live. */
   onSnapshot?(note: string): void;
   /** A foreign block op arrived (a peer edit, the daemon's fold-back of a foreign
-   *  disk save, or a restore). Treated as an opaque "changed" signal. */
-  onForeignOp?(note: string, op: WireBlockOp): void;
+   *  disk save, or a restore). Treated as an opaque "changed" signal. The op is
+   *  optional: the daemon transport hands over the real `WireBlockOp`, while the
+   *  desktop transport bridges a watcher `note_changed` and has no op to pass. */
+  onForeignOp?(note: string, op?: WireBlockOp): void;
   /** A protocol `error` frame. Non-fatal — presence just stays dark. */
   onError?(note: string, message: string): void;
 }

@@ -124,11 +124,49 @@ export class TauriClient implements CairnClient {
     );
   }
 
+  /** Desktop presence without a `/collab` transport: there is no in-process
+   *  collab socket, but the presence layer treats a foreign op as an opaque
+   *  "this note changed" signal, and on a single-user desktop an external disk
+   *  edit *is* that signal. So bridge the engine watcher's `note_changed`
+   *  events (the same `cairn://event` channel `subscribe` reads) into
+   *  `onForeignOp`. There is no join frame, so `onSnapshot` fires synchronously:
+   *  the session is live the moment the listener is wired. Mirrors `subscribe`'s
+   *  cancel-safe unlisten lifecycle; does no store refresh of its own —
+   *  `collabSlice.onForeignOp` already owns the targeted reload. */
   openCollab(note: string, handlers: CollabHandlers): CollabSession {
-    // `/collab` is daemon-only; there is no in-process Tauri collab transport.
-    // Report it via onError (non-fatal) rather than throwing.
-    handlers.onError?.(note, "live collab needs the daemon");
-    return { close: () => {} };
+    handlers.onSnapshot?.(note);
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+    const pending = listen<unknown>("cairn://event", (e) => {
+      if (cancelled) return;
+      let ev: Event;
+      try {
+        ev = assertEvent(e.payload);
+      } catch (err) {
+        // A drifted / malformed event routes to onError (non-fatal, presence
+        // stays dark) — the same degraded seam as the daemon's error frame.
+        handlers.onError?.(note, String(err));
+        return;
+      }
+      if (ev.type === "note_changed" && ev.path === note) {
+        handlers.onForeignOp?.(note);
+      }
+    });
+    pending.then(
+      (fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      },
+      (err) => {
+        if (!cancelled) handlers.onError?.(note, String(err));
+      },
+    );
+    return {
+      close: () => {
+        cancelled = true;
+        unlisten?.();
+      },
+    };
   }
 }
 
