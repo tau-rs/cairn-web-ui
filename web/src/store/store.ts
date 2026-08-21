@@ -1150,7 +1150,13 @@ export function createCairnStore(
         try {
           const res = await client.runQuery(
             structural
-              ? { type: "structural_revisions", limit: null }
+              ? // A real limit lets the engine's structural walk stop early
+                // instead of graph-diffing every commit in history (the lazy
+                // `limit` from engine PR #168). 500 graph-changing commits is
+                // far more than any realistic vault scrub, so nothing is
+                // truncated in practice. `vault_history` stays uncapped: it's a
+                // cheap git walk with no per-commit graph diff to bound.
+                { type: "structural_revisions", limit: 500 }
               : { type: "vault_history", limit: null },
           );
           if (token !== seq.timeline) return;
