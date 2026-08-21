@@ -19,6 +19,7 @@ export function Shell(props: ShellRegions) {
           {props.backlinks}
         </aside>
         {props.ask}
+        {props.recovery}
       </div>
     </div>
   );

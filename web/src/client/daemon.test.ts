@@ -6,6 +6,7 @@ import {
   RECONNECT_BASE_MS,
   RECONNECT_MAX_MS,
   ESCALATE_AFTER_ATTEMPTS,
+  RECOVER_TIMEOUT_MS,
 } from "./daemon";
 import type { AnswerEvent } from "../contract";
 
@@ -17,8 +18,12 @@ class FakeWebSocket {
   onclose: ((e: unknown) => void) | null = null;
   onerror: ((e: unknown) => void) | null = null;
   closed = false;
+  sent: string[] = [];
   constructor(public url: string) {
     FakeWebSocket.instances.push(this);
+  }
+  send(data: string) {
+    this.sent.push(data);
   }
   close() {
     this.closed = true;
@@ -303,6 +308,119 @@ describe("DaemonClient subscribe", () => {
       );
       expect(reconnecting).toHaveLength(ESCALATE_AFTER_ATTEMPTS - 1);
     });
+  });
+});
+
+describe("DaemonClient.openRecovery", () => {
+  it("joins /collab, returns recoverable blocks, restore awaits op", async () => {
+    const client = new DaemonClient({
+      url: URL,
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    const p = client.openRecovery("draft.md");
+    const ws = FakeWebSocket.last();
+    expect(ws.url).toBe("ws://localhost:7777/collab");
+
+    ws.emitOpen();
+    expect(JSON.parse(ws.sent[0]).type).toBe("join");
+    expect(ws.sent.some((m) => JSON.parse(m).type === "recover")).toBe(true);
+
+    ws.emitMessage(
+      JSON.stringify({
+        type: "recoverable",
+        note: "draft.md",
+        blocks: [
+          { id: { replica: 1, counter: 2 }, tombstoned: true, versions: ["x"] },
+        ],
+      }),
+    );
+    const session = await p;
+    expect(session.blocks.length).toBe(1);
+
+    const rp = session.restore(session.blocks[0].id, 0);
+    expect(ws.sent.some((m) => JSON.parse(m).type === "restore")).toBe(true);
+    ws.emitMessage(
+      JSON.stringify({ type: "op", note: "draft.md", op: { op: "insert" } }),
+    );
+    await rp;
+  });
+
+  it("rejects if the socket closes before recoverable arrives", async () => {
+    const client = new DaemonClient({
+      url: URL,
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    const p = client.openRecovery("draft.md");
+    FakeWebSocket.last().emitClose();
+    await expect(p).rejects.toThrow(/collab closed/);
+  });
+
+  it("close() sends leave and closes the socket", async () => {
+    const client = new DaemonClient({
+      url: URL,
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    const p = client.openRecovery("draft.md");
+    const ws = FakeWebSocket.last();
+    ws.emitOpen();
+    ws.emitMessage(
+      JSON.stringify({ type: "recoverable", note: "draft.md", blocks: [] }),
+    );
+    const session = await p;
+    session.close();
+    expect(ws.sent.some((m) => JSON.parse(m).type === "leave")).toBe(true);
+    expect(ws.closed).toBe(true);
+  });
+
+  it("close() drains a pending restore() so it resolves instead of hanging", async () => {
+    const client = new DaemonClient({
+      url: URL,
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    const p = client.openRecovery("draft.md");
+    const ws = FakeWebSocket.last();
+    ws.emitOpen();
+    ws.emitMessage(
+      JSON.stringify({
+        type: "recoverable",
+        note: "draft.md",
+        blocks: [
+          { id: { replica: 1, counter: 2 }, tombstoned: true, versions: ["x"] },
+        ],
+      }),
+    );
+    const session = await p;
+
+    const rp = session.restore(session.blocks[0].id, 0);
+    // No `op` is ever emitted; close() must still settle rp without relying
+    // on the 5s fallback timer.
+    session.close();
+    await rp;
+  });
+
+  it("times out and closes the socket if recoverable never arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = new DaemonClient({
+        url: URL,
+        fetch: vi.fn(),
+        WebSocket: WS,
+      });
+      const p = client.openRecovery("draft.md");
+      const ws = FakeWebSocket.last();
+      ws.emitOpen();
+      // No `recoverable` (or any) message ever arrives.
+      const assertion = expect(p).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(RECOVER_TIMEOUT_MS);
+      await assertion;
+      expect(ws.closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

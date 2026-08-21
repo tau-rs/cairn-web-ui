@@ -9,7 +9,7 @@ import type {
   AskRequest,
   AnswerEvent,
 } from "../contract";
-import type { CairnClient, Unsubscribe } from "./types";
+import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
 import { confineToRoot } from "./vaultPath";
 import {
@@ -107,6 +107,15 @@ export class TauriClient implements CairnClient {
     return () => {
       cancelled = true;
     };
+  }
+
+  /** No in-process Tauri recovery transport exists: `/collab` recovery is
+   *  daemon-only, so this always rejects. */
+  openRecovery(note: string): Promise<RecoverySession> {
+    void note;
+    return Promise.reject(
+      new Error("recovery is only available over a live collab daemon"),
+    );
   }
 }
 

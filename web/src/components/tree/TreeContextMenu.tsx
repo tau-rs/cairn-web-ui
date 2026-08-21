@@ -13,6 +13,7 @@ export function TreeContextMenu(props: {
   onNewNote: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onRecover: () => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -72,6 +73,7 @@ export function TreeContextMenu(props: {
       <div className="my-1 h-px bg-border" />
       {item("Set icon…", props.onSetIcon)}
       {item("Rename", props.onRename, false, "F2")}
+      {isNote && item("Recover lost work…", props.onRecover)}
       {isNote && item("Delete", props.onDelete, true)}
     </div>
   );

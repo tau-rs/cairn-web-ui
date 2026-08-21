@@ -1,6 +1,7 @@
 import { useCairn, useActions } from "../../app/cairnStore";
 import { Drawer } from "../ui/Drawer";
 import { AskSheetHost } from "../ask/AskSheetHost";
+import { RecoverySheetHost } from "../recovery/RecoverySheetHost";
 import { Button } from "../ui/Button";
 import type { ShellRegions } from "./regions";
 
@@ -34,6 +35,7 @@ export function TabletShell({ topBar, list, editor, backlinks }: ShellRegions) {
         {backlinks}
       </Drawer>
       <AskSheetHost side="right" />
+      <RecoverySheetHost side="right" />
     </div>
   );
 }

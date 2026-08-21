@@ -15,8 +15,10 @@ import type {
   Revision,
   AskRequest,
   AnswerEvent,
+  WireRecoverableBlock,
+  WireBlockId,
 } from "../contract";
-import type { CairnClient, Unsubscribe } from "./types";
+import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
 import { extractLinks, stem } from "./wikilink";
 import { extractTags } from "../components/graph/tags";
 
@@ -614,6 +616,46 @@ export class MockClient implements CairnClient {
     const out: Record<string, string[]> = {};
     for (const [path, content] of this.notes) out[path] = extractTags(content);
     return Promise.resolve(out);
+  }
+
+  /** Deterministic fixtures: one tombstoned block (former content) + one
+   *  overwritten block (an LWW-loser), keyed off the note so tests are
+   *  stable. `restore` mutates `this.notes` so a subsequent `get_note`
+   *  reflects the appended text. */
+  openRecovery(note: string): Promise<RecoverySession> {
+    const content = this.notes.get(note) ?? "";
+    void content;
+    const blocks: WireRecoverableBlock[] = [
+      {
+        id: { replica: 1, counter: 2 },
+        tombstoned: true,
+        versions: ["## Risks\n- vendor lock-in"],
+      } as unknown as WireRecoverableBlock,
+      {
+        id: { replica: 1, counter: 3 },
+        tombstoned: false,
+        versions: ["Ship date: March 14"],
+      } as unknown as WireRecoverableBlock,
+    ];
+    const session: RecoverySession = {
+      blocks,
+      restore: (id: WireBlockId, versionIndex: number) => {
+        const b = blocks.find(
+          (x) =>
+            (x.id as unknown as { counter: number }).counter ===
+            (id as unknown as { counter: number }).counter,
+        );
+        const text = b?.versions[versionIndex] ?? "";
+        if (text)
+          this.notes.set(
+            note,
+            (this.notes.get(note) ?? "") + "\n" + text + "\n",
+          );
+        return Promise.resolve();
+      },
+      close: () => {},
+    };
+    return Promise.resolve(session);
   }
 
   /** Mock streaming agent: emits a `sources` frame first (authoritative

@@ -90,6 +90,9 @@ export function useCommands(): {
       case "show-history":
         st.showHistory();
         break;
+      case "recover-lost-work":
+        if (st.activePath) st.openRecovery(st.activePath);
+        break;
       case "open-ask":
         st.askOpen();
         break;
