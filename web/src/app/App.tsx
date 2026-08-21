@@ -13,6 +13,7 @@ import { LiveUpdatesBanner } from "../components/LiveUpdatesBanner";
 import { useCommands } from "./useCommands";
 import { useGlobalKeys } from "../components/shortcuts/useGlobalKeys";
 import { AskPanelHost } from "../components/ask/AskPanelHost";
+import { RecoveryPanelHost } from "../components/recovery/RecoveryPanelHost";
 
 export default function App() {
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function App() {
         editor={<EditorPane />}
         backlinks={<RightAside />}
         ask={<AskPanelHost />}
+        recovery={<RecoveryPanelHost />}
       />
       <DialogHost commands={commands} onRunCommand={runCommand} />
       <Toasts />

@@ -12,6 +12,7 @@ function setup(over = {}) {
     onOpen: vi.fn(),
     onOpenToSide: vi.fn(),
     onDelete: vi.fn(),
+    onRecover: vi.fn(),
     onRequestNew: vi.fn(),
     onRequestNewInFolder: vi.fn(),
     onApplyRenames: vi.fn(),

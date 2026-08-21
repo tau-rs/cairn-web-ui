@@ -32,6 +32,11 @@ export const COMMAND_DEFS: CommandDef[] = [
     label: "Show note history",
     defaultBinding: "Mod+Shift+H",
   },
+  {
+    id: "recover-lost-work",
+    label: "Recover lost work…",
+    defaultBinding: null,
+  },
 ];
 
 const DEFAULT_BY_ID: Record<string, string | null> = Object.fromEntries(

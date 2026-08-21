@@ -6,9 +6,23 @@ import type {
   QueryResponse,
   AskRequest,
   AnswerEvent,
+  WireRecoverableBlock,
+  WireBlockId,
 } from "../contract";
 
 export type Unsubscribe = () => void;
+
+/** A live `/collab` recovery session for one note: retained blocks plus a
+ *  handle to restore a chosen version or leave the session. */
+export interface RecoverySession {
+  /** Retained blocks for the note (raw wire; filter with toRecoveryItems). */
+  blocks: WireRecoverableBlock[];
+  /** Restore a chosen version; resolves once the effect is observed
+   *  (Daemon: the fanned-out Insert op; Mock: immediately). */
+  restore(id: WireBlockId, versionIndex: number): Promise<void>;
+  /** Leave the /collab session and close the socket. */
+  close(): void;
+}
 
 /**
  * The single transport-abstracted contract the whole UI is written against.
@@ -42,4 +56,9 @@ export interface CairnClient {
     onEvent: (e: AnswerEvent) => void,
     onError?: (err: unknown) => void,
   ): Unsubscribe;
+  /** Open a /collab recovery session for `note`: join, request `recover`,
+   *  resolve with retained blocks + a handle to restore/close. Client-level
+   *  capability (not a contract Query), like `noteTags`: Tauri stubs a
+   *  rejection since recovery is daemon-only (no in-process /collab). */
+  openRecovery(note: string): Promise<RecoverySession>;
 }

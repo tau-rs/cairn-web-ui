@@ -13,6 +13,7 @@ function setup(overrides = {}) {
     onNewNote: vi.fn(),
     onRename: vi.fn(),
     onDelete: vi.fn(),
+    onRecover: vi.fn(),
     onClose: vi.fn(),
     ...overrides,
   };
@@ -57,5 +58,17 @@ describe("TreeContextMenu", () => {
     const h = setup();
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     expect(h.onClose).toHaveBeenCalled();
+  });
+
+  it("fires Recover lost work then closes", () => {
+    const h = setup();
+    fireEvent.click(screen.getByText("Recover lost work…"));
+    expect(h.onRecover).toHaveBeenCalled();
+    expect(h.onClose).toHaveBeenCalled();
+  });
+
+  it("does not offer Recover lost work for a folder", () => {
+    setup({ kind: "folder" });
+    expect(screen.queryByText("Recover lost work…")).not.toBeInTheDocument();
   });
 });

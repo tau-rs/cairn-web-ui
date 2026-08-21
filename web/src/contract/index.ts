@@ -33,4 +33,5 @@ export type { WireAuthor } from "./WireAuthor";
 export type { WireBlockId } from "./WireBlockId";
 export type { WireBlockKind } from "./WireBlockKind";
 export type { WireBlockOp } from "./WireBlockOp";
+export type { WireRecoverableBlock } from "./WireRecoverableBlock";
 export { CONTRACT_SOURCE_COMMIT } from "./source";

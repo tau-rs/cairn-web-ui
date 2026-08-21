@@ -56,6 +56,7 @@ import type { Rename } from "../components/tree/treeMoves";
 import { type RefreshTrace, refreshTrace } from "./trace";
 import { createHistorySlice, type HistorySlice } from "./historySlice";
 import { createAskSlice, type AskState } from "./askSlice";
+import { createRecoverySlice, type RecoveryState } from "./recoverySlice";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -139,7 +140,8 @@ const EMPTY_TEMPORAL = {
   diff: null,
 } as const;
 
-export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
+export interface CairnState
+  extends PluginGrantsState, HistorySlice, AskState, RecoveryState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
   // waits for this so its URL<->store reconciliation can't race the restore.
@@ -205,6 +207,7 @@ export interface CairnState extends PluginGrantsState, HistorySlice, AskState {
   openCairn(): Promise<void>;
   refreshNotePaths(): Promise<void>;
   openNote(path: string, opts?: { pane?: number }): Promise<void>;
+  reloadNoteBuffer(path: string): Promise<void>;
   editBuffer(contents: string): void;
   saveActive(): Promise<void>;
   saveNote(path: string): Promise<void>;
@@ -590,6 +593,7 @@ export function createCairnStore(
       },
       liveUpdates: "ok",
       ...createAskSlice(set, get, client),
+      ...createRecoverySlice(set, get, client),
 
       async init() {
         if (started) return;
@@ -646,6 +650,19 @@ export function createCairnStore(
           await get().refreshBacklinks();
         } catch (err) {
           pushError("Open note", err, { path });
+        }
+      },
+
+      // note_changed refreshes derived views (tree/backlinks/graph) but does
+      // NOT reload an open note's buffer, so an external disk write (e.g. a
+      // restore) wouldn't otherwise appear. Clean-only: never clobber unsaved
+      // edits.
+      async reloadNoteBuffer(path) {
+        const buf = get().openNotes[path];
+        if (!buf || buf.dirty) return;
+        const res = await client.runQuery({ type: "get_note", path });
+        if (res.type === "note") {
+          setBuffer(path, { contents: res.contents, dirty: false });
         }
       },
 

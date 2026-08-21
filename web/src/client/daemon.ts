@@ -6,8 +6,10 @@ import type {
   QueryResponse,
   AskRequest,
   AnswerEvent,
+  CollabClientMsg,
+  CollabServerMsg,
 } from "../contract";
-import type { CairnClient, Unsubscribe } from "./types";
+import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
 import type { CairnHost } from "./host";
 import {
   assertEvent,
@@ -26,6 +28,11 @@ export const RECONNECT_MAX_MS = 30_000;
  *  `onError` (the store's "live updates unavailable" banner). A brief blip
  *  heals before the user is ever nagged; sustained failure still surfaces. */
 export const ESCALATE_AFTER_ATTEMPTS = 4;
+/** How long `openRecovery` waits for `recoverable` after the socket opens
+ *  before giving up: a daemon that accepts the connection but never answers
+ *  `recover` (and never closes) must not hang the recovery UI forever or
+ *  leak the open socket. */
+export const RECOVER_TIMEOUT_MS = 10_000;
 
 export function backoffDelay(attempt: number): number {
   return Math.min(RECONNECT_BASE_MS * 2 ** (attempt - 1), RECONNECT_MAX_MS);
@@ -251,6 +258,99 @@ export class DaemonClient implements CairnClient {
     const res = await this.runQuery({ type: "list_notes" });
     if (res.type !== "notes") return {};
     return Object.fromEntries(res.notes.map((n) => [n.path, n.tags]));
+  }
+
+  /** Open a `/collab` recovery session for `note`: join, request `recover`,
+   *  resolve with retained blocks + a handle to restore/close. This is a
+   *  short-lived request/response session (unlike `subscribe`'s long-lived
+   *  event stream), so it deliberately has no reconnect/backoff — a dropped
+   *  socket before `recoverable` arrives just rejects the promise. */
+  openRecovery(note: string): Promise<RecoverySession> {
+    const collabUrl = this.url.replace(/^http/, "ws") + "/collab";
+    const replica = Math.floor(this.random() * 2 ** 40); // passive session id
+    const send = (msg: CollabClientMsg) =>
+      ws.send(
+        JSON.stringify(msg, (_k, v) => (typeof v === "bigint" ? Number(v) : v)),
+      );
+    const ws = new this.WS(collabUrl);
+
+    // restore() resolvers waiting for the next `op` on this note.
+    const opWaiters: Array<() => void> = [];
+
+    return new Promise<RecoverySession>((resolve, reject) => {
+      let settled = false;
+      // Guards against a daemon that accepts the socket but never answers
+      // `recover` (and never closes it): without this, the promise would
+      // hang forever and the socket would never be closed.
+      const recoverTimeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        ws.close();
+        reject(new Error("recovery session timed out"));
+      }, RECOVER_TIMEOUT_MS);
+      ws.onopen = () => {
+        send({ type: "join", note, replica: replica as unknown as bigint });
+        send({ type: "recover", note });
+      };
+      ws.onmessage = (ev: { data: unknown }) => {
+        let msg: CollabServerMsg;
+        try {
+          msg = JSON.parse(
+            typeof ev.data === "string" ? ev.data : String(ev.data),
+          );
+        } catch {
+          return;
+        }
+        if (msg.type === "recoverable" && msg.note === note && !settled) {
+          settled = true;
+          clearTimeout(recoverTimeout);
+          resolve({
+            blocks: msg.blocks,
+            // Restore resolves on the next `op` for the note — a heuristic
+            // (a concurrent peer op could resolve it early); harmless since
+            // it only gates the buffer reload, not correctness.
+            restore: (id, versionIndex) =>
+              new Promise<void>((res) => {
+                send({
+                  type: "restore",
+                  note,
+                  id,
+                  version_index: versionIndex,
+                });
+                const t = setTimeout(res, 5000); // fallback if op is missed
+                opWaiters.push(() => {
+                  clearTimeout(t);
+                  res();
+                });
+              }),
+            close: () => {
+              // A closed socket can never deliver the `op` a pending
+              // restore() is waiting on — drain its waiters so the timer is
+              // cleared and the promise resolves instead of hanging/leaking.
+              opWaiters.splice(0).forEach((w) => w());
+              try {
+                send({ type: "leave", note });
+              } finally {
+                ws.close();
+              }
+            },
+          });
+        } else if (msg.type === "op" && msg.note === note) {
+          opWaiters.splice(0).forEach((w) => w());
+        } else if (msg.type === "error" && !settled) {
+          settled = true;
+          clearTimeout(recoverTimeout);
+          reject(new Error(msg.message));
+        }
+      };
+      ws.onclose = () => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(recoverTimeout);
+          reject(new Error("/collab closed before recover"));
+        }
+      };
+    });
   }
 }
 

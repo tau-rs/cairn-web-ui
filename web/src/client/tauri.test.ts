@@ -143,6 +143,11 @@ describe("TauriClient", () => {
     expect(onError).toHaveBeenCalledTimes(1);
     expect(String(onError.mock.calls[0][0])).toMatch(/Malformed event/);
   });
+
+  it("openRecovery rejects (collab is daemon-only)", async () => {
+    const c = new TauriClient();
+    await expect(c.openRecovery("x.md")).rejects.toThrow(/collab/i);
+  });
 });
 
 describe("TauriClient.ask", () => {
