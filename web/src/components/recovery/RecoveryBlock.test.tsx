@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { RecoveryBlock } from "./RecoveryBlock";
 
 const item = {
-  id: { replica: 3, counter: 88 } as never,
+  id: { replica: "3", counter: "88" },
   kind: "deleted" as const,
   versions: ["## Risks\n- lock-in"],
 };

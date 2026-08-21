@@ -275,10 +275,10 @@ export class DaemonClient implements CairnClient {
       ? `${base}?token=${encodeURIComponent(this.token)}`
       : base;
     const replica = Math.floor(this.random() * 2 ** 40); // passive session id
-    const send = (msg: CollabClientMsg) =>
-      ws.send(
-        JSON.stringify(msg, (_k, v) => (typeof v === "bigint" ? Number(v) : v)),
-      );
+    // Every u64 on the /collab wire (block-id replica/counter, lamports,
+    // Join.replica) is a JSON string in the contract, so a plain stringify is
+    // lossless — no bigint coercion needed.
+    const send = (msg: CollabClientMsg) => ws.send(JSON.stringify(msg));
     const ws = new this.WS(collabUrl);
 
     // restore() resolvers waiting for the next `op` on this note.
@@ -296,7 +296,7 @@ export class DaemonClient implements CairnClient {
         reject(new Error("recovery session timed out"));
       }, RECOVER_TIMEOUT_MS);
       ws.onopen = () => {
-        send({ type: "join", note, replica: replica as unknown as bigint });
+        send({ type: "join", note, replica: String(replica) });
         send({ type: "recover", note });
       };
       ws.onmessage = (ev: { data: unknown }) => {

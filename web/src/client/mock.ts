@@ -627,24 +627,20 @@ export class MockClient implements CairnClient {
     void content;
     const blocks: WireRecoverableBlock[] = [
       {
-        id: { replica: 1, counter: 2 },
+        id: { replica: "1", counter: "2" },
         tombstoned: true,
         versions: ["## Risks\n- vendor lock-in"],
-      } as unknown as WireRecoverableBlock,
+      },
       {
-        id: { replica: 1, counter: 3 },
+        id: { replica: "1", counter: "3" },
         tombstoned: false,
         versions: ["Ship date: March 14"],
-      } as unknown as WireRecoverableBlock,
+      },
     ];
     const session: RecoverySession = {
       blocks,
       restore: (id: WireBlockId, versionIndex: number) => {
-        const b = blocks.find(
-          (x) =>
-            (x.id as unknown as { counter: number }).counter ===
-            (id as unknown as { counter: number }).counter,
-        );
+        const b = blocks.find((x) => x.id.counter === id.counter);
         const text = b?.versions[versionIndex] ?? "";
         if (text)
           this.notes.set(

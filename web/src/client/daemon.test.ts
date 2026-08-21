@@ -344,7 +344,11 @@ describe("DaemonClient.openRecovery", () => {
         type: "recoverable",
         note: "draft.md",
         blocks: [
-          { id: { replica: 1, counter: 2 }, tombstoned: true, versions: ["x"] },
+          {
+            id: { replica: "1", counter: "2" },
+            tombstoned: true,
+            versions: ["x"],
+          },
         ],
       }),
     );
@@ -402,7 +406,11 @@ describe("DaemonClient.openRecovery", () => {
         type: "recoverable",
         note: "draft.md",
         blocks: [
-          { id: { replica: 1, counter: 2 }, tombstoned: true, versions: ["x"] },
+          {
+            id: { replica: "1", counter: "2" },
+            tombstoned: true,
+            versions: ["x"],
+          },
         ],
       }),
     );
@@ -734,7 +742,7 @@ describe("DaemonClient — hardening (mutation)", () => {
         note: "other.md",
         blocks: [
           {
-            id: { replica: 9, counter: 9 },
+            id: { replica: "9", counter: "9" },
             tombstoned: false,
             versions: ["X"],
           },
