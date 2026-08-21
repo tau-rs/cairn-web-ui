@@ -3,6 +3,7 @@ import type {
   CommandResponse,
   QueryResponse,
   AnswerEvent,
+  CollabServerMsg,
 } from "../contract";
 
 /** The known discriminant tags for each contract union. Kept in lockstep with
@@ -33,6 +34,13 @@ const ANSWER_EVENT_TYPES = [
   "turn_completed",
   "completed",
   "failed",
+] as const;
+const COLLAB_SERVER_MSG_TYPES = [
+  "joined",
+  "snapshot",
+  "op",
+  "error",
+  "recoverable",
 ] as const;
 
 /** Raised when a value crossing the backend boundary doesn't carry a known
@@ -73,3 +81,5 @@ export const assertQueryResponse = (x: unknown): QueryResponse =>
   assertTagged(x, QUERY_RESPONSE_TYPES, "query response");
 export const assertAnswerEvent = (x: unknown): AnswerEvent =>
   assertTagged(x, ANSWER_EVENT_TYPES, "answer event");
+export const assertCollabServerMsg = (x: unknown): CollabServerMsg =>
+  assertTagged(x, COLLAB_SERVER_MSG_TYPES, "collab server message");
