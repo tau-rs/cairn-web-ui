@@ -124,10 +124,10 @@ export class TauriClient implements CairnClient {
     );
   }
 
-  // TODO(Task 5): replace with the real /collab session.
-  openCollab(_note: string, _handlers: CollabHandlers): CollabSession {
-    void _note;
-    void _handlers;
+  openCollab(note: string, handlers: CollabHandlers): CollabSession {
+    // `/collab` is daemon-only; there is no in-process Tauri collab transport.
+    // Report it via onError (non-fatal) rather than throwing.
+    handlers.onError?.(note, "live collab needs the daemon");
     return { close: () => {} };
   }
 }

@@ -148,6 +148,17 @@ describe("TauriClient", () => {
     const c = new TauriClient();
     await expect(c.openRecovery("x.md")).rejects.toThrow(/collab/i);
   });
+
+  it("openCollab is an honest daemon-only stub", () => {
+    const client = new TauriClient();
+    let err: string | null = null;
+    const session = client.openCollab("n.md", {
+      onError: (_note, message) => (err = message),
+    });
+    expect(typeof session.close).toBe("function");
+    expect(err).toMatch(/daemon/i);
+    session.close(); // no throw
+  });
 });
 
 describe("TauriClient.ask", () => {

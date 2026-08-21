@@ -79,7 +79,8 @@ export interface CairnClient {
    *  rejection since recovery is daemon-only (no in-process /collab). */
   openRecovery(note: string): Promise<RecoverySession>;
   /** Join `note`'s `/collab` session for live presence (one-way: receive peer
-   *  ops, never send). Client-level capability like `openRecovery`; Tauri stubs
-   *  a rejection since `/collab` is daemon-only. */
+   *  ops, never send). Client-level capability like `openRecovery`; `/collab` is
+   *  daemon-only, so Tauri returns an inert session and reports the limitation
+   *  via `handlers.onError`. */
   openCollab(note: string, handlers: CollabHandlers): CollabSession;
 }
