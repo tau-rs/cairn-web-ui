@@ -266,7 +266,14 @@ export class DaemonClient implements CairnClient {
    *  event stream), so it deliberately has no reconnect/backoff — a dropped
    *  socket before `recoverable` arrives just rejects the promise. */
   openRecovery(note: string): Promise<RecoverySession> {
-    const collabUrl = this.url.replace(/^http/, "ws") + "/collab";
+    // Unlike `/events` (origin-gated only), `/collab` is token-gated on the
+    // daemon (`mcp_require_token`). A WebSocket handshake can't carry an
+    // `Authorization` header, so the token must ride as a `?token=` query
+    // param — the same headerless channel the daemon accepts for `/mcp`.
+    const base = this.url.replace(/^http/, "ws") + "/collab";
+    const collabUrl = this.token
+      ? `${base}?token=${encodeURIComponent(this.token)}`
+      : base;
     const replica = Math.floor(this.random() * 2 ** 40); // passive session id
     const send = (msg: CollabClientMsg) =>
       ws.send(

@@ -312,6 +312,19 @@ describe("DaemonClient subscribe", () => {
 });
 
 describe("DaemonClient.openRecovery", () => {
+  it("puts the token on the /collab URL as a ?token= query param (a WS handshake can't send an Authorization header, and /collab is token-gated)", () => {
+    const client = new DaemonClient({
+      url: URL,
+      token: "s3cr3t/tok",
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    void client.openRecovery("draft.md");
+    expect(FakeWebSocket.last().url).toBe(
+      "ws://localhost:7777/collab?token=s3cr3t%2Ftok",
+    );
+  });
+
   it("joins /collab, returns recoverable blocks, restore awaits op", async () => {
     const client = new DaemonClient({
       url: URL,
