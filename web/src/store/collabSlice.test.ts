@@ -80,6 +80,22 @@ describe("collab slice", () => {
     vi.useFakeTimers();
   });
 
+  it("switching the followed note closes an open reload-confirm dialog", () => {
+    const { store } = make();
+    store.getState().collabFollow("n.md");
+    store.getState().setUi({ collabReloadConfirmOpen: true });
+    store.getState().collabFollow("m.md"); // switch notes mid-confirm
+    expect(store.getState().ui.collabReloadConfirmOpen).toBe(false);
+  });
+
+  it("collabStop closes an open reload-confirm dialog", () => {
+    const { store } = make();
+    store.getState().collabFollow("n.md");
+    store.getState().setUi({ collabReloadConfirmOpen: true });
+    store.getState().collabStop();
+    expect(store.getState().ui.collabReloadConfirmOpen).toBe(false);
+  });
+
   it("collabReloadNow is a no-op with no followed note", () => {
     const { store } = make();
     expect(() => store.getState().collabReloadNow()).not.toThrow();

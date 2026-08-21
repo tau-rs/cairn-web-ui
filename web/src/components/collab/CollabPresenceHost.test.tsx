@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup, act } from "@testing-library/react";
+import { render, cleanup, act, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { CollabPresenceHost } from "./CollabPresenceHost";
 import { cairnStore } from "../../app/cairnStore";
 
@@ -19,6 +20,30 @@ describe("CollabPresenceHost", () => {
     render(<CollabPresenceHost />);
 
     expect(cairnStore.getState().collab.note).toBe("n.md");
+  });
+
+  it("Reload opens the confirm dialog instead of reloading immediately", async () => {
+    act(() => {
+      cairnStore.setState({ activePath: "n.md" });
+    });
+
+    render(<CollabPresenceHost />);
+
+    // Force the dirty-nudge state after the mount effect has followed the note.
+    act(() => {
+      cairnStore.setState({
+        openNotes: {
+          "n.md": { contents: "edited", dirty: true, saving: false },
+        },
+        collab: { note: "n.md", live: true, pendingCount: 2 },
+      });
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /reload/i }));
+
+    expect(cairnStore.getState().ui.collabReloadConfirmOpen).toBe(true);
+    // The buffer must NOT have been force-replaced yet.
+    expect(cairnStore.getState().openNotes["n.md"].dirty).toBe(true);
   });
 
   it("stops following when unmounted", () => {

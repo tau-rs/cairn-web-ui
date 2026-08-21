@@ -65,6 +65,9 @@ export function createCollabSlice(
     collabFollow(path) {
       if (get().collab.note === path && session) return; // already following
       teardown();
+      // A pending reload-confirm targeted the note we're leaving; drop it so a
+      // late confirm can't clobber the freshly-followed note's edits.
+      get().setUi({ collabReloadConfirmOpen: false });
       const my = ++token;
       set({ collab: { note: path, live: false, pendingCount: 0 } });
       session = client.openCollab(path, {
@@ -117,6 +120,7 @@ export function createCollabSlice(
     collabStop() {
       token++;
       teardown();
+      get().setUi({ collabReloadConfirmOpen: false });
       set({ collab: DEFAULT_COLLAB });
     },
   };

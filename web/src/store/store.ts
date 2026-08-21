@@ -105,6 +105,8 @@ export interface UiState {
   newNoteInitial: string;
   commitOpen: boolean;
   paletteOpen: boolean;
+  /** Blocking confirm before the live-collab Reload discards unsaved edits. */
+  collabReloadConfirmOpen: boolean;
   /** Active mobile bottom-nav tab (mobile shell only). */
   mobileTab: MobileTab;
   /** Backlinks drawer/sheet open (tablet + mobile shells). */
@@ -121,6 +123,7 @@ export const DEFAULT_UI: UiState = {
   newNoteInitial: "",
   commitOpen: false,
   paletteOpen: false,
+  collabReloadConfirmOpen: false,
   mobileTab: "editor",
   backlinksOpen: false,
   panelDock: { activeId: null, collapsed: false },

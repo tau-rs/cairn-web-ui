@@ -4,6 +4,7 @@ import { noteUrl } from "../app/routes";
 import { SettingsDialog } from "./SettingsDialog";
 import { NewNoteDialog } from "./NewNoteDialog";
 import { CommitDialog } from "./CommitDialog";
+import { CollabReloadDialog } from "./collab/CollabReloadDialog";
 import {
   CommandPalette,
   type PaletteCommand,
@@ -46,6 +47,11 @@ export function DialogHost(props: {
         onOpenChange={(o) => actions.setUi({ commitOpen: o })}
         committing={committing}
         onCommit={actions.commitManual}
+      />
+      <CollabReloadDialog
+        open={ui.collabReloadConfirmOpen}
+        onOpenChange={(o) => actions.setUi({ collabReloadConfirmOpen: o })}
+        onConfirm={actions.collabReloadNow}
       />
       <CommandPalette
         open={ui.paletteOpen}
