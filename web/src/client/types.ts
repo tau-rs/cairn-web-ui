@@ -8,6 +8,7 @@ import type {
   AnswerEvent,
   WireRecoverableBlock,
   WireBlockId,
+  WireBlockOp,
 } from "../contract";
 
 export type Unsubscribe = () => void;
@@ -21,6 +22,22 @@ export interface RecoverySession {
    *  (Daemon: the fanned-out Insert op; Mock: immediately). */
   restore(id: WireBlockId, versionIndex: number): Promise<void>;
   /** Leave the /collab session and close the socket. */
+  close(): void;
+}
+
+/** Handlers for a live `/collab` presence session (one-way: we receive only). */
+export interface CollabHandlers {
+  /** The join was confirmed (`snapshot` arrived). Content is authoritative from
+   *  disk, so this carries no ops — it just confirms the session is live. */
+  onSnapshot?(note: string): void;
+  /** A foreign block op arrived (a peer edit, the daemon's fold-back of a foreign
+   *  disk save, or a restore). Treated as an opaque "changed" signal. */
+  onForeignOp?(note: string, op: WireBlockOp): void;
+  /** A protocol `error` frame. Non-fatal — presence just stays dark. */
+  onError?(note: string, message: string): void;
+}
+/** A live presence session for one note. `close()` sends `leave` and closes. */
+export interface CollabSession {
   close(): void;
 }
 
@@ -61,4 +78,8 @@ export interface CairnClient {
    *  capability (not a contract Query), like `noteTags`: Tauri stubs a
    *  rejection since recovery is daemon-only (no in-process /collab). */
   openRecovery(note: string): Promise<RecoverySession>;
+  /** Join `note`'s `/collab` session for live presence (one-way: receive peer
+   *  ops, never send). Client-level capability like `openRecovery`; Tauri stubs
+   *  a rejection since `/collab` is daemon-only. */
+  openCollab(note: string, handlers: CollabHandlers): CollabSession;
 }

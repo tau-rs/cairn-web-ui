@@ -9,7 +9,13 @@ import type {
   CollabClientMsg,
   CollabServerMsg,
 } from "../contract";
-import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
+import type {
+  CairnClient,
+  RecoverySession,
+  Unsubscribe,
+  CollabHandlers,
+  CollabSession,
+} from "./types";
 import type { CairnHost } from "./host";
 import {
   assertEvent,
@@ -358,6 +364,13 @@ export class DaemonClient implements CairnClient {
         }
       };
     });
+  }
+
+  // TODO(Task 4): replace with the real /collab session.
+  openCollab(_note: string, _handlers: CollabHandlers): CollabSession {
+    void _note;
+    void _handlers;
+    return { close: () => {} };
   }
 }
 
