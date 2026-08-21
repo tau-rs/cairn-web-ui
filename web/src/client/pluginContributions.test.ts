@@ -414,3 +414,128 @@ describe("Tier-3 iframe widget sanitization", () => {
     expect(sanitizeCapabilities("nope")).toEqual([]);
   });
 });
+
+describe("sanitizeContributions — sanitizer edges (mutation-hardening)", () => {
+  const iframe = (entry: unknown) => [
+    {
+      id: "f",
+      slot: "sidebar.section",
+      widget: { kind: "iframe", entry, height: null },
+    },
+  ];
+
+  it("drops an iframe entry containing a backslash (Windows-style traversal)", () => {
+    // Guards `x.includes("\\")` in safeEntry — a backslash must be rejected
+    // even though it is not a POSIX separator.
+    expect(sanitizeContributions(iframe("sub\\evil.html"))).toHaveLength(0);
+  });
+
+  it("drops an iframe entry with an empty segment (a//b)", () => {
+    // Guards the `seg === ""` arm of safeEntry's segment scan.
+    expect(sanitizeContributions(iframe("a//b.html"))).toHaveLength(0);
+  });
+
+  it("drops an empty iframe entry and one longer than MAX_ENTRY", () => {
+    expect(sanitizeContributions(iframe(""))).toHaveLength(0);
+    expect(
+      sanitizeContributions(iframe("a".repeat(513) + ".html")),
+    ).toHaveLength(0);
+  });
+
+  it("keeps an iframe entry of exactly the max length", () => {
+    // Boundary: length === MAX_ENTRY (512) must pass (`> MAX_ENTRY`, not `>=`).
+    const entry = "a".repeat(512);
+    expect(sanitizeContributions(iframe(entry))).toHaveLength(1);
+  });
+
+  it("drops a contribution that is an array, not an object", () => {
+    // Guards `!Array.isArray(x)` in isRecord — an array must not slip through
+    // as a record.
+    expect(sanitizeContributions([["not", "an", "object"]])).toEqual([]);
+  });
+
+  it("drops a widget that is an array", () => {
+    expect(
+      sanitizeContributions([{ id: "w", slot: "sidebar.section", widget: [] }]),
+    ).toEqual([]);
+  });
+
+  it("keeps text of exactly MAX_STR but truncates MAX_STR+1", () => {
+    const exact = "x".repeat(MAX_STR);
+    const over = "y".repeat(MAX_STR + 1);
+    const [a] = sanitizeContributions([
+      {
+        id: "a",
+        slot: "sidebar.section",
+        widget: { kind: "text", text: exact },
+      },
+    ]);
+    const [b] = sanitizeContributions([
+      {
+        id: "b",
+        slot: "sidebar.section",
+        widget: { kind: "text", text: over },
+      },
+    ]);
+    expect((a.widget as { text: string }).text).toHaveLength(MAX_STR);
+    expect((b.widget as { text: string }).text).toHaveLength(MAX_STR);
+  });
+
+  it("coerces a non-finite `order` to null but keeps a finite one", () => {
+    const [nan] = sanitizeContributions([
+      {
+        id: "n",
+        slot: "sidebar.section",
+        widget: { kind: "text", text: "t" },
+        order: Number.NaN,
+      },
+    ]);
+    const [ok] = sanitizeContributions([
+      {
+        id: "o",
+        slot: "sidebar.section",
+        widget: { kind: "text", text: "t" },
+        order: 3,
+      },
+    ]);
+    expect(nan.order).toBeNull();
+    expect(ok.order).toBe(3);
+  });
+
+  it("passes an action widget with absent args through as null", () => {
+    // Guards `x === undefined || x === null` in checkArgs.
+    const [c] = sanitizeContributions([
+      {
+        id: "a",
+        slot: "command",
+        widget: { kind: "action", command: "do.it" },
+      },
+    ]);
+    expect((c.widget as { args: unknown }).args).toBeNull();
+  });
+
+  it("breaks a sort tie on c.id when order and plugin are equal", () => {
+    // Guards the final `a.c.id.localeCompare(b.c.id)` tie-break in groupBySlot.
+    const mk = (id: string): PluginSummary => ({
+      id: "same-plugin",
+      name: "P",
+      version: "1.0.0",
+      commands: [],
+      contributions: [
+        {
+          id,
+          slot: "sidebar.section",
+          widget: { kind: "text", text: id, muted: null },
+          title: null,
+          icon: null,
+          order: 1,
+        },
+      ],
+    });
+    const grouped = groupBySlot([mk("zeta"), mk("alpha")], 0);
+    expect(grouped["sidebar.section"].map((e) => e.c.id)).toEqual([
+      "alpha",
+      "zeta",
+    ]);
+  });
+});
