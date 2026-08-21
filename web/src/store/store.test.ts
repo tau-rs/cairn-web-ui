@@ -1275,7 +1275,7 @@ describe("temporal graph", () => {
     await store.getState().loadVaultTimeline(true);
     expect(spy).toHaveBeenCalledWith({
       type: "structural_revisions",
-      limit: null,
+      limit: 500,
     });
     expect(store.getState().temporal.timeline?.map((r) => r.id)).toEqual([
       "v1",
