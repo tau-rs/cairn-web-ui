@@ -76,7 +76,7 @@ Implementations:
 | **5 — Shell polish** ✅ done | Command palette, keyboard shortcuts, dialog host, `Settings`/`SettingsDialog`/`DaemonSettings`. | 1 | this repo |
 | **6 — UI-plugin host** ✅ done | Iframe-sandboxed plugin host: broker (`pluginBroker`/`pluginBrokerHost`), permission prompts, slot/widget rendering, tier-3 contributions (`IframeHost`, `PermissionPrompt`, `SlotRenderer`, `WidgetView`, `PluginCapability`). | 3–5 | this repo |
 | **7 — Tau actions** ⏸ gated | Surface `AgentRuntime` actions (summarize, find-related, …) once tau firms up — engine seam is still `NullRuntime`. External dependency. | 2 + tau | this repo + engine |
-| **8 — Live-collab + recovery UI** 🟡 next | Surface engine epic A: CRDT collab sessions, the recovery surface (`Recover`/`Recoverable`), restore-to-new-block. Not started (`recover-lost-work-ui` branch is a stale snapshot, 0 ahead). | pin-resync ✅ + engine A ✅ | this repo |
+| **8 — Live-collab + recovery UI** 🔵 in progress | Surface engine epic A: CRDT collab sessions, the recovery surface (`Recover`/`Recoverable`), restore-to-new-block. Recovery/restore shipped (#146 ✅); live-collab presence (corner pill + non-destructive reload) on `feat/live-collab-presence`. | pin-resync ✅ + engine A ✅ | this repo |
 
 **Critical path:** 0 → 1 → 2. Phases 3–8 fan out from the skeleton and can
 reorder freely.
@@ -103,7 +103,7 @@ Legend: ⬜ blocked · 🟡 ready · 🔵 in progress · 🟣 in review · ✅ d
 |---|---|---|---|
 | Phases 0–6 (scaffold → Tauri transport → editor → graph → shell polish → plugin host) | — | ✅ | — |
 | pin-resync: bump engine `8abc0ef` → `ed037d9` (`main` #163; pull recovery/restore/collab DTOs) | engine A ✅ | ✅ done | UI-8 |
-| Phase 8 — Live-collab + recovery UI | pin-resync ✅ | 🟡 ready | — |
+| Phase 8 — Live-collab + recovery UI | pin-resync ✅ | 🔵 in progress | — |
 | Phase 7 — Tau actions | tau firms up (external) | ⬜ gated | — |
 | Phase 3 polish — `[[wikilink]]` autocomplete, frontmatter rendering | — | ✅ #50 | — |
 | Maintenance (8 dependabot PRs) | — | 🟡 ongoing | — |

@@ -56,6 +56,7 @@ import type { Rename } from "../components/tree/treeMoves";
 import { type RefreshTrace, refreshTrace } from "./trace";
 import { createHistorySlice, type HistorySlice } from "./historySlice";
 import { createAskSlice, type AskState } from "./askSlice";
+import { createCollabSlice, type CollabState } from "./collabSlice";
 import { createRecoverySlice, type RecoveryState } from "./recoverySlice";
 
 /** A queued, auto-dismissing error notification. */
@@ -141,7 +142,12 @@ const EMPTY_TEMPORAL = {
 } as const;
 
 export interface CairnState
-  extends PluginGrantsState, HistorySlice, AskState, RecoveryState {
+  extends
+    PluginGrantsState,
+    HistorySlice,
+    AskState,
+    RecoveryState,
+    CollabState {
   cairnPath: string | null;
   // False until init()/openCairn() finishes restoring persisted tabs. RouteSync
   // waits for this so its URL<->store reconciliation can't race the restore.
@@ -593,6 +599,7 @@ export function createCairnStore(
       },
       liveUpdates: "ok",
       ...createAskSlice(set, get, client),
+      ...createCollabSlice(set, get, client, setBuffer),
       ...createRecoverySlice(set, get, client),
 
       async init() {
