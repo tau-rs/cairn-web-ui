@@ -14,6 +14,7 @@ import { useCommands } from "./useCommands";
 import { useGlobalKeys } from "../components/shortcuts/useGlobalKeys";
 import { AskPanelHost } from "../components/ask/AskPanelHost";
 import { RecoveryPanelHost } from "../components/recovery/RecoveryPanelHost";
+import { CollabPresenceHost } from "../components/collab/CollabPresenceHost";
 
 export default function App() {
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function App() {
         status={liveUpdates}
         onRefresh={() => void cairnStore.getState().refreshAll()}
       />
+      <CollabPresenceHost />
     </>
   );
 }
