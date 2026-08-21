@@ -498,14 +498,14 @@ describe("DaemonClient.openCollab", () => {
     ws.message({
       type: "op",
       note: "n.md",
-      op: { op: "delete", id: { replica: 1, counter: 2 }, lamport: 5 },
+      op: { op: "delete", id: { replica: "1", counter: "2" }, lamport: "5" },
     });
     expect(ops).toEqual(["n.md"]);
     // A frame for a different note is ignored.
     ws.message({
       type: "op",
       note: "other.md",
-      op: { op: "delete", id: { replica: 1, counter: 3 }, lamport: 6 },
+      op: { op: "delete", id: { replica: "1", counter: "3" }, lamport: "6" },
     });
     expect(ops).toEqual(["n.md"]);
     // A malformed frame is dropped, not thrown.

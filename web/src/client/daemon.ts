@@ -384,15 +384,13 @@ export class DaemonClient implements CairnClient {
     const ws = new this.WS(collabUrl);
     let open = false;
     let closed = false;
-    const send = (msg: CollabClientMsg) =>
-      ws.send(
-        JSON.stringify(msg, (_k, v) => (typeof v === "bigint" ? Number(v) : v)),
-      );
+    // Every u64 on the /collab wire is a JSON string in the contract, so a plain
+    // stringify is lossless — no bigint coercion needed.
+    const send = (msg: CollabClientMsg) => ws.send(JSON.stringify(msg));
 
     ws.onopen = () => {
       open = true;
-      if (!closed)
-        send({ type: "join", note, replica: replica as unknown as bigint });
+      if (!closed) send({ type: "join", note, replica: String(replica) });
     };
     ws.onmessage = (ev: { data: unknown }) => {
       if (closed) return;

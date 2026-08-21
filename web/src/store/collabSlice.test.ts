@@ -4,8 +4,8 @@ import { MockClient } from "../client/mock";
 
 const wireOp = {
   op: "delete",
-  id: { replica: 9, counter: 1 },
-  lamport: 3,
+  id: { replica: "9", counter: "1" },
+  lamport: "3",
 } as never;
 
 const make = () => {

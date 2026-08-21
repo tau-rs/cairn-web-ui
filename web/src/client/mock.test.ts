@@ -617,8 +617,8 @@ describe("MockClient.openCollab", () => {
     // Tests can drive a foreign op through the captured handlers.
     c.mockCollabHandlers?.onForeignOp?.("n.md", {
       op: "delete",
-      id: { replica: 1, counter: 2 } as never,
-      lamport: 5 as never,
+      id: { replica: "1", counter: "2" } as never,
+      lamport: "5" as never,
     });
     expect(opSeen).toBe("n.md");
     session.close(); // idempotent, no throw
