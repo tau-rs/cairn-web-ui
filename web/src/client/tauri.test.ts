@@ -23,6 +23,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 import { TauriClient, TauriHost } from "./tauri";
+import { createCairnStore } from "../store/store";
 
 /** Drive `ask`, capturing the `Channel` the client passed to `invoke("ask", …)`
  *  so the test can replay frames through it. */
@@ -224,6 +225,65 @@ describe("TauriClient", () => {
     expect(unlisten).toHaveBeenCalled();
     handler({ payload: { type: "note_changed", path: "n.md" } });
     expect(onForeignOp).not.toHaveBeenCalled();
+  });
+});
+
+// End-to-end proof of the PR-157 desktop bridge: the isolated tests above cover
+// `openCollab` at the client seam, and `collabSlice.test.ts` covers the slice
+// with a MockClient — but nothing wires the REAL `TauriClient` into the REAL
+// store. This crosses that seam: a Tauri `note_changed` pushed through the event
+// channel `openCollab` registers must drive the presence state machine, exactly
+// as the daemon transport does over `/collab` in the browser build.
+describe("TauriClient drives the collab store (desktop bridge integration)", () => {
+  // Scoped to this block: the slice's reload/decay run on timers.
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** Wire a real TauriClient into a real store; return a `fire` that pushes a
+   *  `cairn://event` payload through the channel `openCollab` registers. */
+  function makeStore() {
+    let handler: (e: { payload: unknown }) => void = () => {};
+    listen.mockImplementationOnce(
+      (_name: string, h: (e: { payload: unknown }) => void) => {
+        handler = h;
+        return Promise.resolve(vi.fn());
+      },
+    );
+    const store = createCairnStore(new TauriClient());
+    return { store, fire: (payload: unknown) => handler({ payload }) };
+  }
+
+  it("a desktop note_changed on a clean buffer lights presence and schedules a silent reload", () => {
+    const { store, fire } = makeStore();
+    const reload = vi.spyOn(store.getState(), "reloadNoteBuffer");
+    store.getState().collabFollow("n.md");
+    fire({ type: "note_changed", path: "n.md" });
+    expect(store.getState().collab.live).toBe(true);
+    expect(store.getState().collab.pendingCount).toBe(0); // clean -> reload, no nudge
+    vi.advanceTimersByTime(300);
+    expect(reload).toHaveBeenCalledWith("n.md");
+  });
+
+  it("a desktop note_changed on a dirty buffer nudges (pendingCount) and never clobbers", async () => {
+    // get_note (run_query) seeds the buffer; a possible autosave (send_command)
+    // must not matter — the dirty branch must never schedule a reload.
+    invoke.mockImplementation((cmd: string) =>
+      Promise.resolve(
+        cmd === "run_query"
+          ? { type: "note", contents: "# N\n" }
+          : { type: "done" },
+      ),
+    );
+    const { store, fire } = makeStore();
+    await store.getState().openNote("n.md");
+    store.getState().editBuffer("# N\nedited"); // buffer now dirty
+    const reload = vi.spyOn(store.getState(), "reloadNoteBuffer");
+    store.getState().collabFollow("n.md");
+    fire({ type: "note_changed", path: "n.md" });
+    expect(store.getState().openNotes["n.md"].dirty).toBe(true);
+    expect(store.getState().collab.pendingCount).toBe(1);
+    vi.advanceTimersByTime(1000);
+    expect(reload).not.toHaveBeenCalled();
   });
 });
 
