@@ -149,15 +149,81 @@ describe("TauriClient", () => {
     await expect(c.openRecovery("x.md")).rejects.toThrow(/collab/i);
   });
 
-  it("openCollab is an honest daemon-only stub", () => {
-    const client = new TauriClient();
-    let err: string | null = null;
-    const session = client.openCollab("n.md", {
-      onError: (_note, message) => (err = message),
-    });
-    expect(typeof session.close).toBe("function");
-    expect(err).toMatch(/daemon/i);
-    session.close(); // no throw
+  it("openCollab fires onSnapshot immediately (no daemon join frame on desktop)", () => {
+    listen.mockImplementationOnce(() => Promise.resolve(vi.fn()));
+    const c = new TauriClient();
+    const onSnapshot = vi.fn();
+    c.openCollab("n.md", { onSnapshot });
+    expect(onSnapshot).toHaveBeenCalledWith("n.md");
+  });
+
+  it("openCollab bridges a note_changed for the followed note to onForeignOp once", () => {
+    let handler: (e: { payload: unknown }) => void = () => {};
+    listen.mockImplementationOnce(
+      (_name: string, h: (e: { payload: unknown }) => void) => {
+        handler = h;
+        return Promise.resolve(vi.fn());
+      },
+    );
+    const c = new TauriClient();
+    const onForeignOp = vi.fn();
+    c.openCollab("n.md", { onForeignOp });
+    handler({ payload: { type: "note_changed", path: "n.md" } });
+    expect(onForeignOp).toHaveBeenCalledTimes(1);
+    expect(onForeignOp).toHaveBeenCalledWith("n.md");
+  });
+
+  it("openCollab ignores a note_changed for a different note", () => {
+    let handler: (e: { payload: unknown }) => void = () => {};
+    listen.mockImplementationOnce(
+      (_name: string, h: (e: { payload: unknown }) => void) => {
+        handler = h;
+        return Promise.resolve(vi.fn());
+      },
+    );
+    const c = new TauriClient();
+    const onForeignOp = vi.fn();
+    c.openCollab("n.md", { onForeignOp });
+    handler({ payload: { type: "note_changed", path: "other.md" } });
+    expect(onForeignOp).not.toHaveBeenCalled();
+  });
+
+  it("openCollab routes a malformed event payload to onError, not onForeignOp", () => {
+    let handler: (e: { payload: unknown }) => void = () => {};
+    listen.mockImplementationOnce(
+      (_name: string, h: (e: { payload: unknown }) => void) => {
+        handler = h;
+        return Promise.resolve(vi.fn());
+      },
+    );
+    const c = new TauriClient();
+    const onForeignOp = vi.fn();
+    const onError = vi.fn();
+    c.openCollab("n.md", { onForeignOp, onError });
+    handler({ payload: { type: "garbage" } });
+    expect(onForeignOp).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0]).toBe("n.md");
+    expect(String(onError.mock.calls[0][1])).toMatch(/Malformed event/);
+  });
+
+  it("openCollab close() unlistens and stops delivering onForeignOp", async () => {
+    const unlisten = vi.fn();
+    let handler: (e: { payload: unknown }) => void = () => {};
+    listen.mockImplementationOnce(
+      (_name: string, h: (e: { payload: unknown }) => void) => {
+        handler = h;
+        return Promise.resolve(unlisten);
+      },
+    );
+    const c = new TauriClient();
+    const onForeignOp = vi.fn();
+    const session = c.openCollab("n.md", { onForeignOp });
+    await Promise.resolve(); // let the listen promise resolve -> unlisten wired
+    session.close();
+    expect(unlisten).toHaveBeenCalled();
+    handler({ payload: { type: "note_changed", path: "n.md" } });
+    expect(onForeignOp).not.toHaveBeenCalled();
   });
 });
 
