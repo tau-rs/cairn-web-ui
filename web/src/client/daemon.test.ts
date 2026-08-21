@@ -620,3 +620,131 @@ describe("DaemonHost", () => {
     expect(h.assetUrl("img/local.png")).toBe("img/local.png");
   });
 });
+
+describe("DaemonClient — hardening (mutation)", () => {
+  function sse(chunks: string[], init?: ResponseInit): Response {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const c of chunks) controller.enqueue(enc.encode(c));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+      ...init,
+    });
+  }
+
+  it("maps a non-401 error status to a generic message", async () => {
+    // Guards the `res.status === 401` branch AND the `${res.status}` interpolation.
+    const fetch = vi.fn(async () =>
+      jsonResponse({ not: "a contract error" }, 503),
+    ) as unknown as typeof globalThis.fetch;
+    const client = new DaemonClient({ url: URL, fetch });
+    await expect(client.runQuery({ type: "list_notes" })).rejects.toThrow(
+      "daemon request failed: 503",
+    );
+  });
+
+  it("coerces non-string WebSocket frame data via String() before parsing", () => {
+    // Guards `typeof ev.data === "string" ? ev.data : String(ev.data)`: some
+    // WS impls deliver a non-string; it must still be stringified and parsed.
+    const c = new DaemonClient({ url: URL, fetch: vi.fn(), WebSocket: WS });
+    const cb = vi.fn();
+    c.subscribe(cb);
+    FakeWebSocket.last().emitMessage({
+      toString: () => JSON.stringify({ type: "committed", commit: "c9" }),
+    });
+    expect(cb).toHaveBeenCalledWith({ type: "committed", commit: "c9" });
+  });
+
+  it("ask() errors when the response has no body stream", async () => {
+    const fetch = vi.fn(
+      async () =>
+        new Response(null, {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+    ) as unknown as typeof globalThis.fetch;
+    const client = new DaemonClient({ url: URL, fetch });
+    const err = await new Promise<unknown>((resolve) => {
+      client.ask({ query: "q", top_k: null }, () => {}, resolve);
+    });
+    expect(String(err)).toMatch(/empty stream/);
+  });
+
+  it("ask() parses a trailing frame that has no blank-line terminator", async () => {
+    // Guards the post-loop flush (`decoder.decode()` + tail `parseSseFrame`).
+    const fetch = vi.fn(async () =>
+      sse([`data: ${JSON.stringify({ type: "completed" })}`]),
+    ) as unknown as typeof globalThis.fetch;
+    const client = new DaemonClient({ url: URL, fetch });
+    const got = await new Promise<AnswerEvent[]>((resolve) => {
+      const out: AnswerEvent[] = [];
+      client.ask(
+        { query: "q", top_k: null },
+        (e) => {
+          out.push(e);
+          if (e.type === "completed") resolve(out);
+        },
+        () => resolve(out),
+      );
+    });
+    expect(got.map((e) => e.type)).toEqual(["completed"]);
+  });
+
+  it("ask() ignores comment/event lines and reads only `data:`", async () => {
+    // Guards parseSseFrame's `startsWith("data:")` filter and the ` `-trim.
+    const fetch = vi.fn(async () =>
+      sse([
+        `event: message\n: a comment\ndata: ${JSON.stringify({ type: "completed" })}\n\n`,
+      ]),
+    ) as unknown as typeof globalThis.fetch;
+    const client = new DaemonClient({ url: URL, fetch });
+    const got = await new Promise<AnswerEvent[]>((resolve) => {
+      const out: AnswerEvent[] = [];
+      client.ask(
+        { query: "q", top_k: null },
+        (e) => {
+          out.push(e);
+          if (e.type === "completed") resolve(out);
+        },
+        () => resolve(out),
+      );
+    });
+    expect(got.map((e) => e.type)).toEqual(["completed"]);
+  });
+
+  it("openRecovery ignores a `recoverable` for a different note", async () => {
+    // Guards `msg.note === note`: a recoverable for another note must not
+    // resolve THIS session with the wrong blocks.
+    const client = new DaemonClient({
+      url: URL,
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    const p = client.openRecovery("draft.md");
+    const ws = FakeWebSocket.last();
+    ws.emitOpen();
+    ws.emitMessage(
+      JSON.stringify({
+        type: "recoverable",
+        note: "other.md",
+        blocks: [
+          {
+            id: { replica: 9, counter: 9 },
+            tombstoned: false,
+            versions: ["X"],
+          },
+        ],
+      }),
+    );
+    ws.emitMessage(
+      JSON.stringify({ type: "recoverable", note: "draft.md", blocks: [] }),
+    );
+    const session = await p;
+    expect(session.blocks).toEqual([]); // draft.md's blocks, not other.md's
+  });
+});
