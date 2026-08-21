@@ -95,7 +95,7 @@ Legend: ⬜ blocked · 🟡 ready · 🔵 in progress · 🟣 in review · ✅ d
 | B — Graph visualization (temporal contract + standalone viz) | — | ✅ | folded into UI-4 |
 | C — Plugin trust & reach (capability vocab, net/agent cap enforcement, integration test) | — | ✅ | — |
 | C· #40 plugin-trust hardening follow-ups | C ✅ | 🟡 open | — |
-| E — Maintenance (7 dependabot PRs + RUSTSEC #131/#100) | — | 🟡 ongoing | — |
+| E — Maintenance | — | ✅ dependabot backlog cleared 2026-08-10 (6 PRs enqueued, dirs-major #124 closed); RUSTSEC #131/#100 were already closed 2026-07-24 | — |
 
 **UI (`tau-rs/cairn-web-ui`)**
 
