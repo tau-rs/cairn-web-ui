@@ -10,7 +10,8 @@
     "!src/**/*.test.{ts,tsx}",
     "!src/vitest.setup.ts",
     "!src/types/**",
-    "!src/**/*.d.ts"
+    "!src/**/*.d.ts",
+    "!src/client/mock.ts"
   ],
   "htmlReporter": { "fileName": "reports/mutation/index.html" }
 }
