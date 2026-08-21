@@ -9,13 +9,20 @@ import type {
   CollabClientMsg,
   CollabServerMsg,
 } from "../contract";
-import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
+import type {
+  CairnClient,
+  RecoverySession,
+  Unsubscribe,
+  CollabHandlers,
+  CollabSession,
+} from "./types";
 import type { CairnHost } from "./host";
 import {
   assertEvent,
   assertCommandResponse,
   assertQueryResponse,
   assertAnswerEvent,
+  assertCollabServerMsg,
 } from "./contractGuards";
 
 /** Exponential-backoff reconnect, per the standard WebSocket guidance: start at
@@ -275,9 +282,9 @@ export class DaemonClient implements CairnClient {
       ? `${base}?token=${encodeURIComponent(this.token)}`
       : base;
     const replica = Math.floor(this.random() * 2 ** 40); // passive session id
-    // The `/collab` wire carries every u64 (replica, block ids, lamports) as a
-    // decimal JSON string, so a plain stringify is enough — nothing rides as a
-    // bigint anymore.
+    // Every u64 on the /collab wire (block-id replica/counter, lamports,
+    // Join.replica) is a JSON string in the contract, so a plain stringify is
+    // lossless — no bigint coercion needed.
     const send = (msg: CollabClientMsg) => ws.send(JSON.stringify(msg));
     const ws = new this.WS(collabUrl);
 
@@ -358,6 +365,71 @@ export class DaemonClient implements CairnClient {
         }
       };
     });
+  }
+
+  /** Open a `/collab` live presence session for `note`: join on open, route
+   *  `snapshot`/`op`/`error` frames to `handlers`, leave on `close()`. This
+   *  is a passive, one-way subscriber — it never sends `op` — so unlike
+   *  `openRecovery` it has no request/response promise to settle. */
+  openCollab(note: string, handlers: CollabHandlers): CollabSession {
+    // `/collab` is token-gated; a WS handshake can't carry an Authorization
+    // header, so the token rides as `?token=` (same as openRecovery).
+    const base = this.url.replace(/^http/, "ws") + "/collab";
+    const collabUrl = this.token
+      ? `${base}?token=${encodeURIComponent(this.token)}`
+      : base;
+    // Passive read-only replica id (we never send ops); used only for the
+    // daemon's participant set / echo-skip.
+    const replica = Math.floor(this.random() * 2 ** 40);
+    const ws = new this.WS(collabUrl);
+    let open = false;
+    let closed = false;
+    // Every u64 on the /collab wire is a JSON string in the contract, so a plain
+    // stringify is lossless — no bigint coercion needed.
+    const send = (msg: CollabClientMsg) => ws.send(JSON.stringify(msg));
+
+    ws.onopen = () => {
+      open = true;
+      if (!closed) send({ type: "join", note, replica: String(replica) });
+    };
+    ws.onmessage = (ev: { data: unknown }) => {
+      if (closed) return;
+      let msg: CollabServerMsg;
+      try {
+        const text = typeof ev.data === "string" ? ev.data : String(ev.data);
+        msg = assertCollabServerMsg(JSON.parse(text));
+      } catch {
+        return; // presence is non-critical: drop a malformed frame silently
+      }
+      if (msg.note !== note) return;
+      switch (msg.type) {
+        case "snapshot":
+          handlers.onSnapshot?.(msg.note);
+          break;
+        case "op":
+          handlers.onForeignOp?.(msg.note, msg.op);
+          break;
+        case "error":
+          handlers.onError?.(msg.note, msg.message);
+          break;
+        // joined / recoverable: not used by the presence session
+      }
+    };
+
+    return {
+      close() {
+        if (closed) return;
+        closed = true;
+        if (open) {
+          try {
+            send({ type: "leave", note });
+          } catch {
+            // socket already gone — nothing to leave
+          }
+        }
+        ws.close();
+      },
+    };
   }
 }
 

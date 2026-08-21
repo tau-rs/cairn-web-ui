@@ -7,12 +7,11 @@ const blk = (
   counter: number,
   tombstoned: boolean,
   versions: string[],
-): WireRecoverableBlock =>
-  ({
-    id: { replica, counter },
-    tombstoned,
-    versions,
-  }) as unknown as WireRecoverableBlock;
+): WireRecoverableBlock => ({
+  id: { replica: String(replica), counter: String(counter) },
+  tombstoned,
+  versions,
+});
 
 describe("toRecoveryItems", () => {
   it("maps tombstoned→deleted and live→overwritten", () => {
@@ -33,9 +32,9 @@ describe("toRecoveryItems", () => {
   it("blockLabel formats id", () => {
     expect(
       blockLabel({
-        replica: 7,
-        counter: 142,
-      } as unknown as WireRecoverableBlock["id"]),
+        replica: "7",
+        counter: "142",
+      }),
     ).toBe("#7·142");
   });
 });

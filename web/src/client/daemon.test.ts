@@ -344,7 +344,11 @@ describe("DaemonClient.openRecovery", () => {
         type: "recoverable",
         note: "draft.md",
         blocks: [
-          { id: { replica: 1, counter: 2 }, tombstoned: true, versions: ["x"] },
+          {
+            id: { replica: "1", counter: "2" },
+            tombstoned: true,
+            versions: ["x"],
+          },
         ],
       }),
     );
@@ -441,7 +445,11 @@ describe("DaemonClient.openRecovery", () => {
         type: "recoverable",
         note: "draft.md",
         blocks: [
-          { id: { replica: 1, counter: 2 }, tombstoned: true, versions: ["x"] },
+          {
+            id: { replica: "1", counter: "2" },
+            tombstoned: true,
+            versions: ["x"],
+          },
         ],
       }),
     );
@@ -473,6 +481,83 @@ describe("DaemonClient.openRecovery", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+class CollabFakeWS {
+  static last: CollabFakeWS | null = null;
+  onopen: (() => void) | null = null;
+  onmessage: ((ev: { data: unknown }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  sent: string[] = [];
+  closed = false;
+  constructor(public url: string) {
+    CollabFakeWS.last = this;
+  }
+  send(s: string) {
+    this.sent.push(s);
+  }
+  close() {
+    this.closed = true;
+  }
+  // test helpers
+  open() {
+    this.onopen?.();
+  }
+  message(obj: unknown) {
+    this.onmessage?.({ data: JSON.stringify(obj) });
+  }
+}
+
+describe("DaemonClient.openCollab", () => {
+  it("openCollab joins, routes frames, and leaves on close", () => {
+    const client = new DaemonClient({
+      url: "http://d",
+      token: "t0",
+      WebSocket: CollabFakeWS as unknown as { new (u: string): WebSocket },
+      random: () => 0.5,
+    });
+    const ops: string[] = [];
+    let snap = 0;
+    const session = client.openCollab("n.md", {
+      onSnapshot: () => (snap += 1),
+      onForeignOp: (note) => ops.push(note),
+    });
+    const ws = CollabFakeWS.last!;
+    expect(ws.url).toBe("ws://d/collab?token=t0"); // token-gated query param
+
+    ws.open();
+    expect(JSON.parse(ws.sent[0])).toMatchObject({
+      type: "join",
+      note: "n.md",
+    });
+
+    ws.message({ type: "snapshot", note: "n.md", ops: [] });
+    expect(snap).toBe(1);
+    ws.message({
+      type: "op",
+      note: "n.md",
+      op: { op: "delete", id: { replica: "1", counter: "2" }, lamport: "5" },
+    });
+    expect(ops).toEqual(["n.md"]);
+    // A frame for a different note is ignored.
+    ws.message({
+      type: "op",
+      note: "other.md",
+      op: { op: "delete", id: { replica: "1", counter: "3" }, lamport: "6" },
+    });
+    expect(ops).toEqual(["n.md"]);
+    // A malformed frame is dropped, not thrown.
+    expect(() => ws.message({ type: "bogus" })).not.toThrow();
+
+    session.close();
+    expect(JSON.parse(ws.sent[1])).toMatchObject({
+      type: "leave",
+      note: "n.md",
+    });
+    expect(ws.closed).toBe(true);
+    session.close(); // idempotent
+    expect(ws.sent.length).toBe(2);
   });
 });
 
@@ -773,7 +858,7 @@ describe("DaemonClient — hardening (mutation)", () => {
         note: "other.md",
         blocks: [
           {
-            id: { replica: 9, counter: 9 },
+            id: { replica: "9", counter: "9" },
             tombstoned: false,
             versions: ["X"],
           },

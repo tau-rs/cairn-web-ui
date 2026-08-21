@@ -11,17 +11,17 @@ class FakeResizeObserver {
   disconnect() {}
 }
 
-const tombstoned = {
-  id: { replica: 1, counter: 1 },
+const tombstoned: WireRecoverableBlock = {
+  id: { replica: "1", counter: "1" },
   tombstoned: true,
   versions: ["## Risks\n- lock-in"],
-} as unknown as WireRecoverableBlock;
+};
 
-const live = {
-  id: { replica: 2, counter: 5 },
+const live: WireRecoverableBlock = {
+  id: { replica: "2", counter: "5" },
   tombstoned: false,
   versions: ["old text"],
-} as unknown as WireRecoverableBlock;
+};
 
 function baseProps() {
   return {

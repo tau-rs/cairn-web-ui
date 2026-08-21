@@ -18,7 +18,13 @@ import type {
   WireRecoverableBlock,
   WireBlockId,
 } from "../contract";
-import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
+import type {
+  CairnClient,
+  RecoverySession,
+  Unsubscribe,
+  CollabHandlers,
+  CollabSession,
+} from "./types";
 import { extractLinks, stem } from "./wikilink";
 import { extractTags } from "../components/graph/tags";
 
@@ -627,24 +633,20 @@ export class MockClient implements CairnClient {
     void content;
     const blocks: WireRecoverableBlock[] = [
       {
-        id: { replica: 1, counter: 2 },
+        id: { replica: "1", counter: "2" },
         tombstoned: true,
         versions: ["## Risks\n- vendor lock-in"],
-      } as unknown as WireRecoverableBlock,
+      },
       {
-        id: { replica: 1, counter: 3 },
+        id: { replica: "1", counter: "3" },
         tombstoned: false,
         versions: ["Ship date: March 14"],
-      } as unknown as WireRecoverableBlock,
+      },
     ];
     const session: RecoverySession = {
       blocks,
       restore: (id: WireBlockId, versionIndex: number) => {
-        const b = blocks.find(
-          (x) =>
-            (x.id as unknown as { counter: number }).counter ===
-            (id as unknown as { counter: number }).counter,
-        );
+        const b = blocks.find((x) => x.id.counter === id.counter);
         const text = b?.versions[versionIndex] ?? "";
         if (text)
           this.notes.set(
@@ -705,5 +707,16 @@ export class MockClient implements CairnClient {
   /** Test/dev helper: current note paths. */
   paths(): string[] {
     return [...this.notes.keys()].sort();
+  }
+
+  /** Test hook: the handlers passed to the most recent `openCollab`, so tests
+   *  can drive `onForeignOp`/etc. deterministically. */
+  mockCollabHandlers: CollabHandlers | null = null;
+
+  openCollab(_note: string, handlers: CollabHandlers): CollabSession {
+    // Inert: the mock has no peers, so nothing fires on its own. Tests drive
+    // handlers via `mockCollabHandlers`.
+    this.mockCollabHandlers = handlers;
+    return { close: () => {} };
   }
 }

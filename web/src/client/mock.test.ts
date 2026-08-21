@@ -602,6 +602,30 @@ describe("MockClient get_suggestions", () => {
   });
 });
 
+describe("MockClient.openCollab", () => {
+  it("openCollab returns an inert session and exposes handlers for driving", () => {
+    const c = new MockClient({ "n.md": "# N\n" });
+    let opSeen: string | null = null;
+    const session = c.openCollab("n.md", {
+      onForeignOp: (note) => {
+        opSeen = note;
+      },
+    });
+    expect(typeof session.close).toBe("function");
+    // No peers in the mock: nothing fired on its own.
+    expect(opSeen).toBeNull();
+    // Tests can drive a foreign op through the captured handlers.
+    c.mockCollabHandlers?.onForeignOp?.("n.md", {
+      op: "delete",
+      id: { replica: "1", counter: "2" } as never,
+      lamport: "5" as never,
+    });
+    expect(opSeen).toBe("n.md");
+    session.close(); // idempotent, no throw
+    session.close();
+  });
+});
+
 describe("MockClient.openRecovery", () => {
   it("returns retained blocks and restore() reflects into the note", async () => {
     const c = new MockClient({ "draft.md": "# Draft\nkeep\n" });
