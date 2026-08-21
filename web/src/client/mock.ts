@@ -18,7 +18,13 @@ import type {
   WireRecoverableBlock,
   WireBlockId,
 } from "../contract";
-import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
+import type {
+  CairnClient,
+  RecoverySession,
+  Unsubscribe,
+  CollabHandlers,
+  CollabSession,
+} from "./types";
 import { extractLinks, stem } from "./wikilink";
 import { extractTags } from "../components/graph/tags";
 
@@ -705,5 +711,16 @@ export class MockClient implements CairnClient {
   /** Test/dev helper: current note paths. */
   paths(): string[] {
     return [...this.notes.keys()].sort();
+  }
+
+  /** Test hook: the handlers passed to the most recent `openCollab`, so tests
+   *  can drive `onForeignOp`/etc. deterministically. */
+  mockCollabHandlers: CollabHandlers | null = null;
+
+  openCollab(_note: string, handlers: CollabHandlers): CollabSession {
+    // Inert: the mock has no peers, so nothing fires on its own. Tests drive
+    // handlers via `mockCollabHandlers`.
+    this.mockCollabHandlers = handlers;
+    return { close: () => {} };
   }
 }

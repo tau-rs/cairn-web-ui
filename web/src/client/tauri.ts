@@ -9,7 +9,13 @@ import type {
   AskRequest,
   AnswerEvent,
 } from "../contract";
-import type { CairnClient, RecoverySession, Unsubscribe } from "./types";
+import type {
+  CairnClient,
+  RecoverySession,
+  Unsubscribe,
+  CollabHandlers,
+  CollabSession,
+} from "./types";
 import type { CairnHost } from "./host";
 import { confineToRoot } from "./vaultPath";
 import {
@@ -116,6 +122,13 @@ export class TauriClient implements CairnClient {
     return Promise.reject(
       new Error("recovery is only available over a live collab daemon"),
     );
+  }
+
+  openCollab(note: string, handlers: CollabHandlers): CollabSession {
+    // `/collab` is daemon-only; there is no in-process Tauri collab transport.
+    // Report it via onError (non-fatal) rather than throwing.
+    handlers.onError?.(note, "live collab needs the daemon");
+    return { close: () => {} };
   }
 }
 

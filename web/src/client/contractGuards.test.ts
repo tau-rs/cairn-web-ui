@@ -4,6 +4,7 @@ import {
   assertCommandResponse,
   assertQueryResponse,
   assertAnswerEvent,
+  assertCollabServerMsg,
   ContractShapeError,
 } from "./contractGuards";
 
@@ -54,5 +55,23 @@ describe("assertAnswerEvent", () => {
 
   it("rejects a non-object", () => {
     expect(() => assertAnswerEvent(null)).toThrow(ContractShapeError);
+  });
+});
+
+describe("assertCollabServerMsg", () => {
+  it("accepts each valid variant", () => {
+    for (const type of ["joined", "snapshot", "op", "error", "recoverable"]) {
+      expect(assertCollabServerMsg({ type, note: "n.md" }).type).toBe(type);
+    }
+  });
+  it("rejects an unknown tag", () => {
+    expect(() => assertCollabServerMsg({ type: "bogus" })).toThrow(
+      /Malformed collab server message/,
+    );
+  });
+  it("rejects a non-object", () => {
+    expect(() => assertCollabServerMsg(null)).toThrow(
+      /Malformed collab server message/,
+    );
   });
 });
