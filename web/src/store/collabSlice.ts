@@ -1,6 +1,6 @@
 import type { StoreApi } from "zustand/vanilla";
 import type { CairnClient, CollabSession } from "../client/types";
-import type { CairnState } from "./store";
+import type { CairnState, NoteBuffer } from "./store";
 
 export interface CollabPresence {
   /** The note currently followed, or null when not following. */
@@ -40,6 +40,7 @@ export function createCollabSlice(
   set: Set,
   get: Get,
   client: CairnClient,
+  setBuffer: (path: string, patch: Partial<NoteBuffer>) => void,
 ): CollabState {
   let session: CollabSession | null = null;
   let token = 0;
@@ -95,11 +96,22 @@ export function createCollabSlice(
       });
     },
 
+    // Explicit user action (the Reload button): force-replace the buffer from
+    // disk even if it's dirty. Unlike the silent auto-reload in onForeignOp
+    // (clean-only), a deliberate click is the sanctioned escape hatch that may
+    // clobber unsaved edits.
     collabReloadNow() {
       const note = get().collab.note;
       if (!note) return;
-      void get().reloadNoteBuffer(note);
-      set((s) => ({ collab: { ...s.collab, pendingCount: 0 } }));
+      const my = token;
+      void (async () => {
+        const res = await client.runQuery({ type: "get_note", path: note });
+        if (my !== token) return; // superseded by a note switch / stop
+        if (res.type === "note") {
+          setBuffer(note, { contents: res.contents, dirty: false });
+          set((s) => ({ collab: { ...s.collab, pendingCount: 0 } }));
+        }
+      })();
     },
 
     collabStop() {

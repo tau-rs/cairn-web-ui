@@ -57,16 +57,51 @@ describe("collab slice", () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it("collabReloadNow reloads and clears pendingCount", async () => {
+  it("collabReloadNow force-replaces a dirty buffer from disk and clears pendingCount", async () => {
     const { client, store } = make();
     await store.getState().openNote("n.md");
     store.getState().editBuffer("# N\nedited");
     store.getState().collabFollow("n.md");
     client.mockCollabHandlers!.onForeignOp!("n.md", wireOp);
-    const reload = vi.spyOn(store.getState(), "reloadNoteBuffer");
+    expect(store.getState().openNotes["n.md"].dirty).toBe(true);
+    expect(store.getState().collab.pendingCount).toBe(1);
+
     store.getState().collabReloadNow();
-    expect(reload).toHaveBeenCalledWith("n.md");
+
+    // collabReloadNow is async internally (get_note resolves on a
+    // microtask); switch off fake timers so the pending microtask can
+    // actually flush while we wait for it.
+    vi.useRealTimers();
+    await vi.waitFor(() =>
+      expect(store.getState().openNotes["n.md"].dirty).toBe(false),
+    );
+    expect(store.getState().openNotes["n.md"].contents).toBe("# N\n");
     expect(store.getState().collab.pendingCount).toBe(0);
+    vi.useFakeTimers();
+  });
+
+  it("collabReloadNow is a no-op with no followed note", () => {
+    const { store } = make();
+    expect(() => store.getState().collabReloadNow()).not.toThrow();
+  });
+
+  it("collabReloadNow is token-guarded against a note switch mid-fetch", async () => {
+    const { client, store } = make();
+    await store.getState().openNote("n.md");
+    store.getState().editBuffer("# N\nedited");
+    store.getState().collabFollow("n.md");
+    client.mockCollabHandlers!.onForeignOp!("n.md", wireOp);
+
+    store.getState().collabReloadNow(); // in-flight get_note for n.md
+    store.getState().collabFollow("m.md"); // supersedes before get_note resolves
+
+    vi.useRealTimers();
+    await new Promise((r) => setTimeout(r, 0));
+    // The superseded reload must not resurrect n.md's pendingCount/dirty
+    // state or otherwise mutate current (m.md) presence.
+    expect(store.getState().collab.note).toBe("m.md");
+    expect(store.getState().openNotes["n.md"].dirty).toBe(true);
+    vi.useFakeTimers();
   });
 
   it("switching notes drops a stale session's callbacks", () => {

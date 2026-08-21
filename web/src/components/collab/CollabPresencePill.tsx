@@ -12,8 +12,10 @@ export function CollabPresencePill(props: {
   onReload: () => void;
 }) {
   const { collab, dirty, onReload } = props;
-  if (!collab.live) return null;
 
+  // The dirty nudge persists across live-decay: pendingCount stays >0 even
+  // after `live` flips false (LIVE_DECAY_MS quiet), and the nudge must stay
+  // visible until the user acts on it (Reload) or the buffer is saved/reset.
   if (dirty && collab.pendingCount > 0) {
     const n = collab.pendingCount;
     return (
@@ -30,6 +32,8 @@ export function CollabPresencePill(props: {
       </div>
     );
   }
+
+  if (!collab.live) return null;
 
   return (
     <div

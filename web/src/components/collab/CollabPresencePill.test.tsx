@@ -37,4 +37,39 @@ describe("CollabPresencePill", () => {
     await userEvent.click(screen.getByRole("button", { name: /reload/i }));
     expect(onReload).toHaveBeenCalledOnce();
   });
+
+  it("shows the binary pill (not the nudge) when live + clean + stale pendingCount", () => {
+    render(
+      <CollabPresencePill
+        collab={{ ...base, live: true, pendingCount: 3 }}
+        dirty={false}
+        onReload={() => {}}
+      />,
+    );
+    expect(screen.getByText("Live edits")).toBeInTheDocument();
+    expect(screen.queryByText(/live changes/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the binary pill (not the nudge) when live + dirty + pendingCount is 0", () => {
+    render(
+      <CollabPresencePill
+        collab={{ ...base, live: true, pendingCount: 0 }}
+        dirty={true}
+        onReload={() => {}}
+      />,
+    );
+    expect(screen.getByText("Live edits")).toBeInTheDocument();
+    expect(screen.queryByText(/live changes/i)).not.toBeInTheDocument();
+  });
+
+  it("the reload nudge persists past live-decay (live=false, dirty+pending)", () => {
+    render(
+      <CollabPresencePill
+        collab={{ ...base, live: false, pendingCount: 2 }}
+        dirty={true}
+        onReload={() => {}}
+      />,
+    );
+    expect(screen.getByText(/2 live changes/i)).toBeInTheDocument();
+  });
 });

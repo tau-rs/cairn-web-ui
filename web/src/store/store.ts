@@ -599,7 +599,7 @@ export function createCairnStore(
       },
       liveUpdates: "ok",
       ...createAskSlice(set, get, client),
-      ...createCollabSlice(set, get, client),
+      ...createCollabSlice(set, get, client, setBuffer),
       ...createRecoverySlice(set, get, client),
 
       async init() {
