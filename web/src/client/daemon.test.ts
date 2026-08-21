@@ -363,6 +363,45 @@ describe("DaemonClient.openRecovery", () => {
     await rp;
   });
 
+  it("round-trips a seed-replica (u64::MAX) block id through restore without precision loss", async () => {
+    // The bug this guards: the daemon's seed replica is DAEMON_REPLICA
+    // (u64::MAX ≈ 1.8e19). It used to ride the wire as a bare JSON number, so
+    // JSON.parse rounded it above 2^53 and the echoed Restore no longer matched
+    // the real block. The engine now string-encodes every u64, so the id must
+    // survive parse→restore byte-for-byte as an opaque string.
+    const SEED_ID = { replica: "18446744073709551615", counter: "7" };
+    const client = new DaemonClient({
+      url: URL,
+      fetch: vi.fn(),
+      WebSocket: WS,
+    });
+    const p = client.openRecovery("draft.md");
+    const ws = FakeWebSocket.last();
+
+    ws.emitOpen();
+    // The client's own replica also rides the wire as a decimal string now.
+    expect(typeof JSON.parse(ws.sent[0]).replica).toBe("string");
+
+    ws.emitMessage(
+      JSON.stringify({
+        type: "recoverable",
+        note: "draft.md",
+        blocks: [{ id: SEED_ID, tombstoned: true, versions: ["x"] }],
+      }),
+    );
+    const session = await p;
+    expect(session.blocks[0].id).toEqual(SEED_ID);
+
+    session.restore(session.blocks[0].id, 0);
+    const restoreMsg = ws.sent
+      .map((m) => JSON.parse(m))
+      .find((m) => m.type === "restore");
+    // The exact u64::MAX string must reach the daemon untouched — not rounded,
+    // not re-encoded as a number.
+    expect(restoreMsg.id).toEqual(SEED_ID);
+    expect(restoreMsg.id.replica).toBe("18446744073709551615");
+  });
+
   it("rejects if the socket closes before recoverable arrives", async () => {
     const client = new DaemonClient({
       url: URL,
