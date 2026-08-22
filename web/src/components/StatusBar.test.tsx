@@ -67,10 +67,33 @@ describe("StatusBar", () => {
         onShowVersions={onShow}
       />,
     );
-    expect(screen.getByTestId("status-last-version")).toHaveTextContent(
-      /Last version:/,
-    );
+    const lastVersion = screen.getByTestId("status-last-version");
+    expect(lastVersion).toHaveTextContent(/Last version:/);
+    // No structured or parseable word delta on this fixture → no suffix.
+    expect(lastVersion).not.toHaveTextContent(/words/);
     await userEvent.click(screen.getByRole("button", { name: /versions/i }));
     expect(onShow).toHaveBeenCalled();
+  });
+
+  it("appends the word-delta suffix when derivable from the last version", () => {
+    render(
+      <StatusBar
+        saving={false}
+        dirty={false}
+        sync="ok"
+        lastVersion={{
+          id: "c9",
+          message: "m",
+          author: "a",
+          timestamp_secs: NOW_SECS - 60,
+          words_added: 124,
+          words_removed: 3,
+        }}
+        onShowVersions={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("status-last-version")).toHaveTextContent(
+      /\+124 words/,
+    );
   });
 });
