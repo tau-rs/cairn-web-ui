@@ -6,12 +6,15 @@ import { IconButton } from "./ui/IconButton";
 import { Logo } from "./ui/Logo";
 import { Button } from "./ui/Button";
 import { SlotRenderer } from "./plugins/SlotRenderer";
+import { PresenceCluster } from "./collab/PresenceCluster";
 
 export function TopBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const actions = useActions();
   const query = useCairn((s) => s.query);
+  const liveUpdates = useCairn((s) => s.liveUpdates);
+  const collab = useCairn((s) => s.collab);
   const view = isGraph(location) ? "graph" : "editor";
 
   return (
@@ -40,6 +43,14 @@ export function TopBar() {
       </Button>
       <span className="grow" />
       <SlotRenderer slot="topbar.action" />
+      <PresenceCluster
+        status={liveUpdates}
+        live={collab.live}
+        peers={collab.peers}
+        conflictCount={collab.pendingCount}
+        onConflict={() => actions.setUi({ collabConflictOpen: true })}
+        onReconnect={() => void cairnStore.getState().refreshAll()}
+      />
       <IconButton
         label="Settings"
         onClick={() => actions.setUi({ settingsOpen: true })}

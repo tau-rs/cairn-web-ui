@@ -1,16 +1,13 @@
 import { useEffect } from "react";
 import { useCairn, useActions } from "../../app/cairnStore";
-import { CollabPresencePill } from "./CollabPresencePill";
 
-/** Follows the focused pane's active note into a live `/collab` presence session
- *  and renders the corner pill. Session lifecycle lives in collabSlice; this is
- *  the thin per-corner subscription (mirrors AskPanelHost). */
+/** Follows the focused pane's active note into a live `/collab` presence
+ *  session. Session lifecycle lives in collabSlice; this is the thin
+ *  subscription (mirrors AskPanelHost). Presence itself now renders via
+ *  PresenceCluster in the TopBar — this host owns only the follow/stop
+ *  lifecycle and renders nothing. */
 export function CollabPresenceHost() {
   const activePath = useCairn((s) => s.activePath);
-  const collab = useCairn((s) => s.collab);
-  const dirty = useCairn((s) =>
-    s.activePath ? (s.openNotes[s.activePath]?.dirty ?? false) : false,
-  );
   const actions = useActions();
 
   useEffect(() => {
@@ -21,13 +18,5 @@ export function CollabPresenceHost() {
   // Leave the session when the app tears down.
   useEffect(() => () => actions.collabStop(), [actions]);
 
-  return (
-    <CollabPresencePill
-      collab={collab}
-      dirty={dirty}
-      // Reload force-replaces the buffer and discards unsaved edits, so gate it
-      // behind a blocking confirm (rendered by DialogHost) instead of firing now.
-      onReload={() => actions.setUi({ collabConflictOpen: true })}
-    />
-  );
+  return null;
 }

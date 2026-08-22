@@ -10,7 +10,6 @@ import { EditorPane } from "../components/EditorPane";
 import { RightAside } from "../components/RightAside";
 import { DialogHost } from "../components/DialogHost";
 import { Toasts } from "../components/Toasts";
-import { LiveUpdatesBanner } from "../components/LiveUpdatesBanner";
 import { useCommands } from "./useCommands";
 import { useGlobalKeys } from "../components/shortcuts/useGlobalKeys";
 import { AskPanelHost } from "../components/ask/AskPanelHost";
@@ -58,10 +57,6 @@ export default function App() {
       </div>
       <DialogHost commands={commands} onRunCommand={runCommand} />
       <Toasts />
-      <LiveUpdatesBanner
-        status={liveUpdates}
-        onRefresh={() => void cairnStore.getState().refreshAll()}
-      />
       <CollabPresenceHost />
     </>
   );

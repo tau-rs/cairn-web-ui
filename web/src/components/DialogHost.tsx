@@ -3,7 +3,7 @@ import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl } from "../app/routes";
 import { SettingsDialog } from "./SettingsDialog";
 import { NewNoteDialog } from "./NewNoteDialog";
-import { CollabReloadDialog } from "./collab/CollabReloadDialog";
+import { ConflictDialog } from "./collab/ConflictDialog";
 import {
   CommandPalette,
   type PaletteCommand,
@@ -40,10 +40,11 @@ export function DialogHost(props: {
         initialPath={ui.newNoteInitial}
         onCreate={actions.createNote}
       />
-      <CollabReloadDialog
+      <ConflictDialog
         open={ui.collabConflictOpen}
         onOpenChange={(o) => actions.setUi({ collabConflictOpen: o })}
-        onConfirm={actions.collabReloadNow}
+        onKeepMine={actions.collabKeepMine}
+        onSeeTheirs={actions.collabViewTheirs}
       />
       <CommandPalette
         open={ui.paletteOpen}
