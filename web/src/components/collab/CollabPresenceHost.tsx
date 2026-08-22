@@ -27,7 +27,7 @@ export function CollabPresenceHost() {
       dirty={dirty}
       // Reload force-replaces the buffer and discards unsaved edits, so gate it
       // behind a blocking confirm (rendered by DialogHost) instead of firing now.
-      onReload={() => actions.setUi({ collabReloadConfirmOpen: true })}
+      onReload={() => actions.setUi({ collabConflictOpen: true })}
     />
   );
 }

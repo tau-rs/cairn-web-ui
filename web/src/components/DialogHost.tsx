@@ -41,8 +41,8 @@ export function DialogHost(props: {
         onCreate={actions.createNote}
       />
       <CollabReloadDialog
-        open={ui.collabReloadConfirmOpen}
-        onOpenChange={(o) => actions.setUi({ collabReloadConfirmOpen: o })}
+        open={ui.collabConflictOpen}
+        onOpenChange={(o) => actions.setUi({ collabConflictOpen: o })}
         onConfirm={actions.collabReloadNow}
       />
       <CommandPalette

@@ -35,13 +35,19 @@ describe("CollabPresenceHost", () => {
         openNotes: {
           "n.md": { contents: "edited", dirty: true, saving: false },
         },
-        collab: { note: "n.md", live: true, pendingCount: 2 },
+        collab: {
+          note: "n.md",
+          live: true,
+          pendingCount: 2,
+          peers: [],
+          theirs: null,
+        },
       });
     });
 
     await userEvent.click(screen.getByRole("button", { name: /reload/i }));
 
-    expect(cairnStore.getState().ui.collabReloadConfirmOpen).toBe(true);
+    expect(cairnStore.getState().ui.collabConflictOpen).toBe(true);
     // The buffer must NOT have been force-replaced yet.
     expect(cairnStore.getState().openNotes["n.md"].dirty).toBe(true);
   });

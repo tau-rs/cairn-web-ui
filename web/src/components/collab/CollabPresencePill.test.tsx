@@ -3,7 +3,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CollabPresencePill } from "./CollabPresencePill";
 
-const base = { note: "n.md", live: false, pendingCount: 0 };
+const base = {
+  note: "n.md",
+  live: false,
+  pendingCount: 0,
+  peers: [],
+  theirs: null,
+};
 
 describe("CollabPresencePill", () => {
   it("renders nothing when quiet", () => {

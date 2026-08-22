@@ -80,20 +80,20 @@ describe("collab slice", () => {
     vi.useFakeTimers();
   });
 
-  it("switching the followed note closes an open reload-confirm dialog", () => {
+  it("switching the followed note closes an open conflict dialog", () => {
     const { store } = make();
     store.getState().collabFollow("n.md");
-    store.getState().setUi({ collabReloadConfirmOpen: true });
+    store.getState().setUi({ collabConflictOpen: true });
     store.getState().collabFollow("m.md"); // switch notes mid-confirm
-    expect(store.getState().ui.collabReloadConfirmOpen).toBe(false);
+    expect(store.getState().ui.collabConflictOpen).toBe(false);
   });
 
-  it("collabStop closes an open reload-confirm dialog", () => {
+  it("collabStop closes an open conflict dialog", () => {
     const { store } = make();
     store.getState().collabFollow("n.md");
-    store.getState().setUi({ collabReloadConfirmOpen: true });
+    store.getState().setUi({ collabConflictOpen: true });
     store.getState().collabStop();
-    expect(store.getState().ui.collabReloadConfirmOpen).toBe(false);
+    expect(store.getState().ui.collabConflictOpen).toBe(false);
   });
 
   it("collabReloadNow is a no-op with no followed note", () => {
@@ -138,6 +138,73 @@ describe("collab slice", () => {
       note: null,
       live: false,
       pendingCount: 0,
+      peers: [],
+      theirs: null,
     });
+  });
+
+  // Shared setup for the conflict-flow tests: follow n.md with a dirty buffer
+  // and one pending foreign change (mirrors the existing dirty-buffer test).
+  const makeConflict = async () => {
+    const { client, store } = make();
+    await store.getState().openNote("n.md");
+    store.getState().editBuffer("# N\nmine");
+    store.getState().collabFollow("n.md");
+    client.mockCollabHandlers!.onForeignOp!("n.md", wireOp);
+    expect(store.getState().collab.pendingCount).toBe(1);
+    return { client, store };
+  };
+
+  it("collabViewTheirs fetches the remote contents without touching the buffer", async () => {
+    const { store } = await makeConflict();
+    store.getState().collabViewTheirs();
+    vi.useRealTimers(); // flush the internal get_note microtask
+    await vi.waitFor(() =>
+      expect(store.getState().collab.theirs).toEqual({
+        note: "n.md",
+        contents: "# N\n",
+      }),
+    );
+    expect(store.getState().openNotes["n.md"].contents).toBe("# N\nmine");
+    expect(store.getState().openNotes["n.md"].dirty).toBe(true);
+    vi.useFakeTimers();
+  });
+
+  it("collabKeepMine clears the conflict but keeps my buffer", async () => {
+    const { store } = await makeConflict();
+    store.getState().setUi({ collabConflictOpen: true });
+    store.getState().collabKeepMine();
+    expect(store.getState().collab.pendingCount).toBe(0);
+    expect(store.getState().collab.theirs).toBeNull();
+    expect(store.getState().ui.collabConflictOpen).toBe(false);
+    expect(store.getState().openNotes["n.md"].contents).toBe("# N\nmine");
+    expect(store.getState().openNotes["n.md"].dirty).toBe(true);
+  });
+
+  it("collabReloadNow (use their version) force-replaces and clears theirs", async () => {
+    const { store } = await makeConflict();
+    store.getState().collabViewTheirs();
+    store.getState().collabReloadNow();
+    vi.useRealTimers();
+    await vi.waitFor(() =>
+      expect(store.getState().openNotes["n.md"].dirty).toBe(false),
+    );
+    expect(store.getState().openNotes["n.md"].contents).toBe("# N\n");
+    expect(store.getState().collab.pendingCount).toBe(0);
+    expect(store.getState().collab.theirs).toBeNull();
+    vi.useFakeTimers();
+  });
+
+  it("collabExitTheirs returns to my version without changes", async () => {
+    const { store } = await makeConflict();
+    store.getState().collabViewTheirs();
+    vi.useRealTimers();
+    await vi.waitFor(() =>
+      expect(store.getState().collab.theirs).not.toBeNull(),
+    );
+    store.getState().collabExitTheirs();
+    expect(store.getState().collab.theirs).toBeNull();
+    expect(store.getState().openNotes["n.md"].contents).toBe("# N\nmine");
+    vi.useFakeTimers();
   });
 });
