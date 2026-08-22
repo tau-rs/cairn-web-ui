@@ -597,7 +597,7 @@ export function createCairnStore(
       },
       liveUpdates: "ok",
       ...createAskSlice(set, get, client),
-      ...createCollabSlice(set, get, client, setBuffer),
+      ...createCollabSlice(set, get, client, setBuffer, pushError),
       ...createRecoverySlice(set, get, client),
 
       async init() {

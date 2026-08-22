@@ -60,6 +60,7 @@ export function createCollabSlice(
   get: Get,
   client: CairnClient,
   setBuffer: (path: string, patch: Partial<NoteBuffer>) => void,
+  pushError: (op: string, err: unknown, ctx?: Record<string, unknown>) => void,
 ): CollabState {
   let session: CollabSession | null = null;
   let token = 0;
@@ -135,13 +136,18 @@ export function createCollabSlice(
       if (!note) return;
       const my = token;
       void (async () => {
-        const res = await client.runQuery({ type: "get_note", path: note });
-        if (my !== token) return; // superseded by a note switch / stop
-        if (res.type === "note") {
-          setBuffer(note, { contents: res.contents, dirty: false });
-          set((s) => ({
-            collab: { ...s.collab, pendingCount: 0, theirs: null },
-          }));
+        try {
+          const res = await client.runQuery({ type: "get_note", path: note });
+          if (my !== token) return; // superseded by a note switch / stop
+          if (res.type === "note") {
+            setBuffer(note, { contents: res.contents, dirty: false });
+            set((s) => ({
+              collab: { ...s.collab, pendingCount: 0, theirs: null },
+            }));
+          }
+        } catch (err) {
+          if (my !== token) return; // superseded: stay silent
+          pushError("Reload note", err, { path: note });
         }
       })();
     },
@@ -153,12 +159,20 @@ export function createCollabSlice(
       if (!note) return;
       const my = token;
       void (async () => {
-        const res = await client.runQuery({ type: "get_note", path: note });
-        if (my !== token) return; // superseded by a note switch / stop
-        if (res.type === "note") {
-          set((s) => ({
-            collab: { ...s.collab, theirs: { note, contents: res.contents } },
-          }));
+        try {
+          const res = await client.runQuery({ type: "get_note", path: note });
+          if (my !== token) return; // superseded by a note switch / stop
+          if (res.type === "note") {
+            set((s) => ({
+              collab: {
+                ...s.collab,
+                theirs: { note, contents: res.contents },
+              },
+            }));
+          }
+        } catch (err) {
+          if (my !== token) return; // superseded: stay silent
+          pushError("View their version", err, { path: note });
         }
       })();
     },

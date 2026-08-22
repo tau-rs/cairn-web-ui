@@ -33,6 +33,22 @@ describe("HistoryPane", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("shows a calm empty state instead of Loading when no note is open", async () => {
+    // A prior test may leave a note open on this singleton store; force the
+    // no-note-open state explicitly rather than relying on ordering.
+    cairnStore.setState({
+      activePath: null,
+      history: null,
+      historyPath: null,
+      historyLoading: false,
+    });
+    renderPane();
+    expect(
+      screen.getByText(/open a note to see its versions/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Loading/i)).toBeNull();
+  });
+
   it("does not show another note's history while the current note's is loading", async () => {
     // Loaded history belongs to a previous note (historyPath != activePath):
     // the pane must show the spinner, never the stale revisions.

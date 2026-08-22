@@ -207,4 +207,31 @@ describe("collab slice", () => {
     expect(store.getState().openNotes["n.md"].contents).toBe("# N\nmine");
     vi.useFakeTimers();
   });
+
+  it("collabViewTheirs surfaces a rejected get_note as a toast and leaves theirs null", async () => {
+    const { client, store } = await makeConflict();
+    vi.spyOn(client, "runQuery").mockRejectedValue(new Error("boom"));
+    store.getState().collabViewTheirs();
+    vi.useRealTimers();
+    await vi.waitFor(() =>
+      expect(store.getState().errors.length).toBeGreaterThan(0),
+    );
+    expect(store.getState().errors[0].message).toBe("View their version: boom");
+    expect(store.getState().collab.theirs).toBeNull();
+    vi.useFakeTimers();
+  });
+
+  it("collabReloadNow surfaces a rejected get_note as a toast and leaves the buffer untouched", async () => {
+    const { client, store } = await makeConflict();
+    vi.spyOn(client, "runQuery").mockRejectedValue(new Error("boom"));
+    store.getState().collabReloadNow();
+    vi.useRealTimers();
+    await vi.waitFor(() =>
+      expect(store.getState().errors.length).toBeGreaterThan(0),
+    );
+    expect(store.getState().errors[0].message).toBe("Reload note: boom");
+    expect(store.getState().openNotes["n.md"].contents).toBe("# N\nmine");
+    expect(store.getState().openNotes["n.md"].dirty).toBe(true);
+    vi.useFakeTimers();
+  });
 });

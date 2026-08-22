@@ -21,6 +21,17 @@ export function HistoryPane() {
   // belongs to the previous note — show the spinner instead of stale revisions.
   const stale = historyPath !== activePath;
 
+  // No note open: loadHistory() early-returns without ever setting `history`,
+  // so the generic loading check in HistoryList would spin forever. Render a
+  // calm dead-end-free empty state instead of mounting the loading path.
+  if (activePath === null) {
+    return (
+      <div className="p-2 text-sm text-muted">
+        Open a note to see its versions.
+      </div>
+    );
+  }
+
   return (
     <>
       <HistoryList
