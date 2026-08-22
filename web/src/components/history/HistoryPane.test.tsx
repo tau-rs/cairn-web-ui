@@ -23,7 +23,7 @@ describe("HistoryPane", () => {
     renderPane();
     // The dev MockClient fixtures seed no revisions → empty state.
     await waitFor(() =>
-      expect(screen.getByText(/No history/i)).toBeInTheDocument(),
+      expect(screen.getByText(/No versions yet/i)).toBeInTheDocument(),
     );
   });
 

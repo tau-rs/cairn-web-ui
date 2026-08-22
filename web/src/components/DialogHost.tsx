@@ -4,6 +4,7 @@ import { noteUrl } from "../app/routes";
 import { SettingsDialog } from "./SettingsDialog";
 import { NewNoteDialog } from "./NewNoteDialog";
 import { ConflictDialog } from "./collab/ConflictDialog";
+import { NameVersionDialog } from "./history/NameVersionDialog";
 import {
   CommandPalette,
   type PaletteCommand,
@@ -45,6 +46,16 @@ export function DialogHost(props: {
         onOpenChange={(o) => actions.setUi({ collabConflictOpen: o })}
         onKeepMine={actions.collabKeepMine}
         onSeeTheirs={actions.collabViewTheirs}
+      />
+      <NameVersionDialog
+        open={ui.nameVersionFor !== null}
+        onOpenChange={(o) => {
+          if (!o) actions.setUi({ nameVersionFor: null });
+        }}
+        onName={(name) => {
+          const id = ui.nameVersionFor;
+          if (id) void actions.nameVersion(id, name);
+        }}
       />
       <CommandPalette
         open={ui.paletteOpen}

@@ -14,7 +14,7 @@ describe("RestoreConfirmDialog", () => {
     );
     expect(screen.getByText(/Restore version 9c2e1/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/overwrites your working copy/i),
+      screen.getByText(/replaces the note's current contents/i),
     ).toBeInTheDocument();
   });
 

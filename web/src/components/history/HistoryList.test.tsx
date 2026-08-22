@@ -1,63 +1,81 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HistoryList } from "./HistoryList";
-import type { Revision } from "../../contract";
+import type { RevisionEx } from "../../client/contractExt";
 
-const REVS: Revision[] = [
-  { id: "r2", message: "second", timestamp_secs: 2, author: "tau" },
-  { id: "r1", message: "first", timestamp_secs: 1, author: "tau" },
+const NOW_SECS = Math.floor(Date.now() / 1000);
+const noop = () => {};
+const revs: RevisionEx[] = [
+  {
+    id: "c3",
+    message: 'Edit "roadmap" (+4/−1 words)',
+    author: "a",
+    timestamp_secs: NOW_SECS - 60,
+  },
+  {
+    id: "c2",
+    message: "Draft done",
+    author: "a",
+    timestamp_secs: NOW_SECS - 120,
+    is_named: true,
+    name: "Draft 1",
+  },
+  // > 30 min older: separate session, same day
+  { id: "c1", message: "start", author: "a", timestamp_secs: NOW_SECS - 4000 },
 ];
 
-describe("HistoryList", () => {
-  it("shows a loading state", () => {
+describe("HistoryList (Versions browser)", () => {
+  it("groups by day with relative headers and collapses sessions", async () => {
     render(
       <HistoryList
-        revisions={null}
-        loading
-        onView={vi.fn()}
-        onRestore={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/Loading/i)).toBeInTheDocument();
-  });
-  it("shows an empty state", () => {
-    render(
-      <HistoryList
-        revisions={[]}
+        revisions={revs}
         loading={false}
-        onView={vi.fn()}
-        onRestore={vi.fn()}
+        onView={noop}
+        onRestore={noop}
+        onName={noop}
       />,
     );
-    expect(screen.getByText(/No history/i)).toBeInTheDocument();
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    // c3 and c2 share a session: head visible, rest behind a disclosure
+    expect(
+      screen.getByText('Edit "roadmap" (+4/−1 words)'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Draft done")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /1 more/i }));
+    expect(screen.getByText("Draft done")).toBeInTheDocument();
+    // c1 is its own session head, visible without disclosure
+    expect(screen.getByText("start")).toBeInTheDocument();
   });
-  it("renders one row per revision with message + short hash", () => {
+
+  it("filters to named versions only", async () => {
     render(
       <HistoryList
-        revisions={REVS}
+        revisions={revs}
         loading={false}
-        onView={vi.fn()}
-        onRestore={vi.fn()}
+        onView={noop}
+        onRestore={noop}
+        onName={noop}
       />,
     );
-    expect(screen.getByText("second")).toBeInTheDocument();
-    expect(screen.getByText("first")).toBeInTheDocument();
-    expect(screen.getByText(/r2/)).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText(/named only/i));
+    expect(screen.getByText("Draft done")).toBeInTheDocument();
+    expect(screen.queryByText("start")).not.toBeInTheDocument();
+    expect(screen.getByText("Draft 1")).toBeInTheDocument(); // the name badge
   });
-  it("fires onView and onRestore with the revision id", () => {
-    const onView = vi.fn();
-    const onRestore = vi.fn();
+
+  it("offers Name… on a row", async () => {
+    const onName = vi.fn();
     render(
       <HistoryList
-        revisions={REVS}
+        revisions={[revs[2]]}
         loading={false}
-        onView={onView}
-        onRestore={onRestore}
+        onView={noop}
+        onRestore={noop}
+        onName={onName}
       />,
     );
-    fireEvent.click(screen.getAllByRole("button", { name: /view/i })[0]);
-    fireEvent.click(screen.getAllByRole("button", { name: /restore/i })[0]);
-    expect(onView).toHaveBeenCalledWith("r2");
-    expect(onRestore).toHaveBeenCalledWith("r2");
+    await userEvent.click(screen.getByRole("button", { name: /name…/i }));
+    expect(onName).toHaveBeenCalledWith("c1");
   });
 });

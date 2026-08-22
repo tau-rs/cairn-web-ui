@@ -16,7 +16,7 @@ export function RestoreConfirmDialog(props: {
           ? `Restore version ${props.revision}?`
           : "Restore this version?"
       }
-      description="This overwrites your working copy. Your current edits become uncommitted changes you can still commit or discard."
+      description="Restoring replaces the note's current contents. Your change is saved as a new version, so nothing is lost."
     >
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={props.onCancel}>

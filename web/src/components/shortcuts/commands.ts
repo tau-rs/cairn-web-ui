@@ -28,7 +28,7 @@ export const COMMAND_DEFS: CommandDef[] = [
   { id: "nav-forward", label: "Forward", defaultBinding: "Mod+]" },
   {
     id: "show-history",
-    label: "Show note history",
+    label: "Show versions",
     defaultBinding: "Mod+Shift+H",
   },
   {

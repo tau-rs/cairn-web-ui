@@ -1,5 +1,6 @@
 import type { RevisionEx } from "../client/contractExt";
 import { relativeTime } from "./history/formatRevision";
+import { versionWordDelta } from "./history/versionSummary";
 
 export type SyncStatus = "ok" | "reconnecting" | "down";
 
@@ -50,6 +51,10 @@ export function StatusBar(props: {
       {lv && (
         <span data-testid="status-last-version">
           Last version: {relativeTime(lv.timestamp_secs)}
+          {(() => {
+            const d = versionWordDelta(lv);
+            return d && d.added > 0 ? ` · +${d.added} words` : "";
+          })()}
         </span>
       )}
     </div>

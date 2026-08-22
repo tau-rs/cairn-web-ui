@@ -31,7 +31,7 @@ export function RightAside() {
             void actions.loadHistory();
           }}
         >
-          History
+          Versions
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
