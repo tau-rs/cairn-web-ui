@@ -7,8 +7,8 @@ import {
 } from "./commands";
 
 describe("COMMAND_DEFS", () => {
-  it("includes the 14 commands with unique default chords", () => {
-    expect(COMMAND_DEFS).toHaveLength(14);
+  it("includes the 13 commands with unique default chords", () => {
+    expect(COMMAND_DEFS).toHaveLength(13);
     const chords = COMMAND_DEFS.map((c) => c.defaultBinding);
     const bound = chords.filter((c): c is string => c !== null);
     expect(new Set(bound).size).toBe(bound.length); // unique among bound chords

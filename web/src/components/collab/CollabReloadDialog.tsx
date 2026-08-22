@@ -4,7 +4,7 @@ import { Button } from "../ui/Button";
 /** Blocking confirm for the live-collab "Reload" action. Reloading force-
  *  replaces the buffer from disk, discarding unsaved local edits, so a stray
  *  click must clear this gate first. State (open flag) lives in the `ui` slice;
- *  this is presentational (mirrors CommitDialog). */
+ *  this is presentational. */
 export function CollabReloadDialog({
   open,
   onOpenChange,

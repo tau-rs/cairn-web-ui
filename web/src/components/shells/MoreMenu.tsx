@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, GitCommit } from "lucide-react";
+import { Settings as SettingsIcon } from "lucide-react";
 import type { ComponentType } from "react";
 import { useActions } from "../../app/cairnStore";
 
@@ -14,11 +14,6 @@ export function MoreMenu() {
       label: "Settings",
       Icon: SettingsIcon,
       onClick: () => actions.setUi({ settingsOpen: true }),
-    },
-    {
-      label: "Commit changes",
-      Icon: GitCommit,
-      onClick: () => actions.setUi({ commitOpen: true }),
     },
   ];
   return (

@@ -9,7 +9,6 @@ export type Overrides = Record<string, string | null>; // id → chord, or null 
 export const COMMAND_DEFS: CommandDef[] = [
   { id: "open-palette", label: "Command palette", defaultBinding: "Mod+K" },
   { id: "new-note", label: "New note", defaultBinding: "Mod+N" },
-  { id: "commit", label: "Commit changes…", defaultBinding: "Mod+Enter" },
   {
     id: "toggle-view",
     label: "Toggle Graph / Editor",

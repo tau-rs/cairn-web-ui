@@ -15,12 +15,6 @@ beforeEach(() => {
 });
 
 describe("useCommands runCommand", () => {
-  it("opens the commit dialog", () => {
-    const { result } = renderHook(() => useCommands(), { wrapper });
-    act(() => result.current.runCommand("commit"));
-    expect(cairnStore.getState().ui.commitOpen).toBe(true);
-  });
-
   it("opens the new-note dialog with an empty initial path", () => {
     const { result } = renderHook(() => useCommands(), { wrapper });
     act(() => result.current.runCommand("new-note"));
@@ -45,7 +39,6 @@ describe("useCommands runCommand", () => {
   it("exposes the built-in commands (minus open-palette) plus their hints", () => {
     const { result } = renderHook(() => useCommands(), { wrapper });
     const ids = result.current.commands.map((c) => c.id);
-    expect(ids).toContain("commit");
     expect(ids).not.toContain("open-palette");
   });
 

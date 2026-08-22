@@ -5,7 +5,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import { DEFAULT_SETTINGS } from "../store/store";
 
 describe("SettingsDialog", () => {
-  it("renders the auto-commit controls and Done closes", async () => {
+  it("renders the privacy controls and Done closes", async () => {
     const onOpenChange = vi.fn();
     render(
       <SettingsDialog
@@ -18,7 +18,7 @@ describe("SettingsDialog", () => {
         plugins={[]}
       />,
     );
-    expect(screen.getByText(/idle auto-commit/i)).toBeInTheDocument();
+    expect(screen.getByText(/load remote images/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

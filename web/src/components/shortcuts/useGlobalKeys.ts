@@ -4,7 +4,7 @@ import { eventToChord } from "./keybinding";
 
 /** Commands that must still fire even while focus is in an editable target —
  *  the global affordances a user reaches for mid-edit. */
-const ALLOW_IN_EDITABLE = new Set(["open-palette", "commit"]);
+const ALLOW_IN_EDITABLE = new Set(["open-palette"]);
 
 /** True when a keydown target is somewhere typing/selection should win over a
  *  global chord: a form control, a contentEditable region, inside CodeMirror,

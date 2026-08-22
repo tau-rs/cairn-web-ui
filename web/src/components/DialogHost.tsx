@@ -3,7 +3,6 @@ import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl } from "../app/routes";
 import { SettingsDialog } from "./SettingsDialog";
 import { NewNoteDialog } from "./NewNoteDialog";
-import { CommitDialog } from "./CommitDialog";
 import { CollabReloadDialog } from "./collab/CollabReloadDialog";
 import {
   CommandPalette,
@@ -21,7 +20,6 @@ export function DialogHost(props: {
   const ui = useCairn((s) => s.ui);
   const settings = useCairn((s) => s.settings);
   const plugins = useCairn((s) => s.plugins);
-  const committing = useCairn((s) => s.committing);
   const notePaths = useCairn((s) => s.notePaths);
   const ask = useCairn((s) => s.ask);
 
@@ -41,12 +39,6 @@ export function DialogHost(props: {
         onOpenChange={(o) => actions.setUi({ newNoteOpen: o })}
         initialPath={ui.newNoteInitial}
         onCreate={actions.createNote}
-      />
-      <CommitDialog
-        open={ui.commitOpen}
-        onOpenChange={(o) => actions.setUi({ commitOpen: o })}
-        committing={committing}
-        onCommit={actions.commitManual}
       />
       <CollabReloadDialog
         open={ui.collabReloadConfirmOpen}
