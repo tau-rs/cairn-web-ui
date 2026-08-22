@@ -58,6 +58,7 @@ import { createHistorySlice, type HistorySlice } from "./historySlice";
 import { createAskSlice, type AskState } from "./askSlice";
 import { createCollabSlice, type CollabState } from "./collabSlice";
 import { createRecoverySlice, type RecoveryState } from "./recoverySlice";
+import { asCommand, type RevisionEx } from "../client/contractExt";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -70,10 +71,6 @@ export const ERROR_TOAST_MS = 6000;
 
 export interface Settings {
   autosaveMs: number;
-  idleAutoCommit: boolean;
-  idleAutoCommitMs: number;
-  intervalAutoCommit: boolean;
-  intervalAutoCommitMin: number;
   editorMode: "livepreview" | "source";
   /** Auto-load remote (`http(s):`) and `data:` images in notes. Default off:
    *  a remote image is a tracking beacon that would otherwise fire on
@@ -83,10 +80,6 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   autosaveMs: 1000,
-  idleAutoCommit: true,
-  idleAutoCommitMs: 5000,
-  intervalAutoCommit: true,
-  intervalAutoCommitMin: 5,
   editorMode: "livepreview",
   loadRemoteImages: false,
 };
@@ -103,10 +96,11 @@ export interface UiState {
   settingsOpen: boolean;
   newNoteOpen: boolean;
   newNoteInitial: string;
-  commitOpen: boolean;
   paletteOpen: boolean;
   /** Blocking confirm before the live-collab Reload discards unsaved edits. */
   collabReloadConfirmOpen: boolean;
+  /** Commit id currently targeted by the name-version dialog, or null when closed. */
+  nameVersionFor: string | null;
   /** Active mobile bottom-nav tab (mobile shell only). */
   mobileTab: MobileTab;
   /** Backlinks drawer/sheet open (tablet + mobile shells). */
@@ -121,9 +115,9 @@ export const DEFAULT_UI: UiState = {
   settingsOpen: false,
   newNoteOpen: false,
   newNoteInitial: "",
-  commitOpen: false,
   paletteOpen: false,
   collabReloadConfirmOpen: false,
+  nameVersionFor: null,
   mobileTab: "editor",
   backlinksOpen: false,
   panelDock: { activeId: null, collapsed: false },
@@ -166,6 +160,7 @@ export interface CairnState
   saving: boolean;
   uncommitted: boolean;
   lastCommit: string | null;
+  lastVersion: RevisionEx | null;
   committing: boolean;
   query: string;
   searchResults: string[] | null;
@@ -254,9 +249,9 @@ export interface CairnState
   loadSnapshot(revision: string): Promise<void>;
   loadDiff(from: string, to: string): Promise<void>;
   clearTemporal(): void;
-  commitManual(message: string): Promise<void>;
-  autoCommit(): Promise<void>;
-  rearmInterval(): void;
+  sealNow(): Promise<void>;
+  nameVersion(commit: string, name: string): Promise<void>;
+  loadLastVersion(): Promise<void>;
   setSettings(patch: Partial<Settings>): void;
   setUi(patch: Partial<UiState>): void;
   setTreeStyle(path: string, style: TreeItemStyle): void;
@@ -273,9 +268,7 @@ export function createCairnStore(
   trace: RefreshTrace = refreshTrace,
 ): StoreApi<CairnState> {
   const autosaves = new Map<string, Debounced>();
-  let idleCommit: Debounced | null = null;
   let started = false;
-  let intervalHandle: ReturnType<typeof setInterval> | null = null;
   let eventUnsub: Unsubscribe | null = null;
 
   // Monotonic request tokens: a slow response only applies if no newer request
@@ -479,6 +472,7 @@ export function createCairnStore(
         trace.event(e.type, dispatched);
       } else if (e.type === "committed") {
         set({ lastCommit: e.commit, uncommitted: false });
+        void get().loadLastVersion();
       }
     };
 
@@ -555,7 +549,7 @@ export function createCairnStore(
       set({ panes, activePane, splitRatio: persisted.ratio });
       syncMirror();
       if (get().activePath) await get().refreshBacklinks();
-      get().rearmInterval();
+      void get().loadLastVersion();
     };
 
     return {
@@ -572,6 +566,7 @@ export function createCairnStore(
       saving: false,
       uncommitted: false,
       lastCommit: null,
+      lastVersion: null,
       committing: false,
       query: "",
       searchResults: null,
@@ -695,15 +690,6 @@ export function createCairnStore(
           autosaves.set(path, d);
         }
         d();
-        const s = get().settings;
-        if (s.idleAutoCommit) {
-          idleCommit?.cancel();
-          idleCommit = debounce(
-            () => void get().autoCommit(),
-            s.idleAutoCommitMs,
-          );
-          idleCommit();
-        }
       },
 
       saveActive() {
@@ -1250,45 +1236,54 @@ export function createCairnStore(
         }));
       },
 
-      async commitManual(message) {
-        if (get().committing) return;
+      async sealNow() {
+        if (!get().uncommitted || get().committing) return;
         set({ committing: true });
         try {
-          const res = await client.sendCommand({ type: "commit", message });
-          if (res.type === "committed")
+          const res = await client.sendCommand(asCommand({ type: "commit" }));
+          if (res.type === "committed") {
             set({ lastCommit: res.commit, uncommitted: false });
-          else unexpected("Commit", res);
+            await get().loadLastVersion();
+          } else unexpected("Seal version", res);
         } catch (err) {
-          pushError("Commit", err);
+          // Seal hints are background garnish — a failed hint must never toast.
+          console.warn("sealNow failed", err);
         } finally {
           set({ committing: false });
         }
       },
 
-      async autoCommit() {
-        if (!get().uncommitted || get().committing) return;
-        const path = get().activePath;
-        const message = path ? `cairn: update ${path}` : "cairn: auto-commit";
-        await get().commitManual(message);
+      async nameVersion(commit, name) {
+        try {
+          const res = await client.sendCommand(
+            asCommand({ type: "name_version", commit, name }),
+          );
+          if (res.type === "done") {
+            await get().loadHistory();
+            void get().loadLastVersion();
+          } else unexpected("Name version", res);
+        } catch (err) {
+          pushError("Name version", err);
+        }
       },
 
-      rearmInterval() {
-        if (intervalHandle) clearInterval(intervalHandle);
-        intervalHandle = null;
-        const { intervalAutoCommit, intervalAutoCommitMin } = get().settings;
-        if (intervalAutoCommit) {
-          intervalHandle = setInterval(
-            () => void get().autoCommit(),
-            intervalAutoCommitMin * 60_000,
-          );
+      async loadLastVersion() {
+        try {
+          const res = await client.runQuery({
+            type: "vault_history",
+            limit: 1,
+          });
+          if (res.type === "history")
+            set({
+              lastVersion: (res.revisions[0] as RevisionEx | undefined) ?? null,
+            });
+        } catch {
+          // Status-bar garnish — leave the previous value, never toast.
         }
       },
 
       setSettings(patch) {
         set({ settings: { ...get().settings, ...patch } });
-        if ("intervalAutoCommit" in patch || "intervalAutoCommitMin" in patch) {
-          get().rearmInterval();
-        }
       },
 
       setUi(patch) {

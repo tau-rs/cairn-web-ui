@@ -89,11 +89,53 @@ describe("cairn store", () => {
     expect(store.getState().searchResults).toBeNull();
   });
 
-  it("commitManual commits and records the id", async () => {
-    const { store } = setup();
+  it("sealNow seals a version, records the id and refreshes lastVersion", async () => {
+    const { client, store } = setup();
     await store.getState().init();
-    await store.getState().commitManual("snapshot");
+    await client.sendCommand({
+      type: "write_note",
+      path: "a.md",
+      contents: "hello world",
+    });
+    store.setState({ uncommitted: true });
+    await store.getState().sealNow();
     expect(store.getState().lastCommit).toBe("c0001");
+    expect(store.getState().uncommitted).toBe(false);
+    expect(store.getState().lastVersion?.id).toBe("c0001");
+  });
+
+  it("sealNow is a no-op when nothing is uncommitted", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    const spy = vi.spyOn(client, "sendCommand");
+    await store.getState().sealNow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("sealNow failures are silent (no toast)", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    vi.spyOn(client, "sendCommand").mockRejectedValueOnce(new Error("boom"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    store.setState({ uncommitted: true });
+    await store.getState().sealNow();
+    expect(store.getState().errors).toHaveLength(0);
+    expect(store.getState().uncommitted).toBe(true); // still sealable later
+  });
+
+  it("nameVersion sends the C0 command and surfaces errors as toasts", async () => {
+    const { client, store } = setup();
+    await store.getState().init();
+    const spy = vi.spyOn(client, "sendCommand");
+    await store.getState().nameVersion("c0001", "Draft 1");
+    expect(spy).toHaveBeenCalledWith({
+      type: "name_version",
+      commit: "c0001",
+      name: "Draft 1",
+    });
+    vi.spyOn(client, "sendCommand").mockRejectedValueOnce(new Error("boom"));
+    await store.getState().nameVersion("c0001", "x");
+    expect(store.getState().errors[0].message).toContain("boom");
   });
 
   it("reacts to a note_changed event by refreshing the note list", async () => {
@@ -116,7 +158,7 @@ describe("cairn store", () => {
     const { client, store } = setup();
     vi.spyOn(client, "sendCommand").mockRejectedValueOnce(new Error("boom"));
     await store.getState().init();
-    await store.getState().commitManual("x");
+    await store.getState().nameVersion("c1", "x");
     expect(store.getState().errors[0].message).toContain("boom");
   });
 
@@ -225,8 +267,8 @@ describe("cairn store", () => {
     const { client, store } = setup();
     vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
     await store.getState().init();
-    await store.getState().commitManual("one");
-    await store.getState().commitManual("two");
+    await store.getState().nameVersion("c1", "one");
+    await store.getState().nameVersion("c2", "two");
     expect(store.getState().errors).toHaveLength(2);
   });
 
@@ -234,7 +276,7 @@ describe("cairn store", () => {
     const { client, store } = setup();
     vi.spyOn(client, "sendCommand").mockRejectedValue(new Error("boom"));
     await store.getState().init();
-    await store.getState().commitManual("x");
+    await store.getState().nameVersion("c1", "x");
     expect(store.getState().errors).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(ERROR_TOAST_MS);
     expect(store.getState().errors).toHaveLength(0);
@@ -278,20 +320,6 @@ describe("cairn store", () => {
     release();
     await saving;
     expect(store.getState().dirty).toBe(true); // v2 is not yet persisted
-  });
-
-  it("interval auto-commit fires when enabled (idle disabled to isolate it)", async () => {
-    const { client, store } = setup();
-    const spy = vi.spyOn(client, "sendCommand");
-    await store.getState().init();
-    store.getState().setSettings({ idleAutoCommit: false }); // isolate the interval trigger
-    await store.getState().openNote("a.md");
-    store.getState().editBuffer("changed body [[b]]");
-    await vi.advanceTimersByTimeAsync(DEFAULT_SETTINGS.autosaveMs); // autosave -> uncommitted
-    await vi.advanceTimersByTimeAsync(
-      DEFAULT_SETTINGS.intervalAutoCommitMin * 60_000,
-    ); // interval fires
-    expect(spy.mock.calls.some(([c]) => c.type === "commit")).toBe(true);
   });
 
   it("init is idempotent — a single event triggers one note-list refresh", async () => {
@@ -875,7 +903,6 @@ describe("cairn store", () => {
   it("reuses one persistent autosave debounce across rapid keystrokes, saving once", async () => {
     const { client, store } = setup();
     await store.getState().init();
-    store.getState().setSettings({ idleAutoCommit: false }); // isolate the autosave debounce
     await store.getState().openNote("a.md");
     const construct = vi.spyOn(timer, "debounce");
     const send = vi.spyOn(client, "sendCommand");
@@ -1027,12 +1054,12 @@ describe("treeStyles", () => {
 describe("ui slice", () => {
   it("setUi patches ui flags without touching others", () => {
     const { store } = setup();
-    store.getState().setUi({ commitOpen: true });
-    expect(store.getState().ui.commitOpen).toBe(true);
+    store.getState().setUi({ settingsOpen: true });
+    expect(store.getState().ui.settingsOpen).toBe(true);
     store.getState().setUi({ newNoteOpen: true, newNoteInitial: "folder/" });
     expect(store.getState().ui.newNoteOpen).toBe(true);
     expect(store.getState().ui.newNoteInitial).toBe("folder/");
-    expect(store.getState().ui.commitOpen).toBe(true); // untouched
+    expect(store.getState().ui.settingsOpen).toBe(true); // untouched
   });
 
   it("setKeybindingOverrides updates state and persists", () => {
