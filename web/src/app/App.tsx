@@ -12,6 +12,7 @@ import { DialogHost } from "../components/DialogHost";
 import { Toasts } from "../components/Toasts";
 import { useCommands } from "./useCommands";
 import { useGlobalKeys } from "../components/shortcuts/useGlobalKeys";
+import { useSealHints } from "./useSealHints";
 import { AskPanelHost } from "../components/ask/AskPanelHost";
 import { RecoveryPanelHost } from "../components/recovery/RecoveryPanelHost";
 import { CollabPresenceHost } from "../components/collab/CollabPresenceHost";
@@ -28,6 +29,7 @@ export default function App() {
   const lastVersion = useCairn((s) => s.lastVersion);
   const { commands, chordMap, runCommand } = useCommands();
   useGlobalKeys(chordMap, runCommand);
+  useSealHints();
 
   if (cairnPath === null) {
     return <OpenCairn onOpen={() => void cairnStore.getState().openCairn()} />;
