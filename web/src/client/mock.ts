@@ -87,6 +87,9 @@ function rewriteWikilinks(
 type SealChange = {
   op: "add" | "edit" | "delete";
   path: string;
+  /** display_title of the note, as the engine's DiffSummary carries it —
+   *  frontmatter `title:` → first `# ` heading → stem, NOT the bare stem. */
+  title: string;
   added: number;
   removed: number;
 };
@@ -111,17 +114,16 @@ function sealMessage(changes: SealChange[]): string {
   if (changes.length > 1) {
     const titles = changes
       .slice(0, 3)
-      .map((x) => `"${stem(x.path)}"`)
+      .map((x) => `"${x.title}"`)
       .join(", ");
     return `Update ${changes.length} notes: ${titles}${
       changes.length > 3 ? "…" : ""
     }`;
   }
   const [ch] = changes;
-  const title = stem(ch.path);
-  if (ch.op === "add") return `Add "${title}"${counts(ch.added, 0)}`;
-  if (ch.op === "delete") return `Delete "${title}"`;
-  return `Edit "${title}"${counts(ch.added, ch.removed)}`;
+  if (ch.op === "add") return `Add "${ch.title}"${counts(ch.added, 0)}`;
+  if (ch.op === "delete") return `Delete "${ch.title}"`;
+  return `Edit "${ch.title}"${counts(ch.added, ch.removed)}`;
 }
 
 /** Detach revisions from the mock's internal arrays before handing them out.
@@ -293,6 +295,7 @@ export class MockClient implements CairnClient {
       changes.push({
         op: then === undefined ? "add" : "edit",
         path,
+        title: displayTitle(path, now),
         added: Math.max(d, 0),
         removed: Math.max(-d, 0),
       });
@@ -302,6 +305,8 @@ export class MockClient implements CairnClient {
         changes.push({
           op: "delete",
           path,
+          // The note is gone; the engine titles it from the pre-image.
+          title: displayTitle(path, then),
           added: 0,
           removed: countWords(then),
         });

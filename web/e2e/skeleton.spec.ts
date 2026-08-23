@@ -92,7 +92,8 @@ test("versions: a note switch seals a generated version that can be named", asyn
     .getByRole("button", { name: /versions/i })
     .click();
   const versions = page.locator("aside").last();
-  const row = versions.getByText(/^Edit "ideas" \(\+\d+ words\)$/);
+  // Titled by display_title (`# Ideas`), matching the engine's template.
+  const row = versions.getByText(/^Edit "Ideas" \(\+\d+ words\)$/);
   await expect(row).toBeVisible();
   await expect(versions.getByText(/\+\d+\/−\d+ words/)).toBeVisible();
 

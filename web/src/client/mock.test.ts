@@ -706,7 +706,8 @@ describe("MockClient C0 versions seam", () => {
     if (hist.type !== "history") throw new Error("bad response");
     const rev = hist.revisions[0];
     // Byte-identical to the engine's template (counts elide the zero side).
-    expect(rev.message).toBe('Edit "roadmap" (+2 words)');
+    // Titled by display_title (the `# Roadmap` heading), like the engine.
+    expect(rev.message).toBe('Edit "Roadmap" (+2 words)');
     expect(rev.summary).toEqual({
       files_changed: 1,
       words_added: 2,
