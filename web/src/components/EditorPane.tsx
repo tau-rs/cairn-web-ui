@@ -12,6 +12,7 @@ import { Spinner } from "./ui/Spinner";
 import { Divider } from "./editor/Divider";
 import { useBreakpoint } from "./responsive/useBreakpoint";
 import { RevisionView } from "./history/RevisionView";
+import { TheirVersionView } from "./collab/TheirVersionView";
 import type { PaneState } from "./tabs/paneModel";
 
 /** One editor pane: its own tab strip + editor, bound to pane `index`. */
@@ -101,6 +102,7 @@ export function EditorPane() {
   const loading = useCairn((s) => s.loading);
   const viewingRevision = useCairn((s) => s.viewingRevision);
   const openNotes = useCairn((s) => s.openNotes);
+  const theirs = useCairn((s) => s.collab.theirs);
   const view = isGraph(location) ? "graph" : "editor";
   const bp = useBreakpoint();
   const split = panes.length > 1 && bp !== "mobile";
@@ -129,7 +131,15 @@ export function EditorPane() {
       )}
     >
       <div className="relative h-full">
-        {viewingRevision && viewingRevision.path === activePath ? (
+        {theirs && theirs.note === activePath ? (
+          <TheirVersionView
+            path={theirs.note}
+            mine={openNotes[theirs.note]?.contents ?? ""}
+            theirs={theirs.contents}
+            onBack={() => actions.collabExitTheirs()}
+            onUseTheirs={() => actions.collabReloadNow()}
+          />
+        ) : viewingRevision && viewingRevision.path === activePath ? (
           <RevisionView
             revision={viewingRevision.revision}
             contents={viewingRevision.contents}

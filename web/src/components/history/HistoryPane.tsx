@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useCairn, useActions } from "../../app/cairnStore";
 import { HistoryList } from "./HistoryList";
 import { RestoreConfirmDialog } from "./RestoreConfirmDialog";
+import type { RevisionEx } from "../../client/contractExt";
 
 export function HistoryPane() {
   const actions = useActions();
@@ -20,13 +21,25 @@ export function HistoryPane() {
   // belongs to the previous note — show the spinner instead of stale revisions.
   const stale = historyPath !== activePath;
 
+  // No note open: loadHistory() early-returns without ever setting `history`,
+  // so the generic loading check in HistoryList would spin forever. Render a
+  // calm dead-end-free empty state instead of mounting the loading path.
+  if (activePath === null) {
+    return (
+      <div className="p-2 text-sm text-muted">
+        Open a note to see its versions.
+      </div>
+    );
+  }
+
   return (
     <>
       <HistoryList
-        revisions={stale ? null : history}
+        revisions={stale ? null : (history as RevisionEx[] | null)}
         loading={loading || stale}
         onView={(rev) => void actions.viewRevision(rev)}
         onRestore={(rev) => setPending(rev)}
+        onName={(id) => actions.setUi({ nameVersionFor: id })}
       />
       <RestoreConfirmDialog
         open={pending !== null}

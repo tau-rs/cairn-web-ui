@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
+test("create, edit, autosave, search, backlink, versions", async ({ page }) => {
   await page.goto("/");
   const sidebar = page.locator("aside").first();
 
@@ -57,14 +57,18 @@ test("create, edit, autosave, search, backlink, commit", async ({ page }) => {
     page.locator("aside").last().getByRole("button", { name: "fresh.md" }),
   ).toBeVisible();
 
-  // Manual commit via the styled modal records a commit id.
-  await page.getByRole("button", { name: /^commit$/i }).click();
-  const commitDialog = page.getByRole("dialog");
-  await commitDialog
-    .getByPlaceholder("Describe this change")
-    .fill("e2e snapshot");
-  await commitDialog.getByRole("button", { name: /^commit$/i }).click();
-  await expect(page.getByText(/@c\d{4}/)).toBeVisible();
+  // The StatusBar shows the save + sync axes; its 🕘 Versions button opens
+  // the Versions browser in the right aside.
+  const statusBar = page.getByTestId("status-bar");
+  await expect(statusBar).toContainText(/saved/i);
+  await expect(statusBar).toContainText("Synced");
+  await statusBar.getByRole("button", { name: /versions/i }).click();
+  await expect(page.getByRole("tab", { name: "Versions" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  // ideas.md was never edited in this test, so its version list is empty.
+  await expect(page.getByText("No versions yet.")).toBeVisible();
 });
 
 test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
@@ -297,13 +301,16 @@ test("command palette: ⌘K quick-opens a note and runs a command", async ({
   await page.keyboard.press("Enter");
   await expect(page.locator(".cm-content")).toContainText("Ideas"); // ideas.md opened
 
-  // Re-open, run the Commit command → the commit dialog appears.
+  // Re-open, run "Show versions" → the Versions pane opens in the right aside.
   await page.keyboard.press("Control+k");
-  await page.getByPlaceholder(/type a command/i).fill("commit");
+  await page.getByPlaceholder(/type a command/i).fill("versions");
   await page.keyboard.press("Enter");
-  await expect(
-    page.getByRole("button", { name: /^commit$/i }).last(),
-  ).toBeVisible(); // commit dialog's submit button
+  await expect(page.getByRole("tab", { name: "Versions" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  // ideas.md was only quick-opened (not edited), so its version list is empty.
+  await expect(page.getByText("No versions yet.")).toBeVisible();
 });
 
 test("editor tabs: preview replaces, edit pins, close focuses, reload restores", async ({

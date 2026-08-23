@@ -69,9 +69,6 @@ export function useCommands(): {
       case "new-note":
         st.setUi({ newNoteInitial: "", newNoteOpen: true });
         break;
-      case "commit":
-        st.setUi({ commitOpen: true });
-        break;
       case "close-tab":
         st.closeActiveTab();
         break;

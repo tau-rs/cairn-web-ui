@@ -27,6 +27,7 @@ import type {
 } from "./types";
 import { extractLinks, stem } from "./wikilink";
 import { extractTags } from "../components/graph/tags";
+import type { CommandEx, RevisionEx } from "./contractExt";
 
 /** Split a leading `---\n...\n---\n` frontmatter block. Mirrors cairn-domain
  *  Note::parse (frontmatter is the YAML between fences; body is the rest). */
@@ -84,6 +85,32 @@ function rewriteWikilinks(
   );
 }
 
+type SealChange = {
+  op: "add" | "edit" | "delete";
+  path: string;
+  added: number;
+  removed: number;
+};
+
+function countWords(s: string): number {
+  return (s.match(/\S+/g) ?? []).length;
+}
+
+/** Reference implementation of the engine's deterministic message template
+ *  (spec "Diff-derived version labels"). Mock-only: the real one is engine E2. */
+function sealMessage(changes: SealChange[]): string {
+  if (changes.length > 1)
+    return `Update ${changes.length} notes: ${changes
+      .slice(0, 3)
+      .map((x) => stem(x.path))
+      .join(", ")}`;
+  const [ch] = changes;
+  const title = stem(ch.path);
+  if (ch.op === "add") return `Add note "${title}"`;
+  if (ch.op === "delete") return `Delete note "${title}"`;
+  return `Edit "${title}" (+${ch.added}/−${ch.removed} words)`;
+}
+
 /** Optional seeded git history per note: the revision list (newest first) and
  *  the note's contents at each revision id. */
 export interface HistoryFixture {
@@ -104,6 +131,8 @@ export class MockClient implements CairnClient {
   private vaultSnapshots: Map<string, VaultSnapshot>;
   private subscribers = new Set<(e: Event) => void>();
   private commitSeq = 0;
+  // C0 seal baseline: the note contents as of the last sealed version.
+  private sealedSnapshot: Map<string, string>;
   private plugins: PluginSummary[] = [
     {
       id: "demo",
@@ -209,6 +238,7 @@ export class MockClient implements CairnClient {
     structuralHistory: Revision[] = [],
   ) {
     this.notes = new Map(Object.entries(seed));
+    this.sealedSnapshot = new Map(this.notes);
     this.history = new Map(Object.entries(history));
     this.vaultSnapshots = new Map(Object.entries(vaultSnapshots));
     this.vaultHistory = vaultHistory;
@@ -233,92 +263,170 @@ export class MockClient implements CairnClient {
     return byStem;
   }
 
+  /** Diff notes vs the last sealed snapshot; advances the snapshot. */
+  private sealChanges(): SealChange[] {
+    const changes: SealChange[] = [];
+    for (const [path, now] of this.notes) {
+      const then = this.sealedSnapshot.get(path);
+      if (then === now) continue;
+      const d = countWords(now) - countWords(then ?? "");
+      changes.push({
+        op: then === undefined ? "add" : "edit",
+        path,
+        added: Math.max(d, 0),
+        removed: Math.max(-d, 0),
+      });
+    }
+    for (const [path, then] of this.sealedSnapshot) {
+      if (!this.notes.has(path))
+        changes.push({
+          op: "delete",
+          path,
+          added: 0,
+          removed: countWords(then),
+        });
+    }
+    this.sealedSnapshot = new Map(this.notes);
+    return changes;
+  }
+
   async sendCommand(c: Command): Promise<CommandResponse> {
-    switch (c.type) {
+    const cx = c as CommandEx;
+    switch (cx.type) {
       case "write_note":
-        this.notes.set(c.path, c.contents);
-        this.emit({ type: "note_changed", path: c.path });
+        this.notes.set(cx.path, cx.contents);
+        this.emit({ type: "note_changed", path: cx.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       case "delete_note": {
         // The real store errors when deleting a missing note (fs NotFound ->
         // PortError::NotFound -> ContractError::NotFound).
-        if (!this.notes.has(c.path)) {
-          const err: ContractError = { type: "not_found", what: c.path };
+        if (!this.notes.has(cx.path)) {
+          const err: ContractError = { type: "not_found", what: cx.path };
           throw err;
         }
-        this.notes.delete(c.path);
-        this.emit({ type: "note_deleted", path: c.path });
+        this.notes.delete(cx.path);
+        this.emit({ type: "note_deleted", path: cx.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       }
       case "commit": {
+        // C0: message omitted ⇒ engine-side policy generates it (mocked here).
+        let message = cx.message;
+        let changes: SealChange[] = [];
+        if (message === undefined) {
+          changes = this.sealChanges();
+          if (changes.length === 0) {
+            // Skip-no-op: never create an empty version; report the last seal.
+            return {
+              type: "committed",
+              commit: `c${String(this.commitSeq).padStart(4, "0")}`,
+            };
+          }
+          message = sealMessage(changes);
+        } else {
+          this.sealChanges(); // explicit message still advances the baseline
+        }
         this.commitSeq += 1;
         const commit = `c${String(this.commitSeq).padStart(4, "0")}`;
+        const rev: RevisionEx = {
+          id: commit,
+          message,
+          author: "mock",
+          timestamp_secs: Math.floor(Date.now() / 1000),
+          op: changes[0]?.op,
+          words_added: changes.reduce((n, s) => n + s.added, 0),
+          words_removed: changes.reduce((n, s) => n + s.removed, 0),
+          is_named: false,
+          name: null,
+        };
+        this.vaultHistory.unshift(rev);
+        for (const s of changes) {
+          const fix = this.history.get(s.path) ?? {
+            revisions: [],
+            contents: {},
+          };
+          fix.revisions.unshift(rev);
+          const now = this.notes.get(s.path);
+          if (now !== undefined) fix.contents[commit] = now;
+          this.history.set(s.path, fix);
+        }
         this.emit({ type: "committed", commit });
         return { type: "committed", commit };
       }
+      case "name_version": {
+        const mark = (r: Revision) => {
+          const ex = r as RevisionEx;
+          if (ex.id === cx.commit) {
+            ex.is_named = true;
+            ex.name = cx.name;
+          }
+        };
+        this.vaultHistory.forEach(mark);
+        for (const fix of this.history.values()) fix.revisions.forEach(mark);
+        return { type: "done" };
+      }
       case "invoke_plugin_command": {
-        if (c.plugin === "demo" && c.command === "stamp") {
+        if (cx.plugin === "demo" && cx.command === "stamp") {
           this.notes.set("stamp.md", "# Stamp\n");
           this.emit({ type: "note_changed", path: "stamp.md" });
           this.emit({ type: "reindexed", count: this.notes.size });
           // Echo args.n into the result so callers can observe arg passthrough.
           const n =
-            c.args && typeof c.args === "object" && "n" in c.args
-              ? " " + (c.args as { n: unknown }).n
+            cx.args && typeof cx.args === "object" && "n" in cx.args
+              ? " " + (cx.args as { n: unknown }).n
               : "";
           return { type: "plugin_result", result: `stamp.md${n}` };
         }
         const err: ContractError = {
           type: "invalid_request",
-          message: `unknown plugin command ${c.plugin}/${c.command}`,
+          message: `unknown plugin command ${cx.plugin}/${cx.command}`,
         };
         throw err;
       }
       case "rename_note": {
-        if (!this.notes.has(c.from)) {
-          const err: ContractError = { type: "not_found", what: c.from };
+        if (!this.notes.has(cx.from)) {
+          const err: ContractError = { type: "not_found", what: cx.from };
           throw err;
         }
-        if (this.notes.has(c.to)) {
+        if (this.notes.has(cx.to)) {
           const err: ContractError = {
             type: "invalid_request",
-            message: `already exists: ${c.to}`,
+            message: `already exists: ${cx.to}`,
           };
           throw err;
         }
-        const body = this.notes.get(c.from) as string;
-        this.notes.delete(c.from);
-        this.notes.set(c.to, body);
-        const oldStem = stem(c.from);
-        const newStem = stem(c.to);
+        const body = this.notes.get(cx.from) as string;
+        this.notes.delete(cx.from);
+        this.notes.set(cx.to, body);
+        const oldStem = stem(cx.from);
+        const newStem = stem(cx.to);
         if (oldStem !== newStem) {
           for (const [p, raw] of [...this.notes]) {
-            if (p === c.to) continue;
+            if (p === cx.to) continue;
             const rewritten = rewriteWikilinks(raw, oldStem, newStem);
             if (rewritten !== raw) this.notes.set(p, rewritten);
           }
         }
-        this.emit({ type: "note_deleted", path: c.from });
-        this.emit({ type: "note_changed", path: c.to });
+        this.emit({ type: "note_deleted", path: cx.from });
+        this.emit({ type: "note_changed", path: cx.to });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       }
       case "restore_note": {
-        const fix = this.history.get(c.path);
-        const contents = fix?.contents[c.revision];
+        const fix = this.history.get(cx.path);
+        const contents = fix?.contents[cx.revision];
         if (contents === undefined) {
-          const err: ContractError = { type: "not_found", what: c.revision };
+          const err: ContractError = { type: "not_found", what: cx.revision };
           throw err;
         }
-        this.notes.set(c.path, contents);
-        this.emit({ type: "note_changed", path: c.path });
+        this.notes.set(cx.path, contents);
+        this.emit({ type: "note_changed", path: cx.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       }
       default: {
-        throw new Error(`mock: unsupported command ${(c as Command).type}`);
+        throw new Error(`mock: unsupported command ${(cx as Command).type}`);
       }
     }
   }

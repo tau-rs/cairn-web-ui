@@ -19,11 +19,11 @@ function renderAside() {
 }
 
 describe("RightAside", () => {
-  it("shows Backlinks by default and switches to History on tab click", async () => {
+  it("shows Backlinks by default and switches to Versions on tab click", async () => {
     await cairnStore.getState().openNote("index.md");
     renderAside();
     expect(screen.getByRole("tab", { name: /backlinks/i })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: /history/i }));
-    expect(await screen.findByText(/No history/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /versions/i }));
+    expect(await screen.findByText(/No versions yet/i)).toBeInTheDocument();
   });
 });

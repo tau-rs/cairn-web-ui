@@ -2,6 +2,12 @@ import type { StoreApi } from "zustand/vanilla";
 import type { CairnClient, CollabSession } from "../client/types";
 import type { CairnState, NoteBuffer } from "./store";
 
+export interface CollabPeer {
+  id: string;
+  name?: string;
+  editing?: boolean;
+}
+
 export interface CollabPresence {
   /** The note currently followed, or null when not following. */
   note: string | null;
@@ -9,6 +15,11 @@ export interface CollabPresence {
   live: boolean;
   /** Foreign changes seen while the buffer was dirty (feeds the reload nudge). */
   pendingCount: number;
+  /** Roster from the engine's future awareness channel. Empty today (the wire
+   *  is anonymous); the PresenceCluster degrades to "Someone is editing…". */
+  peers: CollabPeer[];
+  /** Non-destructive view of the incoming remote version (conflict flow). */
+  theirs: { note: string; contents: string } | null;
 }
 
 export interface CollabState {
@@ -19,12 +30,20 @@ export interface CollabState {
   collabStop(): void;
   /** User accepted the nudge: reload the buffer now and clear pendingCount. */
   collabReloadNow(): void;
+  /** Fetch the remote version for viewing, without touching the buffer. */
+  collabViewTheirs(): void;
+  /** Close the conflict, keep my buffer, discard the pending nudge. */
+  collabKeepMine(): void;
+  /** Leave the non-destructive "their version" view, back to my buffer. */
+  collabExitTheirs(): void;
 }
 
 export const DEFAULT_COLLAB: CollabPresence = {
   note: null,
   live: false,
   pendingCount: 0,
+  peers: [],
+  theirs: null,
 };
 export const LIVE_DECAY_MS = 6000;
 export const COLLAB_RELOAD_DEBOUNCE_MS = 300;
@@ -41,6 +60,7 @@ export function createCollabSlice(
   get: Get,
   client: CairnClient,
   setBuffer: (path: string, patch: Partial<NoteBuffer>) => void,
+  pushError: (op: string, err: unknown, ctx?: Record<string, unknown>) => void,
 ): CollabState {
   let session: CollabSession | null = null;
   let token = 0;
@@ -67,9 +87,17 @@ export function createCollabSlice(
       teardown();
       // A pending reload-confirm targeted the note we're leaving; drop it so a
       // late confirm can't clobber the freshly-followed note's edits.
-      get().setUi({ collabReloadConfirmOpen: false });
+      get().setUi({ collabConflictOpen: false });
       const my = ++token;
-      set({ collab: { note: path, live: false, pendingCount: 0 } });
+      set({
+        collab: {
+          note: path,
+          live: false,
+          pendingCount: 0,
+          peers: [],
+          theirs: null,
+        },
+      });
       session = client.openCollab(path, {
         onForeignOp: (note) => {
           if (my !== token || get().collab.note !== note) return;
@@ -108,19 +136,60 @@ export function createCollabSlice(
       if (!note) return;
       const my = token;
       void (async () => {
-        const res = await client.runQuery({ type: "get_note", path: note });
-        if (my !== token) return; // superseded by a note switch / stop
-        if (res.type === "note") {
-          setBuffer(note, { contents: res.contents, dirty: false });
-          set((s) => ({ collab: { ...s.collab, pendingCount: 0 } }));
+        try {
+          const res = await client.runQuery({ type: "get_note", path: note });
+          if (my !== token) return; // superseded by a note switch / stop
+          if (res.type === "note") {
+            setBuffer(note, { contents: res.contents, dirty: false });
+            set((s) => ({
+              collab: { ...s.collab, pendingCount: 0, theirs: null },
+            }));
+          }
+        } catch (err) {
+          if (my !== token) return; // superseded: stay silent
+          pushError("Reload note", err, { path: note });
         }
       })();
+    },
+
+    // Non-destructive: fetches the remote content for display only. The
+    // local buffer is never touched, unlike collabReloadNow.
+    collabViewTheirs() {
+      const note = get().collab.note;
+      if (!note) return;
+      const my = token;
+      void (async () => {
+        try {
+          const res = await client.runQuery({ type: "get_note", path: note });
+          if (my !== token) return; // superseded by a note switch / stop
+          if (res.type === "note") {
+            set((s) => ({
+              collab: {
+                ...s.collab,
+                theirs: { note, contents: res.contents },
+              },
+            }));
+          }
+        } catch (err) {
+          if (my !== token) return; // superseded: stay silent
+          pushError("View their version", err, { path: note });
+        }
+      })();
+    },
+
+    collabKeepMine() {
+      get().setUi({ collabConflictOpen: false });
+      set((s) => ({ collab: { ...s.collab, pendingCount: 0, theirs: null } }));
+    },
+
+    collabExitTheirs() {
+      set((s) => ({ collab: { ...s.collab, theirs: null } }));
     },
 
     collabStop() {
       token++;
       teardown();
-      get().setUi({ collabReloadConfirmOpen: false });
+      get().setUi({ collabConflictOpen: false });
       set({ collab: DEFAULT_COLLAB });
     },
   };

@@ -23,7 +23,7 @@ describe("HistoryPane", () => {
     renderPane();
     // The dev MockClient fixtures seed no revisions → empty state.
     await waitFor(() =>
-      expect(screen.getByText(/No history/i)).toBeInTheDocument(),
+      expect(screen.getByText(/No versions yet/i)).toBeInTheDocument(),
     );
   });
 
@@ -31,6 +31,22 @@ describe("HistoryPane", () => {
     await cairnStore.getState().openNote("index.md");
     renderPane();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("shows a calm empty state instead of Loading when no note is open", async () => {
+    // A prior test may leave a note open on this singleton store; force the
+    // no-note-open state explicitly rather than relying on ordering.
+    cairnStore.setState({
+      activePath: null,
+      history: null,
+      historyPath: null,
+      historyLoading: false,
+    });
+    renderPane();
+    expect(
+      screen.getByText(/open a note to see its versions/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Loading/i)).toBeNull();
   });
 
   it("does not show another note's history while the current note's is loading", async () => {

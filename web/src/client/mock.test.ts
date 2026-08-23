@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { MockClient } from "./mock";
 import type { Event, AnswerEvent } from "../contract";
+import { asCommand } from "./contractExt";
+import type { RevisionEx } from "./contractExt";
 
 function freshNotes() {
   return { "a.md": "links to [[b]]", "b.md": "target note" };
@@ -640,5 +642,85 @@ describe("MockClient.openRecovery", () => {
       expect(after.contents.length).toBeGreaterThan(before.contents.length);
     }
     s.close();
+  });
+});
+
+describe("MockClient C0 versions seam", () => {
+  it("seals without a message: generates a summary message and a vault_history row", async () => {
+    const client = new MockClient({ "roadmap.md": "# Roadmap\n\nalpha beta" });
+    await client.sendCommand({
+      type: "write_note",
+      path: "roadmap.md",
+      contents: "# Roadmap\n\nalpha beta gamma delta",
+    });
+    const res = await client.sendCommand(asCommand({ type: "commit" }));
+    expect(res).toEqual({ type: "committed", commit: "c0001" });
+    const hist = await client.runQuery({ type: "vault_history", limit: 1 });
+    if (hist.type !== "history") throw new Error("bad response");
+    const rev = hist.revisions[0] as RevisionEx;
+    expect(rev.message).toBe('Edit "roadmap" (+2/−0 words)');
+    expect(rev.words_added).toBe(2);
+    expect(rev.is_named).toBe(false);
+  });
+
+  it("skip-no-op: sealing with no changes adds no new version", async () => {
+    const client = new MockClient({ "a.md": "hi" });
+    await client.sendCommand(asCommand({ type: "commit" })); // nothing changed since construction
+    const hist = await client.runQuery({ type: "vault_history", limit: null });
+    if (hist.type !== "history") throw new Error("bad response");
+    expect(hist.revisions).toHaveLength(0);
+  });
+
+  it("multi-note seal rolls up into one version", async () => {
+    const client = new MockClient({ "a.md": "x", "b.md": "y" });
+    await client.sendCommand({
+      type: "write_note",
+      path: "a.md",
+      contents: "x x",
+    });
+    await client.sendCommand({
+      type: "write_note",
+      path: "b.md",
+      contents: "y y",
+    });
+    const res = await client.sendCommand(asCommand({ type: "commit" }));
+    if (res.type !== "committed") throw new Error("bad response");
+    const hist = await client.runQuery({ type: "vault_history", limit: 1 });
+    if (hist.type !== "history") throw new Error("bad response");
+    expect(hist.revisions[0].message).toBe("Update 2 notes: a, b");
+  });
+
+  it("an explicit message is used verbatim (back-compat)", async () => {
+    const client = new MockClient({ "a.md": "x" });
+    await client.sendCommand({
+      type: "write_note",
+      path: "a.md",
+      contents: "x y",
+    });
+    const res = await client.sendCommand({
+      type: "commit",
+      message: "snapshot",
+    });
+    expect(res).toEqual({ type: "committed", commit: "c0001" });
+  });
+
+  it("name_version marks the revision named in vault and note history", async () => {
+    const client = new MockClient({ "a.md": "x" });
+    await client.sendCommand({
+      type: "write_note",
+      path: "a.md",
+      contents: "x y",
+    });
+    await client.sendCommand(asCommand({ type: "commit" }));
+    const res = await client.sendCommand(
+      asCommand({ type: "name_version", commit: "c0001", name: "Draft 1" }),
+    );
+    expect(res).toEqual({ type: "done" });
+    const vault = await client.runQuery({ type: "vault_history", limit: 1 });
+    if (vault.type !== "history") throw new Error("bad response");
+    expect((vault.revisions[0] as RevisionEx).name).toBe("Draft 1");
+    const note = await client.runQuery({ type: "note_history", path: "a.md" });
+    if (note.type !== "history") throw new Error("bad response");
+    expect((note.revisions[0] as RevisionEx).is_named).toBe(true);
   });
 });

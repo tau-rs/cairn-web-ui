@@ -3,8 +3,8 @@ import { useCairn, useActions } from "../app/cairnStore";
 import { noteUrl } from "../app/routes";
 import { SettingsDialog } from "./SettingsDialog";
 import { NewNoteDialog } from "./NewNoteDialog";
-import { CommitDialog } from "./CommitDialog";
-import { CollabReloadDialog } from "./collab/CollabReloadDialog";
+import { ConflictDialog } from "./collab/ConflictDialog";
+import { NameVersionDialog } from "./history/NameVersionDialog";
 import {
   CommandPalette,
   type PaletteCommand,
@@ -21,7 +21,6 @@ export function DialogHost(props: {
   const ui = useCairn((s) => s.ui);
   const settings = useCairn((s) => s.settings);
   const plugins = useCairn((s) => s.plugins);
-  const committing = useCairn((s) => s.committing);
   const notePaths = useCairn((s) => s.notePaths);
   const ask = useCairn((s) => s.ask);
 
@@ -42,16 +41,21 @@ export function DialogHost(props: {
         initialPath={ui.newNoteInitial}
         onCreate={actions.createNote}
       />
-      <CommitDialog
-        open={ui.commitOpen}
-        onOpenChange={(o) => actions.setUi({ commitOpen: o })}
-        committing={committing}
-        onCommit={actions.commitManual}
+      <ConflictDialog
+        open={ui.collabConflictOpen}
+        onOpenChange={(o) => actions.setUi({ collabConflictOpen: o })}
+        onKeepMine={actions.collabKeepMine}
+        onSeeTheirs={actions.collabViewTheirs}
       />
-      <CollabReloadDialog
-        open={ui.collabReloadConfirmOpen}
-        onOpenChange={(o) => actions.setUi({ collabReloadConfirmOpen: o })}
-        onConfirm={actions.collabReloadNow}
+      <NameVersionDialog
+        open={ui.nameVersionFor !== null}
+        onOpenChange={(o) => {
+          if (!o) actions.setUi({ nameVersionFor: null });
+        }}
+        onName={(name) => {
+          const id = ui.nameVersionFor;
+          if (id) void actions.nameVersion(id, name);
+        }}
       />
       <CommandPalette
         open={ui.paletteOpen}
