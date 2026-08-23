@@ -27,7 +27,6 @@ import type {
 } from "./types";
 import { extractLinks, stem } from "./wikilink";
 import { extractTags } from "../components/graph/tags";
-import type { CommandEx, RevisionEx } from "./contractExt";
 
 /** Split a leading `---\n...\n---\n` frontmatter block. Mirrors cairn-domain
  *  Note::parse (frontmatter is the YAML between fences; body is the rest). */
@@ -96,19 +95,40 @@ function countWords(s: string): number {
   return (s.match(/\S+/g) ?? []).length;
 }
 
-/** Reference implementation of the engine's deterministic message template
- *  (spec "Diff-derived version labels"). Mock-only: the real one is engine E2. */
+/** Counts suffix, zero sides elided — mirrors the engine's `counts()`. */
+function counts(added: number, removed: number): string {
+  if (added === 0 && removed === 0) return "";
+  if (removed === 0) return ` (+${added} words)`;
+  if (added === 0) return ` (−${removed} words)`;
+  return ` (+${added}/−${removed} words)`;
+}
+
+/** Mirror of the engine's deterministic message template
+ *  (cairn-app `commit_msg::commit_message`). The mock must render byte-identical
+ *  labels: the UI's regex fallback is exercised against these. */
 function sealMessage(changes: SealChange[]): string {
-  if (changes.length > 1)
-    return `Update ${changes.length} notes: ${changes
+  if (changes.length === 0) return "Checkpoint";
+  if (changes.length > 1) {
+    const titles = changes
       .slice(0, 3)
-      .map((x) => stem(x.path))
-      .join(", ")}`;
+      .map((x) => `"${stem(x.path)}"`)
+      .join(", ");
+    return `Update ${changes.length} notes: ${titles}${
+      changes.length > 3 ? "…" : ""
+    }`;
+  }
   const [ch] = changes;
   const title = stem(ch.path);
-  if (ch.op === "add") return `Add note "${title}"`;
-  if (ch.op === "delete") return `Delete note "${title}"`;
-  return `Edit "${title}" (+${ch.added}/−${ch.removed} words)`;
+  if (ch.op === "add") return `Add "${title}"${counts(ch.added, 0)}`;
+  if (ch.op === "delete") return `Delete "${title}"`;
+  return `Edit "${title}"${counts(ch.added, ch.removed)}`;
+}
+
+/** Detach revisions from the mock's internal arrays before handing them out.
+ *  `name_version` mutates the shared revision objects in place, so a caller
+ *  holding a live reference would see history it never re-queried. */
+function snapshot(revs: Revision[]): Revision[] {
+  return revs.map((r) => ({ ...r }));
 }
 
 /** Optional seeded git history per note: the revision list (newest first) and
@@ -291,53 +311,49 @@ export class MockClient implements CairnClient {
   }
 
   async sendCommand(c: Command): Promise<CommandResponse> {
-    const cx = c as CommandEx;
-    switch (cx.type) {
+    switch (c.type) {
       case "write_note":
-        this.notes.set(cx.path, cx.contents);
-        this.emit({ type: "note_changed", path: cx.path });
+        this.notes.set(c.path, c.contents);
+        this.emit({ type: "note_changed", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       case "delete_note": {
         // The real store errors when deleting a missing note (fs NotFound ->
         // PortError::NotFound -> ContractError::NotFound).
-        if (!this.notes.has(cx.path)) {
-          const err: ContractError = { type: "not_found", what: cx.path };
+        if (!this.notes.has(c.path)) {
+          const err: ContractError = { type: "not_found", what: c.path };
           throw err;
         }
-        this.notes.delete(cx.path);
-        this.emit({ type: "note_deleted", path: cx.path });
+        this.notes.delete(c.path);
+        this.emit({ type: "note_deleted", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       }
       case "commit": {
-        // C0: message omitted ⇒ engine-side policy generates it (mocked here).
-        let message = cx.message;
+        // `message: null` ⇒ engine-side policy generates it (mirrored here).
+        let message = c.message;
         let changes: SealChange[] = [];
-        if (message === undefined) {
+        if (message === null) {
           changes = this.sealChanges();
-          if (changes.length === 0) {
-            // Skip-no-op: never create an empty version; report the last seal.
-            return {
-              type: "committed",
-              commit: `c${String(this.commitSeq).padStart(4, "0")}`,
-            };
-          }
+          // Nothing dirty: the engine reports `nothing_to_commit` rather than
+          // creating an empty version. Callers must treat this as success.
+          if (changes.length === 0) return { type: "nothing_to_commit" };
           message = sealMessage(changes);
         } else {
           this.sealChanges(); // explicit message still advances the baseline
         }
         this.commitSeq += 1;
         const commit = `c${String(this.commitSeq).padStart(4, "0")}`;
-        const rev: RevisionEx = {
+        const rev: Revision = {
           id: commit,
           message,
           author: "mock",
           timestamp_secs: Math.floor(Date.now() / 1000),
-          op: changes[0]?.op,
-          words_added: changes.reduce((n, s) => n + s.added, 0),
-          words_removed: changes.reduce((n, s) => n + s.removed, 0),
-          is_named: false,
+          summary: {
+            files_changed: changes.length,
+            words_added: changes.reduce((n, s) => n + s.added, 0),
+            words_removed: changes.reduce((n, s) => n + s.removed, 0),
+          },
           name: null,
         };
         this.vaultHistory.unshift(rev);
@@ -356,77 +372,73 @@ export class MockClient implements CairnClient {
       }
       case "name_version": {
         const mark = (r: Revision) => {
-          const ex = r as RevisionEx;
-          if (ex.id === cx.commit) {
-            ex.is_named = true;
-            ex.name = cx.name;
-          }
+          if (r.id === c.commit) r.name = c.name;
         };
         this.vaultHistory.forEach(mark);
         for (const fix of this.history.values()) fix.revisions.forEach(mark);
         return { type: "done" };
       }
       case "invoke_plugin_command": {
-        if (cx.plugin === "demo" && cx.command === "stamp") {
+        if (c.plugin === "demo" && c.command === "stamp") {
           this.notes.set("stamp.md", "# Stamp\n");
           this.emit({ type: "note_changed", path: "stamp.md" });
           this.emit({ type: "reindexed", count: this.notes.size });
           // Echo args.n into the result so callers can observe arg passthrough.
           const n =
-            cx.args && typeof cx.args === "object" && "n" in cx.args
-              ? " " + (cx.args as { n: unknown }).n
+            c.args && typeof c.args === "object" && "n" in c.args
+              ? " " + (c.args as { n: unknown }).n
               : "";
           return { type: "plugin_result", result: `stamp.md${n}` };
         }
         const err: ContractError = {
           type: "invalid_request",
-          message: `unknown plugin command ${cx.plugin}/${cx.command}`,
+          message: `unknown plugin command ${c.plugin}/${c.command}`,
         };
         throw err;
       }
       case "rename_note": {
-        if (!this.notes.has(cx.from)) {
-          const err: ContractError = { type: "not_found", what: cx.from };
+        if (!this.notes.has(c.from)) {
+          const err: ContractError = { type: "not_found", what: c.from };
           throw err;
         }
-        if (this.notes.has(cx.to)) {
+        if (this.notes.has(c.to)) {
           const err: ContractError = {
             type: "invalid_request",
-            message: `already exists: ${cx.to}`,
+            message: `already exists: ${c.to}`,
           };
           throw err;
         }
-        const body = this.notes.get(cx.from) as string;
-        this.notes.delete(cx.from);
-        this.notes.set(cx.to, body);
-        const oldStem = stem(cx.from);
-        const newStem = stem(cx.to);
+        const body = this.notes.get(c.from) as string;
+        this.notes.delete(c.from);
+        this.notes.set(c.to, body);
+        const oldStem = stem(c.from);
+        const newStem = stem(c.to);
         if (oldStem !== newStem) {
           for (const [p, raw] of [...this.notes]) {
-            if (p === cx.to) continue;
+            if (p === c.to) continue;
             const rewritten = rewriteWikilinks(raw, oldStem, newStem);
             if (rewritten !== raw) this.notes.set(p, rewritten);
           }
         }
-        this.emit({ type: "note_deleted", path: cx.from });
-        this.emit({ type: "note_changed", path: cx.to });
+        this.emit({ type: "note_deleted", path: c.from });
+        this.emit({ type: "note_changed", path: c.to });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       }
       case "restore_note": {
-        const fix = this.history.get(cx.path);
-        const contents = fix?.contents[cx.revision];
+        const fix = this.history.get(c.path);
+        const contents = fix?.contents[c.revision];
         if (contents === undefined) {
-          const err: ContractError = { type: "not_found", what: cx.revision };
+          const err: ContractError = { type: "not_found", what: c.revision };
           throw err;
         }
-        this.notes.set(cx.path, contents);
-        this.emit({ type: "note_changed", path: cx.path });
+        this.notes.set(c.path, contents);
+        this.emit({ type: "note_changed", path: c.path });
         this.emit({ type: "reindexed", count: this.notes.size });
         return { type: "done" };
       }
       default: {
-        throw new Error(`mock: unsupported command ${(cx as Command).type}`);
+        throw new Error(`mock: unsupported command ${(c as Command).type}`);
       }
     }
   }
@@ -614,7 +626,9 @@ export class MockClient implements CairnClient {
         return { type: "plugins", plugins: this.plugins };
       case "note_history": {
         const fix = this.history.get(q.path);
-        return { type: "history", revisions: fix ? fix.revisions : [] };
+        // Snapshot: a real transport hands back deserialized values, so callers
+        // must never receive (and be able to mutate) the mock's own state.
+        return { type: "history", revisions: snapshot(fix?.revisions ?? []) };
       }
       case "vault_history": {
         // Newest-first, capped at `limit` (null = all).
@@ -622,7 +636,7 @@ export class MockClient implements CairnClient {
           q.limit === null
             ? this.vaultHistory
             : this.vaultHistory.slice(0, q.limit);
-        return { type: "history", revisions: revs };
+        return { type: "history", revisions: snapshot(revs) };
       }
       case "structural_revisions": {
         // Pre-filtered structural subset, newest-first, capped at `limit`.
@@ -630,7 +644,7 @@ export class MockClient implements CairnClient {
           q.limit === null
             ? this.structuralHistory
             : this.structuralHistory.slice(0, q.limit);
-        return { type: "history", revisions: revs };
+        return { type: "history", revisions: snapshot(revs) };
       }
       case "note_at": {
         const fix = this.history.get(q.path);

@@ -7,6 +7,8 @@ const rev = (id: string, t: number, msg = id): Revision => ({
   message: msg,
   timestamp_secs: t,
   author: "x",
+  summary: null,
+  name: null,
 });
 
 describe("timelineBuckets", () => {

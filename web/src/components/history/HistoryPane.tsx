@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useCairn, useActions } from "../../app/cairnStore";
 import { HistoryList } from "./HistoryList";
 import { RestoreConfirmDialog } from "./RestoreConfirmDialog";
-import type { RevisionEx } from "../../client/contractExt";
 
 export function HistoryPane() {
   const actions = useActions();
@@ -35,7 +34,7 @@ export function HistoryPane() {
   return (
     <>
       <HistoryList
-        revisions={stale ? null : (history as RevisionEx[] | null)}
+        revisions={stale ? null : history}
         loading={loading || stale}
         onView={(rev) => void actions.viewRevision(rev)}
         onRestore={(rev) => setPending(rev)}

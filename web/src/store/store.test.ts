@@ -104,12 +104,47 @@ describe("cairn store", () => {
     expect(store.getState().lastVersion?.id).toBe("c0001");
   });
 
+  it("sealNow flushes a pending autosave so the last keystrokes make the version", async () => {
+    // The hint fires on note switch / blur, both of which beat the ~1s
+    // debounce; an unflushed tail would land in the engine's next idle seal.
+    const { client, store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("tail keystrokes [[b]]");
+    expect(store.getState().dirty).toBe(true);
+    await store.getState().sealNow(); // no timer advance: debounce still pending
+    expect(store.getState().dirty).toBe(false);
+    const note = await client.runQuery({ type: "get_note", path: "a.md" });
+    expect(note).toEqual({ type: "note", contents: "tail keystrokes [[b]]" });
+    expect(store.getState().lastCommit).toBe("c0001");
+    // The version must contain the tail, not the pre-edit text.
+    const hist = await client.runQuery({ type: "vault_history", limit: 1 });
+    if (hist.type !== "history") throw new Error("bad response");
+    expect(hist.revisions[0].summary?.files_changed).toBe(1);
+  });
+
   it("sealNow is a no-op when nothing is uncommitted", async () => {
     const { client, store } = setup();
     await store.getState().init();
     const spy = vi.spyOn(client, "sendCommand");
     await store.getState().sealNow();
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("sealNow treats nothing_to_commit as benign success (no toast)", async () => {
+    // The engine's idle auto-commit routinely seals before the UI's note-switch
+    // hint lands, so this is the NORMAL path — it must stay silent.
+    const { client, store } = setup();
+    await store.getState().init();
+    store.setState({ uncommitted: true });
+    const spy = vi.spyOn(client, "sendCommand");
+    await store.getState().sealNow();
+    expect(spy).toHaveBeenCalledWith({ type: "commit", message: null });
+    await expect(spy.mock.results[0].value).resolves.toEqual({
+      type: "nothing_to_commit",
+    });
+    expect(store.getState().errors).toHaveLength(0);
+    expect(store.getState().uncommitted).toBe(false);
   });
 
   it("sealNow failures are silent (no toast)", async () => {
@@ -1253,8 +1288,22 @@ describe("temporal graph", () => {
     const history = {
       "a.md": {
         revisions: [
-          { id: "r2", message: "add b", timestamp_secs: 20, author: "x" },
-          { id: "r1", message: "init", timestamp_secs: 10, author: "x" },
+          {
+            id: "r2",
+            message: "add b",
+            timestamp_secs: 20,
+            author: "x",
+            summary: null,
+            name: null,
+          },
+          {
+            id: "r1",
+            message: "init",
+            timestamp_secs: 10,
+            author: "x",
+            summary: null,
+            name: null,
+          },
         ],
         contents: { r1: "lone", r2: "links [[b]]" },
       },
@@ -1270,9 +1319,30 @@ describe("temporal graph", () => {
 
   it("loadVaultTimeline populates the timeline from vault_history", async () => {
     const vaultRevisions = [
-      { id: "r3", message: "c", timestamp_secs: 30, author: "x" },
-      { id: "r2", message: "b", timestamp_secs: 20, author: "x" },
-      { id: "r1", message: "a", timestamp_secs: 10, author: "x" },
+      {
+        id: "r3",
+        message: "c",
+        timestamp_secs: 30,
+        author: "x",
+        summary: null,
+        name: null,
+      },
+      {
+        id: "r2",
+        message: "b",
+        timestamp_secs: 20,
+        author: "x",
+        summary: null,
+        name: null,
+      },
+      {
+        id: "r1",
+        message: "a",
+        timestamp_secs: 10,
+        author: "x",
+        summary: null,
+        name: null,
+      },
     ];
     const { client, store } = setup({ vaultRevisions });
     const spy = vi.spyOn(client, "runQuery");
@@ -1290,11 +1360,32 @@ describe("temporal graph", () => {
     // Distinct fixtures per source so the assertion proves the toggle swaps the
     // data source (engine pre-filters; the UI does NO client-side filtering).
     const vaultRevisions = [
-      { id: "v2", message: "tag edit", timestamp_secs: 20, author: "x" },
-      { id: "v1", message: "init", timestamp_secs: 10, author: "x" },
+      {
+        id: "v2",
+        message: "tag edit",
+        timestamp_secs: 20,
+        author: "x",
+        summary: null,
+        name: null,
+      },
+      {
+        id: "v1",
+        message: "init",
+        timestamp_secs: 10,
+        author: "x",
+        summary: null,
+        name: null,
+      },
     ];
     const structuralRevisions = [
-      { id: "v1", message: "init", timestamp_secs: 10, author: "x" },
+      {
+        id: "v1",
+        message: "init",
+        timestamp_secs: 10,
+        author: "x",
+        summary: null,
+        name: null,
+      },
     ];
     const { client, store } = setup({ vaultRevisions, structuralRevisions });
     const spy = vi.spyOn(client, "runQuery");
@@ -1329,13 +1420,27 @@ describe("temporal graph", () => {
     resolveFresh({
       type: "history",
       revisions: [
-        { id: "fresh", message: "b", timestamp_secs: 20, author: "x" },
+        {
+          id: "fresh",
+          message: "b",
+          timestamp_secs: 20,
+          author: "x",
+          summary: null,
+          name: null,
+        },
       ],
     });
     resolveStale({
       type: "history",
       revisions: [
-        { id: "stale", message: "a", timestamp_secs: 10, author: "x" },
+        {
+          id: "stale",
+          message: "a",
+          timestamp_secs: 10,
+          author: "x",
+          summary: null,
+          name: null,
+        },
       ],
     });
     await Promise.all([p1, p2]);

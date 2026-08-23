@@ -5,8 +5,22 @@ import { cairnStore } from "../../app/cairnStore";
 import type { Revision } from "../../contract";
 
 const TL: Revision[] = [
-  { id: "r2", message: "add b", timestamp_secs: 20, author: "x" },
-  { id: "r1", message: "init", timestamp_secs: 10, author: "x" },
+  {
+    id: "r2",
+    message: "add b",
+    timestamp_secs: 20,
+    author: "x",
+    summary: null,
+    name: null,
+  },
+  {
+    id: "r1",
+    message: "init",
+    timestamp_secs: 10,
+    author: "x",
+    summary: null,
+    name: null,
+  },
 ];
 
 describe("useTemporalGraph", () => {

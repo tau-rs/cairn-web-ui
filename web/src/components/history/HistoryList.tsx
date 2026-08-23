@@ -1,12 +1,12 @@
 import { useState } from "react";
-import type { RevisionEx } from "../../client/contractExt";
+import type { Revision } from "../../contract/Revision";
 import { groupRevisions } from "./groupRevisions";
 import { versionWordDelta } from "./versionSummary";
 import { relativeTime, absoluteTime } from "./formatRevision";
 import { Button } from "../ui/Button";
 
 function Row(props: {
-  r: RevisionEx;
+  r: Revision;
   onView: (id: string) => void;
   onRestore: (id: string) => void;
   onName: (id: string) => void;
@@ -19,14 +19,14 @@ function Row(props: {
         <span
           className={
             "min-w-0 flex-1 truncate " +
-            (r.is_named ? "font-semibold text-text" : "text-text")
+            (r.name != null ? "font-semibold text-text" : "text-text")
           }
         >
           {r.message}
         </span>
       </div>
       <div className="flex items-center gap-1.5 text-xs text-muted">
-        {r.is_named && r.name && (
+        {r.name != null && (
           <span className="rounded bg-accent/15 px-1 text-accent">
             {r.name}
           </span>
@@ -55,7 +55,7 @@ function Row(props: {
 }
 
 export function HistoryList(props: {
-  revisions: RevisionEx[] | null;
+  revisions: Revision[] | null;
   loading: boolean;
   onView: (id: string) => void;
   onRestore: (id: string) => void;
@@ -69,7 +69,7 @@ export function HistoryList(props: {
     return <div className="p-2 text-sm text-muted">No versions yet.</div>;
 
   const revs = namedOnly
-    ? props.revisions.filter((r) => r.is_named)
+    ? props.revisions.filter((r) => r.name != null)
     : props.revisions;
   const days = groupRevisions(revs, Date.now() / 1000);
   const toggle = (id: string) =>

@@ -63,6 +63,8 @@ describe("StatusBar", () => {
           message: "m",
           author: "a",
           timestamp_secs: NOW_SECS - 60,
+          summary: null,
+          name: null,
         }}
         onShowVersions={onShow}
       />,
@@ -86,8 +88,8 @@ describe("StatusBar", () => {
           message: "m",
           author: "a",
           timestamp_secs: NOW_SECS - 60,
-          words_added: 124,
-          words_removed: 3,
+          summary: { files_changed: 1, words_added: 124, words_removed: 3 },
+          name: null,
         }}
         onShowVersions={() => {}}
       />,

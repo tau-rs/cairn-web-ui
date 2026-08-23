@@ -71,6 +71,41 @@ test("create, edit, autosave, search, backlink, versions", async ({ page }) => {
   await expect(page.getByText("No versions yet.")).toBeVisible();
 });
 
+test("versions: a note switch seals a generated version that can be named", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const sidebar = page.locator("aside").first();
+
+  // Edit ideas.md, then switch notes — the seal hint fires on the switch and
+  // flushes the pending autosave, so the version carries the last keystrokes.
+  await sidebar.getByRole("button", { name: "ideas", exact: true }).click();
+  await page.locator(".cm-content").click();
+  await page.keyboard.type(" plus four more words");
+  await sidebar.getByRole("button", { name: "todo", exact: true }).click();
+
+  // Back on ideas.md, the Versions browser shows the engine-style generated
+  // message with its word delta.
+  await sidebar.getByRole("button", { name: "ideas", exact: true }).click();
+  await page
+    .getByTestId("status-bar")
+    .getByRole("button", { name: /versions/i })
+    .click();
+  const versions = page.locator("aside").last();
+  const row = versions.getByText(/^Edit "ideas" \(\+\d+ words\)$/);
+  await expect(row).toBeVisible();
+  await expect(versions.getByText(/\+\d+\/−\d+ words/)).toBeVisible();
+
+  // Name… tags it; the badge appears and the "Named only" filter finds it.
+  await versions.getByRole("button", { name: /name…/i }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByPlaceholder("e.g. Draft 1").fill("Draft 1");
+  await dialog.getByRole("button", { name: /name version/i }).click();
+  await expect(versions.getByText("Draft 1")).toBeVisible();
+  await versions.getByLabel(/named only/i).check();
+  await expect(versions.getByText("Draft 1")).toBeVisible();
+});
+
 test("graph view: toggle shows the force-graph canvas", async ({ page }) => {
   await page.goto("/");
   const sidebar = page.locator("aside").first();

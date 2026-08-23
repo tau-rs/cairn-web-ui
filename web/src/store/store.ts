@@ -58,7 +58,6 @@ import { createHistorySlice, type HistorySlice } from "./historySlice";
 import { createAskSlice, type AskState } from "./askSlice";
 import { createCollabSlice, type CollabState } from "./collabSlice";
 import { createRecoverySlice, type RecoveryState } from "./recoverySlice";
-import { asCommand, type RevisionEx } from "../client/contractExt";
 
 /** A queued, auto-dismissing error notification. */
 export interface Toast {
@@ -160,7 +159,7 @@ export interface CairnState
   saving: boolean;
   uncommitted: boolean;
   lastCommit: string | null;
-  lastVersion: RevisionEx | null;
+  lastVersion: Revision | null;
   committing: boolean;
   query: string;
   searchResults: string[] | null;
@@ -722,6 +721,17 @@ export function createCairnStore(
             });
           }
           set({ uncommitted: true });
+          // Our write just became the on-disk version, so the pending "they
+          // changed it" nudge has nothing left to offer: "See their version"
+          // would fetch back our own bytes and show an empty diff. Clear the
+          // conflict — the peer's edit is recoverable from the version history,
+          // not from a chip that dead-ends.
+          if (get().collab.note === path && get().collab.pendingCount > 0) {
+            get().setUi({ collabConflictOpen: false });
+            set((s) => ({
+              collab: { ...s.collab, pendingCount: 0, theirs: null },
+            }));
+          }
         } catch (err) {
           // The write failed, so no echo is coming — release the pending mark
           // (else a later external change to this path would be wrongly skipped).
@@ -1237,13 +1247,32 @@ export function createCairnStore(
       },
 
       async sealNow() {
-        if (!get().uncommitted || get().committing) return;
+        if (get().committing) return;
+        // Flush pending autosaves first. The hints fire on note switch / blur,
+        // both of which beat the ~1s debounce, so without this the last
+        // keystrokes miss the version we're about to seal and land in whatever
+        // the engine's idle timer seals next.
+        const dirty = Object.entries(get().openNotes)
+          .filter(([, b]) => b.dirty)
+          .map(([path]) => path);
+        for (const path of dirty) {
+          autosaves.get(path)?.cancel();
+          await get().saveNote(path);
+        }
+        if (!get().uncommitted) return;
         set({ committing: true });
         try {
-          const res = await client.sendCommand(asCommand({ type: "commit" }));
+          const res = await client.sendCommand({
+            type: "commit",
+            message: null, // engine generates the message and seals the session
+          });
           if (res.type === "committed") {
             set({ lastCommit: res.commit, uncommitted: false });
             await get().loadLastVersion();
+          } else if (res.type === "nothing_to_commit") {
+            // Benign: the engine's idle auto-commit usually beats our hint to
+            // the punch. Nothing to seal is success, and seal hints are silent.
+            set({ uncommitted: false });
           } else unexpected("Seal version", res);
         } catch (err) {
           // Seal hints are background garnish — a failed hint must never toast.
@@ -1255,9 +1284,11 @@ export function createCairnStore(
 
       async nameVersion(commit, name) {
         try {
-          const res = await client.sendCommand(
-            asCommand({ type: "name_version", commit, name }),
-          );
+          const res = await client.sendCommand({
+            type: "name_version",
+            commit,
+            name,
+          });
           if (res.type === "done") {
             await get().loadHistory();
             void get().loadLastVersion();
@@ -1275,7 +1306,7 @@ export function createCairnStore(
           });
           if (res.type === "history")
             set({
-              lastVersion: (res.revisions[0] as RevisionEx | undefined) ?? null,
+              lastVersion: res.revisions[0] ?? null,
             });
         } catch {
           // Status-bar garnish — leave the previous value, never toast.
