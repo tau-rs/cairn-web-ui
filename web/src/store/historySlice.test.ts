@@ -8,8 +8,22 @@ beforeEach(() => localStorage.clear());
 afterEach(() => vi.useRealTimers());
 
 const REVS: Revision[] = [
-  { id: "r2", message: "second", timestamp_secs: 2, author: "tau" },
-  { id: "r1", message: "first", timestamp_secs: 1, author: "tau" },
+  {
+    id: "r2",
+    message: "second",
+    timestamp_secs: 2,
+    author: "tau",
+    summary: null,
+    name: null,
+  },
+  {
+    id: "r1",
+    message: "first",
+    timestamp_secs: 1,
+    author: "tau",
+    summary: null,
+    name: null,
+  },
 ];
 
 function setup() {
@@ -119,10 +133,24 @@ describe("history slice — showHistory", () => {
 describe("history slice — race guard", () => {
   it("a superseded (stale) loadHistory response never clobbers a newer one", async () => {
     const N1: Revision[] = [
-      { id: "n1", message: "n", timestamp_secs: 1, author: "t" },
+      {
+        id: "n1",
+        message: "n",
+        timestamp_secs: 1,
+        author: "t",
+        summary: null,
+        name: null,
+      },
     ];
     const X1: Revision[] = [
-      { id: "x1", message: "x", timestamp_secs: 1, author: "t" },
+      {
+        id: "x1",
+        message: "x",
+        timestamp_secs: 1,
+        author: "t",
+        summary: null,
+        name: null,
+      },
     ];
     const client = new MockClient(
       { "n.md": "n", "x.md": "x" },

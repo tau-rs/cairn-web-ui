@@ -170,6 +170,19 @@ describe("collab slice", () => {
     vi.useFakeTimers();
   });
 
+  it("an autosave flush clears the conflict — the chip would otherwise dead-end", async () => {
+    // Once my buffer lands on disk, "See their version" fetches back my own
+    // bytes and diffs to nothing. Resolve the conflict instead of stranding it.
+    const { store } = await makeConflict();
+    store.getState().setUi({ collabConflictOpen: true });
+    expect(store.getState().collab.pendingCount).toBe(1);
+    await store.getState().saveNote("n.md");
+    expect(store.getState().collab.pendingCount).toBe(0);
+    expect(store.getState().collab.theirs).toBeNull();
+    expect(store.getState().ui.collabConflictOpen).toBe(false);
+    expect(store.getState().openNotes["n.md"].contents).toBe("# N\nmine");
+  });
+
   it("collabKeepMine clears the conflict but keeps my buffer", async () => {
     const { store } = await makeConflict();
     store.getState().setUi({ collabConflictOpen: true });
