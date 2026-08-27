@@ -1,14 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { groupRevisions, dayLabel, SESSION_GAP_SECS } from "./groupRevisions";
-import type { RevisionEx } from "../../client/contractExt";
+import type { Revision } from "../../contract/Revision";
 
 // Fixed "now": 2026-08-21 12:00 local — tests build timestamps relative to it.
 const NOW = new Date(2026, 7, 21, 12, 0, 0).getTime() / 1000;
-const rev = (id: string, ts: number): RevisionEx => ({
+const rev = (id: string, ts: number): Revision => ({
   id,
   message: `m-${id}`,
   author: "a",
   timestamp_secs: ts,
+  summary: null,
+  name: null,
 });
 
 describe("dayLabel", () => {

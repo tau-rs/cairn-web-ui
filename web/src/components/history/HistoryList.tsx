@@ -1,12 +1,15 @@
 import { useState } from "react";
-import type { RevisionEx } from "../../client/contractExt";
+import type { Revision } from "../../contract/Revision";
 import { groupRevisions } from "./groupRevisions";
 import { versionWordDelta } from "./versionSummary";
 import { relativeTime, absoluteTime } from "./formatRevision";
 import { Button } from "../ui/Button";
 
+/** Compact action padding — the default `px-3 text-sm` overflows the aside. */
+const ACTION = "px-1.5 py-0.5 text-xs";
+
 function Row(props: {
-  r: RevisionEx;
+  r: Revision;
   onView: (id: string) => void;
   onRestore: (id: string) => void;
   onName: (id: string) => void;
@@ -19,14 +22,14 @@ function Row(props: {
         <span
           className={
             "min-w-0 flex-1 truncate " +
-            (r.is_named ? "font-semibold text-text" : "text-text")
+            (r.name != null ? "font-semibold text-text" : "text-text")
           }
         >
           {r.message}
         </span>
       </div>
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        {r.is_named && r.name && (
+      <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
+        {r.name != null && (
           <span className="rounded bg-accent/15 px-1 text-accent">
             {r.name}
           </span>
@@ -39,14 +42,30 @@ function Row(props: {
             +{delta.added}/&minus;{delta.removed} words
           </span>
         )}
-        <span className="grow" />
-        <Button variant="ghost" onClick={() => props.onView(r.id)}>
+      </div>
+      {/* The actions get their own row, tightened to fit the aside's real
+          width: sharing a line with the metadata at default padding pushed
+          `Name…` off the right edge, unreachable without horizontal scroll. */}
+      <div className="flex items-center justify-end gap-x-0.5">
+        <Button
+          variant="ghost"
+          className={ACTION}
+          onClick={() => props.onView(r.id)}
+        >
           View
         </Button>
-        <Button variant="ghost" onClick={() => props.onRestore(r.id)}>
+        <Button
+          variant="ghost"
+          className={ACTION}
+          onClick={() => props.onRestore(r.id)}
+        >
           Restore
         </Button>
-        <Button variant="ghost" onClick={() => props.onName(r.id)}>
+        <Button
+          variant="ghost"
+          className={ACTION}
+          onClick={() => props.onName(r.id)}
+        >
           Name…
         </Button>
       </div>
@@ -55,7 +74,7 @@ function Row(props: {
 }
 
 export function HistoryList(props: {
-  revisions: RevisionEx[] | null;
+  revisions: Revision[] | null;
   loading: boolean;
   onView: (id: string) => void;
   onRestore: (id: string) => void;
@@ -69,7 +88,7 @@ export function HistoryList(props: {
     return <div className="p-2 text-sm text-muted">No versions yet.</div>;
 
   const revs = namedOnly
-    ? props.revisions.filter((r) => r.is_named)
+    ? props.revisions.filter((r) => r.name != null)
     : props.revisions;
   const days = groupRevisions(revs, Date.now() / 1000);
   const toggle = (id: string) =>
