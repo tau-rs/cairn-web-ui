@@ -269,6 +269,9 @@ describe("MockClient", () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];
     c.subscribe((e) => events.push(e));
+    // Something must be dirty: like the daemon, a commit with nothing to seal
+    // reports nothing_to_commit regardless of whether a message was given.
+    await c.sendCommand({ type: "write_note", path: "a.md", contents: "x y" });
     const res = await c.sendCommand({ type: "commit", message: "first" });
     expect(res).toEqual({ type: "committed", commit: "c0001" });
     await vi.waitFor(() =>
@@ -756,6 +759,23 @@ describe("MockClient C0 versions seam", () => {
       message: "snapshot",
     });
     expect(res).toEqual({ type: "committed", commit: "c0001" });
+    // An explicit message overrides the SUBJECT ONLY — the daemon still
+    // computes the summary and attaches the revision to per-note history.
+    const note = await client.runQuery({ type: "note_history", path: "a.md" });
+    if (note.type !== "history") throw new Error("bad response");
+    expect(note.revisions[0]).toMatchObject({
+      message: "snapshot",
+      summary: { files_changed: 1, words_added: 1, words_removed: 0 },
+    });
+  });
+
+  it("an explicit message with nothing dirty is still nothing_to_commit", async () => {
+    const client = new MockClient({ "a.md": "x" });
+    const res = await client.sendCommand({
+      type: "commit",
+      message: "snapshot",
+    });
+    expect(res).toEqual({ type: "nothing_to_commit" });
   });
 
   it("name_version marks the revision named in vault and note history", async () => {

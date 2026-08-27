@@ -335,18 +335,16 @@ export class MockClient implements CairnClient {
         return { type: "done" };
       }
       case "commit": {
+        // An explicit message only overrides the *subject*: the daemon still
+        // computes the summary, attaches the revision to per-note history, and
+        // reports `nothing_to_commit` when nothing is dirty. Verified against a
+        // live cairn-daemon — the two branches differ in the message alone.
+        const changes = this.sealChanges();
+        // Nothing dirty: the engine reports `nothing_to_commit` rather than
+        // creating an empty version. Callers must treat this as success.
+        if (changes.length === 0) return { type: "nothing_to_commit" };
         // `message: null` ⇒ engine-side policy generates it (mirrored here).
-        let message = c.message;
-        let changes: SealChange[] = [];
-        if (message === null) {
-          changes = this.sealChanges();
-          // Nothing dirty: the engine reports `nothing_to_commit` rather than
-          // creating an empty version. Callers must treat this as success.
-          if (changes.length === 0) return { type: "nothing_to_commit" };
-          message = sealMessage(changes);
-        } else {
-          this.sealChanges(); // explicit message still advances the baseline
-        }
+        const message = c.message ?? sealMessage(changes);
         this.commitSeq += 1;
         const commit = `c${String(this.commitSeq).padStart(4, "0")}`;
         const rev: Revision = {
