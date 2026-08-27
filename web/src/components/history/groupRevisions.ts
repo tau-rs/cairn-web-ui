@@ -1,12 +1,12 @@
-import type { RevisionEx } from "../../client/contractExt";
+import type { Revision } from "../../contract/Revision";
 
 /** Two seals within this gap belong to the same editing session (spec: the
  *  browser tames the flat auto-stream by grouping, not deletion). */
 export const SESSION_GAP_SECS = 30 * 60;
 
 export interface SessionGroup {
-  head: RevisionEx;
-  rest: RevisionEx[];
+  head: Revision;
+  rest: Revision[];
 }
 export interface DayGroup {
   label: string;
@@ -29,10 +29,7 @@ export function dayLabel(tsSecs: number, nowSecs: number): string {
 }
 
 /** Input is newest-first (contract order); output preserves it. */
-export function groupRevisions(
-  revs: RevisionEx[],
-  nowSecs: number,
-): DayGroup[] {
+export function groupRevisions(revs: Revision[], nowSecs: number): DayGroup[] {
   const days: DayGroup[] = [];
   for (const r of revs) {
     const label = dayLabel(r.timestamp_secs, nowSecs);

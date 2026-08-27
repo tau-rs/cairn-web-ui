@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { MockClient } from "./mock";
 import type { Event, AnswerEvent } from "../contract";
-import { asCommand } from "./contractExt";
-import type { RevisionEx } from "./contractExt";
 
 function freshNotes() {
   return { "a.md": "links to [[b]]", "b.md": "target note" };
@@ -271,6 +269,9 @@ describe("MockClient", () => {
     const c = new MockClient(freshNotes());
     const events: Event[] = [];
     c.subscribe((e) => events.push(e));
+    // Something must be dirty: like the daemon, a commit with nothing to seal
+    // reports nothing_to_commit regardless of whether a message was given.
+    await c.sendCommand({ type: "write_note", path: "a.md", contents: "x y" });
     const res = await c.sendCommand({ type: "commit", message: "first" });
     expect(res).toEqual({ type: "committed", commit: "c0001" });
     await vi.waitFor(() =>
@@ -396,8 +397,22 @@ describe("MockClient", () => {
 describe("mock history ops", () => {
   function withHistory() {
     const revs: import("../contract").Revision[] = [
-      { id: "r2", message: "second", timestamp_secs: 2, author: "tau" },
-      { id: "r1", message: "first", timestamp_secs: 1, author: "tau" },
+      {
+        id: "r2",
+        message: "second",
+        timestamp_secs: 2,
+        author: "tau",
+        summary: null,
+        name: null,
+      },
+      {
+        id: "r1",
+        message: "first",
+        timestamp_secs: 1,
+        author: "tau",
+        summary: null,
+        name: null,
+      },
     ];
     return new MockClient(
       { "n.md": "current body" },
@@ -413,8 +428,22 @@ describe("mock history ops", () => {
     expect(res).toEqual({
       type: "history",
       revisions: [
-        { id: "r2", message: "second", timestamp_secs: 2, author: "tau" },
-        { id: "r1", message: "first", timestamp_secs: 1, author: "tau" },
+        {
+          id: "r2",
+          message: "second",
+          timestamp_secs: 2,
+          author: "tau",
+          summary: null,
+          name: null,
+        },
+        {
+          id: "r1",
+          message: "first",
+          timestamp_secs: 1,
+          author: "tau",
+          summary: null,
+          name: null,
+        },
       ],
     });
   });
@@ -444,9 +473,30 @@ describe("mock history ops", () => {
 
   it("vault_history returns seeded vault-wide revisions, capped by limit", async () => {
     const revs = [
-      { id: "c3", message: "third", timestamp_secs: 3, author: "tau" },
-      { id: "c2", message: "second", timestamp_secs: 2, author: "tau" },
-      { id: "c1", message: "first", timestamp_secs: 1, author: "tau" },
+      {
+        id: "c3",
+        message: "third",
+        timestamp_secs: 3,
+        author: "tau",
+        summary: null,
+        name: null,
+      },
+      {
+        id: "c2",
+        message: "second",
+        timestamp_secs: 2,
+        author: "tau",
+        summary: null,
+        name: null,
+      },
+      {
+        id: "c1",
+        message: "first",
+        timestamp_secs: 1,
+        author: "tau",
+        summary: null,
+        name: null,
+      },
     ];
     const c = new MockClient(freshNotes(), {}, {}, revs);
     expect(await c.runQuery({ type: "vault_history", limit: null })).toEqual({
@@ -653,19 +703,26 @@ describe("MockClient C0 versions seam", () => {
       path: "roadmap.md",
       contents: "# Roadmap\n\nalpha beta gamma delta",
     });
-    const res = await client.sendCommand(asCommand({ type: "commit" }));
+    const res = await client.sendCommand({ type: "commit", message: null });
     expect(res).toEqual({ type: "committed", commit: "c0001" });
     const hist = await client.runQuery({ type: "vault_history", limit: 1 });
     if (hist.type !== "history") throw new Error("bad response");
-    const rev = hist.revisions[0] as RevisionEx;
-    expect(rev.message).toBe('Edit "roadmap" (+2/−0 words)');
-    expect(rev.words_added).toBe(2);
-    expect(rev.is_named).toBe(false);
+    const rev = hist.revisions[0];
+    // Byte-identical to the engine's template (counts elide the zero side).
+    // Titled by display_title (the `# Roadmap` heading), like the engine.
+    expect(rev.message).toBe('Edit "Roadmap" (+2 words)');
+    expect(rev.summary).toEqual({
+      files_changed: 1,
+      words_added: 2,
+      words_removed: 0,
+    });
+    expect(rev.name).toBeNull();
   });
 
-  it("skip-no-op: sealing with no changes adds no new version", async () => {
+  it("sealing with no changes reports nothing_to_commit and adds no version", async () => {
     const client = new MockClient({ "a.md": "hi" });
-    await client.sendCommand(asCommand({ type: "commit" })); // nothing changed since construction
+    const res = await client.sendCommand({ type: "commit", message: null });
+    expect(res).toEqual({ type: "nothing_to_commit" });
     const hist = await client.runQuery({ type: "vault_history", limit: null });
     if (hist.type !== "history") throw new Error("bad response");
     expect(hist.revisions).toHaveLength(0);
@@ -683,11 +740,11 @@ describe("MockClient C0 versions seam", () => {
       path: "b.md",
       contents: "y y",
     });
-    const res = await client.sendCommand(asCommand({ type: "commit" }));
+    const res = await client.sendCommand({ type: "commit", message: null });
     if (res.type !== "committed") throw new Error("bad response");
     const hist = await client.runQuery({ type: "vault_history", limit: 1 });
     if (hist.type !== "history") throw new Error("bad response");
-    expect(hist.revisions[0].message).toBe("Update 2 notes: a, b");
+    expect(hist.revisions[0].message).toBe('Update 2 notes: "a", "b"');
   });
 
   it("an explicit message is used verbatim (back-compat)", async () => {
@@ -702,6 +759,23 @@ describe("MockClient C0 versions seam", () => {
       message: "snapshot",
     });
     expect(res).toEqual({ type: "committed", commit: "c0001" });
+    // An explicit message overrides the SUBJECT ONLY — the daemon still
+    // computes the summary and attaches the revision to per-note history.
+    const note = await client.runQuery({ type: "note_history", path: "a.md" });
+    if (note.type !== "history") throw new Error("bad response");
+    expect(note.revisions[0]).toMatchObject({
+      message: "snapshot",
+      summary: { files_changed: 1, words_added: 1, words_removed: 0 },
+    });
+  });
+
+  it("an explicit message with nothing dirty is still nothing_to_commit", async () => {
+    const client = new MockClient({ "a.md": "x" });
+    const res = await client.sendCommand({
+      type: "commit",
+      message: "snapshot",
+    });
+    expect(res).toEqual({ type: "nothing_to_commit" });
   });
 
   it("name_version marks the revision named in vault and note history", async () => {
@@ -711,16 +785,36 @@ describe("MockClient C0 versions seam", () => {
       path: "a.md",
       contents: "x y",
     });
-    await client.sendCommand(asCommand({ type: "commit" }));
-    const res = await client.sendCommand(
-      asCommand({ type: "name_version", commit: "c0001", name: "Draft 1" }),
-    );
+    await client.sendCommand({ type: "commit", message: null });
+    const res = await client.sendCommand({
+      type: "name_version",
+      commit: "c0001",
+      name: "Draft 1",
+    });
     expect(res).toEqual({ type: "done" });
     const vault = await client.runQuery({ type: "vault_history", limit: 1 });
     if (vault.type !== "history") throw new Error("bad response");
-    expect((vault.revisions[0] as RevisionEx).name).toBe("Draft 1");
+    expect(vault.revisions[0].name).toBe("Draft 1");
     const note = await client.runQuery({ type: "note_history", path: "a.md" });
     if (note.type !== "history") throw new Error("bad response");
-    expect((note.revisions[0] as RevisionEx).is_named).toBe(true);
+    expect(note.revisions[0].name).toBe("Draft 1");
+  });
+
+  it("history queries hand back snapshots, not the mock's live arrays", async () => {
+    const client = new MockClient({ "a.md": "x" });
+    await client.sendCommand({
+      type: "write_note",
+      path: "a.md",
+      contents: "x y",
+    });
+    await client.sendCommand({ type: "commit", message: null });
+    const first = await client.runQuery({ type: "note_history", path: "a.md" });
+    if (first.type !== "history") throw new Error("bad response");
+    first.revisions[0].name = "tampered";
+    first.revisions.push(first.revisions[0]);
+    const again = await client.runQuery({ type: "note_history", path: "a.md" });
+    if (again.type !== "history") throw new Error("bad response");
+    expect(again.revisions).toHaveLength(1);
+    expect(again.revisions[0].name).toBeNull();
   });
 });
