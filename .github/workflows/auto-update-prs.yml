@@ -53,20 +53,46 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           EVENT: ${{ github.event_name }}
+          # Via env, not inline `${{ }}` in run: — same convention as REPO.
+          BASE: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
 
           # mergeStateStatus is computed asynchronously by GitHub after
-          # a push lands. Wait briefly so BEHIND is accurate.
+          # a push lands. Wait briefly so it is accurate.
           if [[ "$EVENT" == "push" ]]; then
             sleep 45
           fi
 
-          mapfile -t prs < <(
+          # Do NOT filter on mergeStateStatus == "BEHIND". With a merge queue
+          # enabled GitHub reports a behind-but-otherwise-mergeable PR as
+          # CLEAN, because the queue is nominally responsible for updating it
+          # at merge time. Branch protection here is `strict`, so such a PR
+          # still cannot merge — and this workflow, keying on BEHIND, logged
+          # "No behind PRs to update" and did nothing. Five Dependabot PRs sat
+          # with auto-merge armed and green CI for three days (2026-08-24 →
+          # 2026-08-27) before anyone noticed.
+          #
+          # Ask git instead of the merge-state heuristic: compare/base...head
+          # reports `behind_by` regardless of queue configuration.
+          mapfile -t candidates < <(
             gh pr list --repo "$REPO" --state open --limit 100 \
-              --json number,mergeStateStatus,isDraft \
-              --jq '.[] | select(.isDraft == false and .mergeStateStatus == "BEHIND") | .number'
+              --json number,isDraft,headRefName,isCrossRepository \
+              --jq '.[] | select(.isDraft == false and .isCrossRepository == false)
+                    | "\(.number) \(.headRefName)"'
           )
+
+          prs=()
+          for entry in "${candidates[@]}"; do
+            num="${entry%% *}"
+            head="${entry#* }"
+            behind=$(gh api "repos/$REPO/compare/$BASE...$head" \
+              --jq '.behind_by' 2>/dev/null || echo 0)
+            if [[ "${behind:-0}" -gt 0 ]]; then
+              echo "PR #$num is $behind commit(s) behind $BASE."
+              prs+=("$num")
+            fi
+          done
 
           if [[ ${#prs[@]} -eq 0 ]]; then
             echo "No behind PRs to update."
