@@ -54,7 +54,6 @@ jobs:
           # would mask real failures by auto-retrying them.
           flaky_patterns=(
             "e2e"        # Playwright browser-launch / timeout transients
-            "review PR"  # Claude review bot transient (rate limit, API hiccup)
           )
 
           cutoff=$(date -u -d "$WINDOW_MIN minutes ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
