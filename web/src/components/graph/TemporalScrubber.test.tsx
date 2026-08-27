@@ -5,9 +5,30 @@ import { TemporalScrubber } from "./TemporalScrubber";
 import type { Revision } from "../../contract";
 
 const tl: Revision[] = [
-  { id: "c3", message: "third", timestamp_secs: 30, author: "a" },
-  { id: "c2", message: "second", timestamp_secs: 20, author: "a" },
-  { id: "c1", message: "first", timestamp_secs: 10, author: "a" },
+  {
+    id: "c3",
+    message: "third",
+    timestamp_secs: 30,
+    author: "a",
+    summary: null,
+    name: null,
+  },
+  {
+    id: "c2",
+    message: "second",
+    timestamp_secs: 20,
+    author: "a",
+    summary: null,
+    name: null,
+  },
+  {
+    id: "c1",
+    message: "first",
+    timestamp_secs: 10,
+    author: "a",
+    summary: null,
+    name: null,
+  },
 ];
 
 function renderScrubber(overrides = {}) {
@@ -115,6 +136,8 @@ describe("TemporalScrubber", () => {
       message: `m${i}`,
       timestamp_secs: i,
       author: "a",
+      summary: null,
+      name: null,
     }));
     renderScrubber({ timeline: long });
     // histogram is fixed-bucket; no 120 buttons
@@ -144,6 +167,8 @@ describe("TemporalScrubber", () => {
       message: `m${i}`,
       timestamp_secs: i,
       author: "a",
+      summary: null,
+      name: null,
     }));
     const short = long.slice(0, 3); // 3 revisions → display idx 0..2
     const { rerender } = render(

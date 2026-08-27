@@ -15,13 +15,23 @@ const EVENT_TYPES = [
   "committed",
   "reindexed",
 ] as const;
-const COMMAND_RESPONSE_TYPES = ["done", "committed", "plugin_result"] as const;
+const COMMAND_RESPONSE_TYPES = [
+  "done",
+  "committed",
+  "nothing_to_commit",
+  "plugin_result",
+] as const;
 const QUERY_RESPONSE_TYPES = [
   "note",
   "paths",
   "search_results",
   "notes",
   "graph",
+  // graph_diff and suggestions were never listed: over the DaemonClient
+  // transport the temporal Compare mode and the suggested-edges overlay would
+  // have been rejected as malformed. Surfaced by the exhaustiveness check below.
+  "graph_diff",
+  "suggestions",
   "tags",
   "plugins",
   "history",
@@ -42,6 +52,25 @@ const COLLAB_SERVER_MSG_TYPES = [
   "error",
   "recoverable",
 ] as const;
+
+// Compile-time exhaustiveness: a contract sync that adds a variant must also
+// extend the matching list above, or the guard silently rejects the new tag at
+// runtime while every unit test (which never crosses this boundary) stays
+// green. That is exactly how `nothing_to_commit` slipped through — caught only
+// against a live daemon. `Missing<>` resolves to the un-listed tags, and the
+// assignment below fails to compile unless it is `never`.
+type Missing<Union extends string, Listed extends string> = Exclude<
+  Union,
+  Listed
+>;
+type UnlistedTags =
+  | Missing<Event["type"], (typeof EVENT_TYPES)[number]>
+  | Missing<CommandResponse["type"], (typeof COMMAND_RESPONSE_TYPES)[number]>
+  | Missing<QueryResponse["type"], (typeof QUERY_RESPONSE_TYPES)[number]>
+  | Missing<AnswerEvent["type"], (typeof ANSWER_EVENT_TYPES)[number]>
+  | Missing<CollabServerMsg["type"], (typeof COLLAB_SERVER_MSG_TYPES)[number]>;
+const _allTagsListed: never = undefined as unknown as UnlistedTags;
+void _allTagsListed;
 
 /** Raised when a value crossing the backend boundary doesn't carry a known
  *  discriminant `type`. Thin by design (S5): we tag-check the union, not the

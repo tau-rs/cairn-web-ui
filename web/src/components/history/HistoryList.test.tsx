@@ -2,27 +2,37 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HistoryList } from "./HistoryList";
-import type { RevisionEx } from "../../client/contractExt";
+import type { Revision } from "../../contract/Revision";
 
 const NOW_SECS = Math.floor(Date.now() / 1000);
 const noop = () => {};
-const revs: RevisionEx[] = [
+const revs: Revision[] = [
   {
     id: "c3",
     message: 'Edit "roadmap" (+4/−1 words)',
     author: "a",
     timestamp_secs: NOW_SECS - 60,
+    summary: null,
+    name: null,
   },
   {
     id: "c2",
     message: "Draft done",
     author: "a",
     timestamp_secs: NOW_SECS - 120,
-    is_named: true,
+    summary: null,
+    // Named-ness is derived from `name` alone — the engine has no `is_named`.
     name: "Draft 1",
   },
   // > 30 min older: separate session, same day
-  { id: "c1", message: "start", author: "a", timestamp_secs: NOW_SECS - 4000 },
+  {
+    id: "c1",
+    message: "start",
+    author: "a",
+    timestamp_secs: NOW_SECS - 4000,
+    summary: null,
+    name: null,
+  },
 ];
 
 describe("HistoryList (Versions browser)", () => {

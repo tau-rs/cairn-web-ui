@@ -1,4 +1,4 @@
-import type { RevisionEx } from "../client/contractExt";
+import type { Revision } from "../contract/Revision";
 import { relativeTime } from "./history/formatRevision";
 import { versionWordDelta } from "./history/versionSummary";
 
@@ -11,7 +11,7 @@ export function StatusBar(props: {
   saving: boolean;
   dirty: boolean;
   sync: SyncStatus;
-  lastVersion: RevisionEx | null;
+  lastVersion: Revision | null;
   onShowVersions: () => void;
 }) {
   const saveLabel = props.saving
