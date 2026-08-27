@@ -1247,21 +1247,24 @@ export function createCairnStore(
       },
 
       async sealNow() {
+        // Claim the guard before the first await: the flush below is async, so
+        // checking here and setting after would let a blur landing right on top
+        // of a note switch run two overlapping seals.
         if (get().committing) return;
-        // Flush pending autosaves first. The hints fire on note switch / blur,
-        // both of which beat the ~1s debounce, so without this the last
-        // keystrokes miss the version we're about to seal and land in whatever
-        // the engine's idle timer seals next.
-        const dirty = Object.entries(get().openNotes)
-          .filter(([, b]) => b.dirty)
-          .map(([path]) => path);
-        for (const path of dirty) {
-          autosaves.get(path)?.cancel();
-          await get().saveNote(path);
-        }
-        if (!get().uncommitted) return;
         set({ committing: true });
         try {
+          // Flush pending autosaves first. The hints fire on note switch /
+          // blur, both of which beat the ~1s debounce, so without this the last
+          // keystrokes miss the version we're about to seal and land in
+          // whatever the engine's idle timer seals next.
+          const dirty = Object.entries(get().openNotes)
+            .filter(([, b]) => b.dirty)
+            .map(([path]) => path);
+          for (const path of dirty) {
+            autosaves.get(path)?.cancel();
+            await get().saveNote(path);
+          }
+          if (!get().uncommitted) return;
           const res = await client.sendCommand({
             type: "commit",
             message: null, // engine generates the message and seals the session

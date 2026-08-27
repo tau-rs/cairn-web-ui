@@ -131,6 +131,20 @@ describe("cairn store", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it("concurrent sealNow calls seal once (the guard is claimed before any await)", async () => {
+    // A window blur landing on top of a note switch fires both hints; the
+    // async autosave flush must not let them interleave into two seals.
+    const { client, store } = setup();
+    await store.getState().init();
+    await store.getState().openNote("a.md");
+    store.getState().editBuffer("racing keystrokes [[b]]");
+    const spy = vi.spyOn(client, "sendCommand");
+    await Promise.all([store.getState().sealNow(), store.getState().sealNow()]);
+    const commits = spy.mock.calls.filter(([c]) => c.type === "commit");
+    expect(commits).toHaveLength(1);
+    expect(store.getState().committing).toBe(false);
+  });
+
   it("sealNow treats nothing_to_commit as benign success (no toast)", async () => {
     // The engine's idle auto-commit routinely seals before the UI's note-switch
     // hint lands, so this is the NORMAL path — it must stay silent.
