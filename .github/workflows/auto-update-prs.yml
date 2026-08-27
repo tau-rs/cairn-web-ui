@@ -107,6 +107,28 @@ jobs:
             if gh pr update-branch "$pr" --repo "$REPO" 2>&1; then
               updated=$((updated + 1))
               echo "Updated."
+
+              # Updating the branch is not enough. GitHub does NOT re-evaluate
+              # an already-armed auto-merge when the head changes: once a PR has
+              # been ineligible (behind base), bringing it back to CLEAN does
+              # not re-fire auto-merge, so it never enters the merge queue.
+              # Observed on #163 — CLEAN + auto-merge ON + free queue capacity,
+              # and it only enqueued after toggling auto-merge off and on.
+              #
+              # Only re-arm where auto-merge was ALREADY on. Arming it here
+              # unconditionally would bypass the deliberate human gate on
+              # production-dependency PRs (dependabot-automerge.yml arms only
+              # dev-dependency minor/patch bumps).
+              if [[ "$(gh pr view "$pr" --repo "$REPO" \
+                        --json autoMergeRequest \
+                        --jq '.autoMergeRequest != null')" == "true" ]]; then
+                if gh pr merge "$pr" --repo "$REPO" --disable-auto >/dev/null 2>&1 &&
+                   gh pr merge "$pr" --repo "$REPO" --auto >/dev/null 2>&1; then
+                  echo "Re-armed auto-merge."
+                else
+                  echo "::warning::PR #$pr updated but auto-merge could not be re-armed; it may stall."
+                fi
+              fi
             else
               skipped=$((skipped + 1))
               echo "Skipped (conflict, fork-branch perms, or race)."
