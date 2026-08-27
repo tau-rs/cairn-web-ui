@@ -14,7 +14,11 @@ export function TopBar() {
   const actions = useActions();
   const query = useCairn((s) => s.query);
   const liveUpdates = useCairn((s) => s.liveUpdates);
-  const collab = useCairn((s) => s.collab);
+  // Narrow selectors: subscribing to the whole `collab` object re-rendered the
+  // TopBar on every `theirs` fetch, which it doesn't render.
+  const collabLive = useCairn((s) => s.collab.live);
+  const collabPeers = useCairn((s) => s.collab.peers);
+  const conflictCount = useCairn((s) => s.collab.pendingCount);
   const view = isGraph(location) ? "graph" : "editor";
 
   return (
@@ -45,9 +49,9 @@ export function TopBar() {
       <SlotRenderer slot="topbar.action" />
       <PresenceCluster
         status={liveUpdates}
-        live={collab.live}
-        peers={collab.peers}
-        conflictCount={collab.pendingCount}
+        live={collabLive}
+        peers={collabPeers}
+        conflictCount={conflictCount}
         onConflict={() => actions.setUi({ collabConflictOpen: true })}
         onReconnect={() => void cairnStore.getState().refreshAll()}
       />
