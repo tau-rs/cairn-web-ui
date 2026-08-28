@@ -24,13 +24,14 @@ that warms PR builds is never cancelled mid-write).
 ## The self-maintaining flywheel
 - **`dependabot.yml`** — weekly bumps for GitHub Actions, npm (`web/`), and
   Cargo (`src-tauri/`), grouped by lockstep family.
-- **`claude-review.yml`** — AI review of every PR, including Dependabot's
-  (`allowed_bots: dependabot`).
 - **`auto-update-prs.yml`** — updates every behind, non-draft PR (merges `main`
   in via GitHub's "Update branch") when `main` advances, so strict branch
-  protection never strands a PR.
+  protection never strands a PR. Behind-ness is measured with the compare API
+  (`behind_by`), **not** `mergeStateStatus == "BEHIND"`: with a merge queue
+  enabled GitHub reports a behind PR as `CLEAN`, which silently no-opped this
+  workflow and stranded five Dependabot PRs for three days in 2026-08.
 - **`auto-rerun-flaky.yml`** — reruns a CI run only when *every* failed job
-  matches the flaky allowlist (`e2e`, `review PR`); a real failure stays red.
+  matches the flaky allowlist (`e2e`); a real failure stays red.
 
 ## Tier 2 — release heavy tier (`heavy.yml`)
 Triggered on a `v*` tag push (a feature release) and on demand

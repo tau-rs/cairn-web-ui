@@ -3,9 +3,8 @@
 # Manages dependency updates for the three ecosystems in this repo:
 # GitHub Actions (workflows), the npm web app (web/), and the Tauri
 # Rust shell (src-tauri/). Each opens PRs against `main` on the schedule
-# below; every PR runs through the standard CI gate (and gets an AI
-# review — claude-review.yml allows the `dependabot` bot actor) before
-# merge. Mirrors the engine repo's (tau) Dependabot policy, adapted to
+# below; every PR runs through the standard CI gate before merge.
+# Mirrors the engine repo's (tau) Dependabot policy, adapted to
 # this frontend-first repo's ecosystems.
 
 version: 2
