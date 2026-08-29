@@ -329,7 +329,10 @@ ENGINE TRACK (tau-rs/cairn) — owns commit POLICY + MESSAGE          [parallel]
 │       NO squash, NO shadow ref.
 ├─ E4  named versions = git tags  ── serves Command::NameVersion (C0)
 │       tag/annotate a commit; expose is_named on history rows.
-├─ E5  config + defaults (idle seconds, backstop minutes) in daemon config.
+├─ E5  config + defaults (idle seconds, backstop minutes). Shipped in daemon
+│       config; moved to `cairn-infra` (engine #191) once it turned out the
+│       seal loop had to run on the Tauri transport too — see #175. Both
+│       transports now read the same `<cairn>/cairn.toml` `[sync]`.
 └─ (out of scope) Level-2 awareness channel: peer identity + cursor positions.
 
 UI TRACK (cairn-web-ui) — becomes a CONSUMER + hint-sender          [parallel]
