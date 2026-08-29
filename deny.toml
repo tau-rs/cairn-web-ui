@@ -26,11 +26,11 @@ ignore = [
     # Pinned by gtk 0.18.2 -> tauri 2.11.2; Linux-only (gtk-rs GTK3 stack, not in
     # the macOS build tree). Clears when Tauri moves to the gtk-rs 0.20 ecosystem.
     "RUSTSEC-2024-0429",
-    # git2 <0.20.4 UB dereferencing the Buf struct (RUSTSEC-2026-0008). Pinned by
-    # the cairn engine crate (cairn-infra, git-rev dep requiring git2 ^0.19);
-    # 0.19->0.20 is a breaking bump only the engine can make. Clears when the
-    # engine bumps git2 and we re-pin its rev in Cargo.toml.
-    "RUSTSEC-2026-0008",
+    # RUSTSEC-2026-0008 (git2 <0.20.4 UB dereferencing the Buf struct) was listed
+    # here while cairn-infra held git2 to the 0.19 line. The engine is on git2
+    # 0.21, so the advisory no longer matches anything in the tree — the exit
+    # condition the entry described. Dropped when the engine rev was re-pinned to
+    # 2930e88; cargo-deny was warning `advisory-not-detected` on it.
 ]
 
 [licenses]
