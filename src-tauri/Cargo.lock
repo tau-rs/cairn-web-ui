@@ -308,7 +308,7 @@ dependencies = [
 [[package]]
 name = "cairn-app"
 version = "0.0.0"
-source = "git+https://github.com/tau-rs/cairn?rev=96a4ac5170dd7ac70254a4e953efab19504c86c8#96a4ac5170dd7ac70254a4e953efab19504c86c8"
+source = "git+https://github.com/tau-rs/cairn?rev=2930e88642bc2530ba67ffb922bb6ef1f161698f#2930e88642bc2530ba67ffb922bb6ef1f161698f"
 dependencies = [
  "cairn-domain",
  "cairn-ports",
@@ -320,7 +320,7 @@ dependencies = [
 [[package]]
 name = "cairn-contract"
 version = "0.0.0"
-source = "git+https://github.com/tau-rs/cairn?rev=96a4ac5170dd7ac70254a4e953efab19504c86c8#96a4ac5170dd7ac70254a4e953efab19504c86c8"
+source = "git+https://github.com/tau-rs/cairn?rev=2930e88642bc2530ba67ffb922bb6ef1f161698f#2930e88642bc2530ba67ffb922bb6ef1f161698f"
 dependencies = [
  "serde",
  "serde_json",
@@ -330,7 +330,7 @@ dependencies = [
 [[package]]
 name = "cairn-domain"
 version = "0.0.0"
-source = "git+https://github.com/tau-rs/cairn?rev=96a4ac5170dd7ac70254a4e953efab19504c86c8#96a4ac5170dd7ac70254a4e953efab19504c86c8"
+source = "git+https://github.com/tau-rs/cairn?rev=2930e88642bc2530ba67ffb922bb6ef1f161698f#2930e88642bc2530ba67ffb922bb6ef1f161698f"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -338,7 +338,7 @@ dependencies = [
 [[package]]
 name = "cairn-infra"
 version = "0.0.0"
-source = "git+https://github.com/tau-rs/cairn?rev=96a4ac5170dd7ac70254a4e953efab19504c86c8#96a4ac5170dd7ac70254a4e953efab19504c86c8"
+source = "git+https://github.com/tau-rs/cairn?rev=2930e88642bc2530ba67ffb922bb6ef1f161698f#2930e88642bc2530ba67ffb922bb6ef1f161698f"
 dependencies = [
  "cairn-domain",
  "cairn-plugin-protocol",
@@ -358,7 +358,7 @@ dependencies = [
 [[package]]
 name = "cairn-plugin-protocol"
 version = "0.0.0"
-source = "git+https://github.com/tau-rs/cairn?rev=96a4ac5170dd7ac70254a4e953efab19504c86c8#96a4ac5170dd7ac70254a4e953efab19504c86c8"
+source = "git+https://github.com/tau-rs/cairn?rev=2930e88642bc2530ba67ffb922bb6ef1f161698f#2930e88642bc2530ba67ffb922bb6ef1f161698f"
 dependencies = [
  "serde",
  "serde_json",
@@ -367,7 +367,7 @@ dependencies = [
 [[package]]
 name = "cairn-ports"
 version = "0.0.0"
-source = "git+https://github.com/tau-rs/cairn?rev=96a4ac5170dd7ac70254a4e953efab19504c86c8#96a4ac5170dd7ac70254a4e953efab19504c86c8"
+source = "git+https://github.com/tau-rs/cairn?rev=2930e88642bc2530ba67ffb922bb6ef1f161698f#2930e88642bc2530ba67ffb922bb6ef1f161698f"
 dependencies = [
  "cairn-domain",
  "cairn-plugin-protocol",
@@ -378,7 +378,7 @@ dependencies = [
 [[package]]
 name = "cairn-service"
 version = "0.0.0"
-source = "git+https://github.com/tau-rs/cairn?rev=96a4ac5170dd7ac70254a4e953efab19504c86c8#96a4ac5170dd7ac70254a4e953efab19504c86c8"
+source = "git+https://github.com/tau-rs/cairn?rev=2930e88642bc2530ba67ffb922bb6ef1f161698f#2930e88642bc2530ba67ffb922bb6ef1f161698f"
 dependencies = [
  "cairn-app",
  "cairn-contract",
@@ -4105,7 +4105,7 @@ dependencies = [
  "serde_with",
  "swift-rs",
  "thiserror 2.0.18",
- "toml 1.1.2+spec-1.1.0",
+ "toml 0.9.12+spec-1.1.0",
  "url",
  "urlpattern",
  "uuid",
