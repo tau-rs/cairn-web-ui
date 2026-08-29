@@ -547,7 +547,7 @@ mod tests {
             &state,
             &app.handle().clone(),
             &Command::Commit {
-                message: "x".into(),
+                message: Some("x".into()),
             },
         );
         assert!(matches!(res, Err(ServiceError::InvalidRequest(_))));
@@ -845,6 +845,195 @@ mod tests {
             reflected,
             "external edit was not reflected as NoteChanged within 5s: {:?}",
             seen.lock().unwrap()
+        );
+    }
+
+    // --- C0 (engine auto-commit + named versions) on the desktop seam --------
+    //
+    // The UI landed the C0 TS shapes in #160 but left `src-tauri/Cargo.toml`
+    // pinned to a pre-C0 engine, so the desktop app rendered shapes its own
+    // in-process engine could not produce. Engine #184's DoD only ever ran
+    // against a *daemon*. These tests pin the desktop half: they drive
+    // `run_command_blocking`/`run_query_blocking` — the exact functions the
+    // `send_command`/`run_query` IPC handlers call — so a future engine re-pin
+    // that drops a C0 variant fails here instead of at a user's keystroke.
+
+    /// Open a real on-disk engine into `state` and hand back both.
+    fn app_with_cairn(
+        tmp: &tempfile::TempDir,
+    ) -> (tauri::App<tauri::test::MockRuntime>, CairnState) {
+        let app = test_app();
+        let state = (*app.state::<CairnState>()).clone();
+        *state.inner.lock().unwrap() =
+            Some((open_engine(tmp.path()).unwrap(), tmp.path().to_path_buf()));
+        (app, state)
+    }
+
+    /// Newest-first revisions for `path`, via the same query the UI issues.
+    fn history(state: &CairnState, path: &str) -> Vec<cairn_contract::Revision> {
+        match run_query_blocking(state, &Query::NoteHistory { path: path.into() })
+            .expect("note_history")
+        {
+            QueryResponse::History { revisions } => revisions,
+            other => panic!("expected History, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn seal_now_without_a_message_generates_one_and_a_change_summary() {
+        // `Command::Commit { message: None }` is "seal now". Pre-C0 the field was
+        // a bare `String`, so this call did not typecheck against the old pin.
+        let tmp = tempfile::tempdir().unwrap();
+        let (app, state) = app_with_cairn(&tmp);
+        let handle = app.handle().clone();
+        run_command_blocking(
+            &state,
+            &handle,
+            &Command::WriteNote {
+                path: "note.md".into(),
+                contents: "# Title\n\none two three\n".into(),
+            },
+        )
+        .unwrap();
+
+        let res = run_command_blocking(&state, &handle, &Command::Commit { message: None })
+            .expect("seal now");
+        let commit = match res {
+            CommandResponse::Committed { commit } => commit,
+            other => panic!("expected Committed, got {other:?}"),
+        };
+        assert!(!commit.is_empty(), "committed response carries a commit id");
+
+        let revs = history(&state, "note.md");
+        let head = revs.first().expect("one revision after sealing");
+        // Engine-generated, not caller-supplied: it names the note rather than
+        // echoing a message we never sent (the engine template is
+        // `Add "<title>" (+N words)`).
+        assert!(
+            head.message.contains("Title"),
+            "expected an engine-generated message naming the note, got {:?}",
+            head.message
+        );
+        // C0's `Revision.summary` — the field the Versions panel renders as
+        // "N files, +N/-N words". `None` here would render a blank row.
+        let summary = head
+            .summary
+            .as_ref()
+            .expect("engine computes a ChangeSummary for a sealed commit");
+        assert_eq!(summary.files_changed, 1);
+        assert!(
+            summary.words_added > 0,
+            "adding a note adds words: {summary:?}"
+        );
+        assert_eq!(summary.words_removed, 0);
+        assert_eq!(head.name, None, "an unnamed commit has no label");
+    }
+
+    #[test]
+    fn sealing_a_clean_tree_is_nothing_to_commit_not_an_error() {
+        // The no-op the UI must render as "nothing to seal", not as a red error.
+        // It is an `Ok(CommandResponse::NothingToCommit)`, a variant the pre-C0
+        // engine did not have at all.
+        let tmp = tempfile::tempdir().unwrap();
+        let (app, state) = app_with_cairn(&tmp);
+        let handle = app.handle().clone();
+        run_command_blocking(
+            &state,
+            &handle,
+            &Command::WriteNote {
+                path: "note.md".into(),
+                contents: "body\n".into(),
+            },
+        )
+        .unwrap();
+        run_command_blocking(&state, &handle, &Command::Commit { message: None }).unwrap();
+
+        // Nothing dirty now — with and without an explicit message.
+        for message in [None, Some("please commit".to_string())] {
+            let res = run_command_blocking(&state, &handle, &Command::Commit { message })
+                .expect("a clean tree is a success, not a ServiceError");
+            assert_eq!(res, CommandResponse::NothingToCommit);
+        }
+    }
+
+    #[test]
+    fn name_version_creates_replaces_and_rejects_reuse_on_another_commit() {
+        // E4. `NameVersion` did not exist on the pre-C0 pin, so the UI's
+        // "name this version" action deserialized into nothing on desktop.
+        let tmp = tempfile::tempdir().unwrap();
+        let (app, state) = app_with_cairn(&tmp);
+        let handle = app.handle().clone();
+
+        let seal = |path: &str, contents: &str| {
+            run_command_blocking(
+                &state,
+                &handle,
+                &Command::WriteNote {
+                    path: path.into(),
+                    contents: contents.into(),
+                },
+            )
+            .unwrap();
+            match run_command_blocking(&state, &handle, &Command::Commit { message: None }).unwrap()
+            {
+                CommandResponse::Committed { commit } => commit,
+                other => panic!("expected Committed, got {other:?}"),
+            }
+        };
+        let first = seal("note.md", "one\n");
+        let second = seal("note.md", "one two\n");
+
+        let named = |commit: &str, name: &str| {
+            run_command_blocking(
+                &state,
+                &handle,
+                &Command::NameVersion {
+                    commit: commit.into(),
+                    name: name.into(),
+                },
+            )
+        };
+        let label_of = |commit: &str| {
+            history(&state, "note.md")
+                .into_iter()
+                .find(|r| commit.starts_with(&r.id) || r.id.starts_with(commit))
+                .unwrap_or_else(|| panic!("revision {commit} in history"))
+                .name
+        };
+
+        // Create.
+        assert_eq!(
+            named(&first, "before the rewrite").unwrap(),
+            CommandResponse::Done
+        );
+        assert_eq!(label_of(&first).as_deref(), Some("before the rewrite"));
+
+        // Replace on the same commit: one name per commit.
+        assert_eq!(named(&first, "draft one").unwrap(), CommandResponse::Done);
+        assert_eq!(
+            label_of(&first).as_deref(),
+            Some("draft one"),
+            "re-naming the same commit replaces the label"
+        );
+
+        // Reuse on a *different* commit: one commit per name. Must surface as a
+        // usable error, not a panic or a silent success.
+        let err = named(&second, "draft one")
+            .expect_err("reusing a name on another commit must be rejected");
+        assert!(
+            matches!(err, ServiceError::InvalidRequest(_)),
+            "expected InvalidRequest, got {err:?}"
+        );
+        let contract: ContractError = err.into();
+        let rendered = format!("{contract:?}");
+        assert!(
+            rendered.to_lowercase().contains("draft one"),
+            "the error the UI shows should name the conflicting label: {rendered}"
+        );
+        assert_eq!(
+            label_of(&second),
+            None,
+            "the rejected name was not applied to the second commit"
         );
     }
 }
