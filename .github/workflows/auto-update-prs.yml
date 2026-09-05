@@ -70,14 +70,21 @@ jobs:
             sleep 45
           fi
 
-          # Do NOT filter on mergeStateStatus == "BEHIND". With a merge queue
-          # enabled GitHub reports a behind-but-otherwise-mergeable PR as
-          # CLEAN, because the queue is nominally responsible for updating it
-          # at merge time. Branch protection here is `strict`, so such a PR
-          # still cannot merge — and this workflow, keying on BEHIND, logged
-          # "No behind PRs to update" and did nothing. Five Dependabot PRs sat
-          # with auto-merge armed and green CI for three days (2026-08-24 →
-          # 2026-08-27) before anyone noticed.
+          # Do NOT filter on mergeStateStatus. It is computed asynchronously
+          # and cached, and it was observed STALE for days: on 2026-08-27 five
+          # Dependabot PRs were five commits behind `main` while reporting
+          # CLEAN, so this workflow — keying on BEHIND — logged "No behind PRs
+          # to update" and did nothing while they sat green, auto-merge armed
+          # and unmergeable under `strict` protection.
+          #
+          # (Do not over-read that as "a merge queue always reports CLEAN".
+          # The very next day the same PRs correctly reported BEHIND at two
+          # commits. The reliable statement is the weaker one: mergeStateStatus
+          # is a cache that can lag arbitrarily, so anything keying on it races
+          # and fails silently.)
+          #
+          # `compare/base...head` computes `behind_by` on demand, so it is
+          # correct in both cases.
           #
           # Ask git instead of the merge-state heuristic: compare/base...head
           # reports `behind_by` regardless of queue configuration.
@@ -148,8 +155,15 @@ jobs:
               case "$out" in
                 *"does not have permission"*|*"Resource not accessible"*)
                   echo "::error::PR #$pr: no permission to update branch. This job needs 'contents: write'; every update is failing." ;;
+                *"added to a merge queue"*|*"queued for merging cannot be updated"*)
+                  # Expected and benign: the queue builds against an
+                  # up-to-date base itself, so a queued PR needs no update.
+                  # This must stay quiet — it fires on every run while
+                  # anything is queued, and a warning that cries wolf on the
+                  # happy path is how the signal added above gets ignored.
+                  echo "Skipped: already in the merge queue (no update needed)." ;;
                 *conflict*|*Conflict*)
-                  echo "Skipped: merge conflict — needs a rebase (for Dependabot: '@dependabot rebase')." ;;
+                  echo "Skipped: merge conflict — needs a rebase. For Dependabot use '@dependabot recreate', not 'rebase': once this job has updated the branch, Dependabot refuses to rebase it ('edited by someone other than Dependabot')." ;;
                 *)
                   echo "::warning::PR #$pr: update-branch failed for an unrecognized reason (see above)." ;;
               esac
